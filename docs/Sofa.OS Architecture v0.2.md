@@ -124,7 +124,14 @@ The shared iCloud calendar reaches Sofa.OS through Home Assistant. Home Assistan
 
 The Server reads upcoming events with `calendar.get_events`, because a calendar entity's state shows only the next event. This action is a read and does not count as one of the three writes above. Home Assistant refreshes calendars about every 15 minutes, so a new event can take that long to appear. Sofa.OS never writes to the calendar.
 
-Home Assistant may import every calendar on the Apple Account, so the Server reads only an allowlist of calendar entities. The Server also removes event details for Kids Mode before data reaches the TV. A direct CalDAV adapter on the Server is the fallback if the shared calendar does not appear in Home Assistant or 15 minutes proves too slow. Test the shared calendar, recurring events and all-day events before building the widget. [Home Assistant CalDAV](https://www.home-assistant.io/integrations/caldav/) · [Get calendar events](https://www.home-assistant.io/actions/calendar.get_events/)
+Home Assistant may import every calendar on the Apple Account, so the Server reads only an allowlist of calendar entities. The Server also removes event details for Kids Mode before data reaches the TV. A direct CalDAV adapter on the Server is the fallback if 15 minutes proves too slow.
+
+Tested against the household's Home Assistant on 2026-11-07, the shared calendar appears as `calendar.family`. Recurring events arrive as separate occurrences, with skipped weeks, moved occurrences and the daylight saving change handled correctly. All-day events arrive with date-only values and an exclusive end date, including multi-day events. This shapes the adapter in two ways:
+
+- Events do not arrive in date order, so sort by start time before limiting the list.
+- Occurrences of a recurring event share a `uid`, so identify each one by `uid` plus `recurrence_id`.
+
+Event titles appear as written, so they can be German in the English interface. The calendar holds private details such as medical appointments and addresses, so decide what each profile shows. Still untested are the Server's own `calendar.get_events` call and the 15-minute delay. [Home Assistant CalDAV](https://www.home-assistant.io/integrations/caldav/) · [Get calendar events](https://www.home-assistant.io/actions/calendar.get_events/)
 
 ### Immich as the first photo provider
 
