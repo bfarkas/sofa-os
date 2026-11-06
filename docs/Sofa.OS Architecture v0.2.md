@@ -92,7 +92,7 @@ The browser previews drafts using the same layout schema and visual tokens as So
 
 *Normalize source data on the Server and keep the TV client light*
 
-A widget declares its type, size, configuration, profile visibility and freshness policy. The Server adapter returns a small display model with a timestamp and availability state. Cards fail independently so an integration outage leaves Sofa Home usable.
+A widget declares its type, size, configuration, profile visibility and freshness policy. The Server adapter returns a small display model with a timestamp and availability state. Cards fail independently so an integration outage leaves Sofa Home usable. Widget types are defined in Server code and rendered through a fixed set of display templates. See [ADR 0003](adr/0003-widget-catalogue-lives-in-server-code.md).
 
 ### Home Assistant and household information
 
