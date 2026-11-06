@@ -42,18 +42,18 @@ Use warm ivory, muted sage, natural materials and restrained motion. Keep text l
 | Surface | Behavior |
 | --- | --- |
 | **App row** | Show selected apps in household order. Present availability clearly when an app cannot be opened. |
-| **Widget area** | Show glanceable cards for weather, calendar, Home Assistant, energy and photos. Use predictable size presets and explicit empty or stale states. |
+| **Widget area** | Show glanceable cards for weather, calendar, Home Assistant, energy and photos. Use predictable size presets and explicit empty or stale states. OK opens a full-screen view and a long press opens a context menu. |
 | **Background and ambient view** | Choose a static background, album slideshow or in-app ambient photo view. TV-wide screensaver behavior requires a platform test. |
 | **Profiles** | Exactly two: the household profile and one Kids Mode profile. Children share the Kids Mode profile and its Watch Allowance. |
-| **Setup and status** | Keep TV Sign-in, connection status and recovery reachable from the TV. Move editing, account entry and integration setup to Companion. |
+| **Setup and status** | Keep TV Sign-in, connection status and recovery reachable from the TV. Move editing, account entry and integration setup to Companion. The exception is arranging widgets from their context menu. |
 
 ### Navigation and content discovery
 
-The mockup shows Dashboard, Apps, Widgets and Profile tabs, plus Search, Settings, a clock and a greeting. All interface text is English, although Figure 1 shows some German. Include an All Apps destination. Scope early search to Sofa.OS items. Continue Watching, the progress bars, title artwork and Home Assistant switches in the mockup are design examples and are out of scope. The Prime Video tile represents an app shortcut candidate.
+Sofa Home has Dashboard, Apps and Widgets tabs, plus Settings, a clock and a greeting. All interface text is English. Figure 1 still shows some German, a Search icon and a Profile tab, but Sofa.OS has no search and no Profile tab: Kids Mode is entered from the Dashboard. Include an All Apps destination. Continue Watching, the progress bars, title artwork and Home Assistant switches in the mockup are design examples and are out of scope. The Prime Video tile represents an app shortcut candidate.
 
 ### Remote behavior
 
-Directional keys move through an explicit focus order. OK activates the focused tile. Back closes overlays first and returns through Sofa.OS screens predictably. On resume, restore focus to the originating tile when the TV returns control. Provide a visible path back to Sofa Home if a provider sends Back to Samsung Home. Test key handling, suspend and resume, long lists and focus recovery on hardware.
+Directional keys move through an explicit focus order. OK activates the focused tile. Holding OK on a widget opens its context menu. Back closes overlays first and returns through Sofa.OS screens predictably. On resume, restore focus to the originating tile when the TV returns control. Provide a visible path back to Sofa Home if a provider sends Back to Samsung Home. Test key handling, long press on OK, suspend and resume, long lists and focus recovery on hardware.
 
 ### Visual references
 
@@ -88,15 +88,27 @@ This works like signing in to a streaming app on a TV.
 
 The browser previews drafts using the same layout schema and visual tokens as Sofa Home. On publish, the Server commits a validated snapshot atomically. A WebSocket signals the new revision, and Sofa Home fetches the snapshot over REST and applies it. REST polling covers dropped sockets. Keep the last valid snapshot if a revision fails validation.
 
+Widget changes made on the TV go through the same path: the Server commits them as a new revision, and they also apply to any open Companion draft, so publishing that draft does not undo them. Without the Server, the TV cannot change the layout.
+
 ## Widgets and family photos
 
 *Normalize source data on the Server and keep the TV client light*
 
 A widget declares its type, size, configuration, profile visibility and freshness policy. The Server adapter returns a small display model with a timestamp and availability state. Cards fail independently so an integration outage leaves Sofa Home usable. Widget types are defined in Server code and rendered through a fixed set of display templates. See [ADR 0003](adr/0003-widget-catalogue-lives-in-server-code.md).
 
+### Widget interaction
+
+| Action | Behavior |
+| --- | --- |
+| **OK on a widget** | Opens a full-screen view with more detail, on the Dashboard and in the Widgets tab. Back returns to the originating widget. The photo widget opens the ambient view. |
+| **Long press on the Dashboard** | Opens a context menu with Move and Remove from Dashboard. Move lifts the widget: left and right reorder it, OK places it and Back cancels. |
+| **Long press in the Widgets tab** | Opens a context menu with Add to Dashboard, for widgets not already there. |
+
+The full-screen view is read-only, like the cards. Its display model carries the extra detail, and missing readings still show as a dash. **Device test required:** the target remote must report a held OK, and Phone Remote long press depends on Home Assistant forwarding a hold rather than a single key press. If it cannot, the Phone Remote needs another route to the menu.
+
 ### Home Assistant and household information
 
-Start with read-only cards for selected entities, such as temperature, household status and energy readings. Use the documented REST API for snapshots and the WebSocket API for subscribed updates. Weather and calendar can use Home Assistant entities or separate adapters. Set calendar privacy rules, such as limiting which calendars appear and hiding event details in Kids Mode. Energy cards should identify their unit and reporting period. Show a missing reading as a dash, never as 0. Keep the Home Assistant token on the Server.
+Start with read-only cards for selected entities, such as temperature, household status and energy readings. Use the documented REST API for snapshots and the WebSocket API for subscribed updates. Weather can use Home Assistant entities or a separate adapter. Energy cards should identify their unit and reporting period. Show a missing reading as a dash, never as 0. Keep the Home Assistant token on the Server.
 
 The Server may write to Home Assistant in exactly three ways:
 
@@ -105,6 +117,14 @@ The Server may write to Home Assistant in exactly three ways:
 - Forward Phone Remote keys to this TV.
 
 Any other scene or device action needs an explicit allowlist and a new decision. [Home Assistant REST API](https://developers.home-assistant.io/docs/api/rest/) · [Home Assistant WebSocket API](https://developers.home-assistant.io/docs/api/websocket/)
+
+### Family calendar
+
+The shared iCloud calendar reaches Sofa.OS through Home Assistant. Home Assistant's CalDAV integration connects to `https://caldav.icloud.com/` with an app-specific password, so the Apple credential stays in Home Assistant and the Server needs no iCloud connection. Set it up in the UI, because the YAML setup that can filter calendars does not support all-day events by default.
+
+The Server reads upcoming events with `calendar.get_events`, because a calendar entity's state shows only the next event. This action is a read and does not count as one of the three writes above. Home Assistant refreshes calendars about every 15 minutes, so a new event can take that long to appear. Sofa.OS never writes to the calendar.
+
+Home Assistant may import every calendar on the Apple Account, so the Server reads only an allowlist of calendar entities. The Server also removes event details for Kids Mode before data reaches the TV. A direct CalDAV adapter on the Server is the fallback if the shared calendar does not appear in Home Assistant or 15 minutes proves too slow. Test the shared calendar, recurring events and all-day events before building the widget. [Home Assistant CalDAV](https://www.home-assistant.io/integrations/caldav/) · [Get calendar events](https://www.home-assistant.io/actions/calendar.get_events/)
 
 ### Immich as the first photo provider
 
@@ -171,7 +191,7 @@ Deploy the Server as a Docker service on the home server, with a persistent SQLi
 
 Sofa Home uses the same HTTPS address if Chromium M56 accepts the certificate in Phase 0. If it does not, the TV uses plain HTTP on the LAN, and anyone on the Wi-Fi could read that traffic.
 
-Store the PIN as a salted hash. Keep provider, Home Assistant and Immich credentials on the Server. Validate provider IDs and URLs so adapters cannot make arbitrary fetches. Back up the SQLite database and configuration.
+Store the PIN as a salted hash. Keep provider, Home Assistant and Immich credentials on the Server. The Apple app-specific password for the calendar stays in Home Assistant. Validate provider IDs and URLs so adapters cannot make arbitrary fetches. Back up the SQLite database and configuration.
 
 ### Handle outages deliberately
 
