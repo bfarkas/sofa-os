@@ -49,7 +49,7 @@ Use warm ivory, muted sage, natural materials and restrained motion. Keep text l
 
 ### Navigation and content discovery
 
-The mockup shows Dashboard, Apps, Widgets and Profile tabs, plus Search, Settings, a clock and a localized greeting. Include an All Apps destination. Scope early search to Sofa.OS items. Continue Watching, the progress bars, title artwork and Home Assistant switches in the mockup are design examples and are out of scope. The Prime Video tile represents an app shortcut candidate.
+The mockup shows Dashboard, Apps, Widgets and Profile tabs, plus Search, Settings, a clock and a greeting. All interface text is English, although Figure 1 shows some German. Include an All Apps destination. Scope early search to Sofa.OS items. Continue Watching, the progress bars, title artwork and Home Assistant switches in the mockup are design examples and are out of scope. The Prime Video tile represents an app shortcut candidate.
 
 ### Remote behavior
 
