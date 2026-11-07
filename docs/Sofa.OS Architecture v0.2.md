@@ -32,7 +32,7 @@ Scoped to firmware T-KTM2DEUC 1400.2. Source: the `app-development` track of the
 | **Launcher replacement** | Not possible from a sandboxed app. |
 | **Home Assistant control** | The TV is integrated. Its media player advertises turn-off but not turn-on, lists the installed apps as sources, and a remote entity exists. Key forwarding through the remote entity works. Turn-off and the rest are not yet exercised for Sofa.OS. |
 | **Long press** | Tested 2026-11-07 with a signed test app. The real remote sends one `keydown` and one `keyup` with no repeats, and OK is key code 13. Home Assistant accepts `hold_secs` on `remote.send_command` but ignores it: a 2-second hold arrived as a 12 ms press. |
-| **Plex on this TV** | Home Assistant has a Plex client entity for the TV. What it reports during playback is untested. |
+| **Plex on this TV** | Tested 2026-11-07 across one episode change and one pause. Home Assistant's Plex client entity reports the show, season, episode, content ID, duration, position and rating during playback. The TV's own media player shows no current app or title. |
 
 ## TV experience
 
@@ -164,7 +164,17 @@ The Server owns the clock, so it keeps running if a child leaves through the Hom
 | **Zero** | The Server turns the TV off through Home Assistant, even mid-episode. |
 | **Return** | When the TV comes back on, Sofa Home shows the Done Screen. An adult leaves it with the PIN. |
 
-Later: a spike checks whether Home Assistant's Plex entity reports enough to support episode-based allowances, such as "two Paw Patrol episodes, then the TV turns off". This could only work for Plex.
+Later: a spike checks whether Home Assistant's Plex entity supports episode-based allowances, such as "two Paw Patrol episodes, then the TV turns off". This could only work for Plex. First tests look workable:
+
+| Event | Entity reports | Server action |
+| --- | --- | --- |
+| **Playing** | `playing`, with a position and `media_position_updated_at` | Predict the end as that timestamp plus the remaining duration. The position does not tick between updates. |
+| **Pause** | `paused`, with details kept and the position frozen | Do not count. |
+| **Resume** | `playing`, with the same position and a fresh timestamp | Predict the end again. |
+| **Episode ends** | `idle` at the predicted end, with details cleared | Count one episode. Keep the last content ID, because `idle` clears it. |
+| **Next episode** | `playing`, with a new content ID and position 0 | Start again. |
+
+The tested gap between episodes was 17 seconds, so the Server could turn the TV off before the next episode starts. The entity becomes `unavailable` after a while without playback, which means nothing is known. `sensor.plex_rei3` counts every session on the Plex server, so do not use it. Still untested are stopping mid-episode, seeking, episodes that end without autoplay, and whether `KEY_PAUSE` works in Plex.
 
 ### Where control changes hands
 
@@ -222,7 +232,7 @@ Store the PIN as a salted hash. Keep provider, Home Assistant and Immich credent
 | **0  Hardware feasibility** | Build a Sofa Home package from the CleanFrame skeleton. Confirm power-on auto-launch. Test HTTPS with the Let's Encrypt certificate, WebSocket, remote keys, suspend and resume. Test Home Assistant turn-off, reliable TV on/off state and remote keys. Run the provider experiments in [Tizen and streaming providers](#tizen-and-streaming-providers). |
 | **1  Kids Mode evening** | Sofa Home opens at power-on and TV Sign-in connects it. App tiles launch providers and Kids Mode starts the Watch Allowance. The notification and Top-up work. The TV switches off at zero and the Done Screen appears on return. |
 | **2  Household features** | Add layout and widget editing, Home Assistant read-only cards, weather, calendar and energy. Ship the Immich slideshow and approved albums. |
-| **3  Convenience** | Add the Phone Remote and installable PWA. Add validated title handoff and the favorites library if the experiments support them. Run the Plex episode spike. |
+| **3  Convenience** | Add the Phone Remote and installable PWA. Add validated title handoff and the favorites library if the experiments support them. Finish the Plex episode spike. |
 
 ### Decisions to resolve
 
