@@ -30,7 +30,8 @@ Scoped to firmware T-KTM2DEUC 1400.2. Source: the `app-development` track of the
 | --- | --- |
 | **Signed Tizen 4 package** | CleanFrame 0.6.1 was built with `required_version` lowered to 4.0, signed and validated live: install, navigation, app launching, editor, Home key escape and TV settings all work. |
 | **Launcher replacement** | Not possible from a sandboxed app. |
-| **Home Assistant control** | The TV is integrated. Its media player advertises turn-off but not turn-on, lists the installed apps as sources, and a remote entity exists. None of this has been exercised for Sofa.OS. |
+| **Home Assistant control** | The TV is integrated. Its media player advertises turn-off but not turn-on, lists the installed apps as sources, and a remote entity exists. Key forwarding through the remote entity works. Turn-off and the rest are not yet exercised for Sofa.OS. |
+| **Long press** | Tested 2026-11-07 with a signed test app. The real remote sends one `keydown` and one `keyup` with no repeats, and OK is key code 13. Home Assistant accepts `hold_secs` on `remote.send_command` but ignores it: a 2-second hold arrived as a 12 ms press. |
 | **Plex on this TV** | Home Assistant has a Plex client entity for the TV. What it reports during playback is untested. |
 
 ## TV experience
@@ -53,7 +54,7 @@ Sofa Home has Dashboard, Apps and Widgets tabs, plus Settings, a clock and a gre
 
 ### Remote behavior
 
-Directional keys move through an explicit focus order. OK activates the focused tile. Holding OK on a widget opens its context menu. Back closes overlays first and returns through Sofa.OS screens predictably. On resume, restore focus to the originating tile when the TV returns control. Provide a visible path back to Sofa Home if a provider sends Back to Samsung Home. Test key handling, long press on OK, suspend and resume, long lists and focus recovery on hardware.
+Directional keys move through an explicit focus order. OK activates the focused tile. Holding OK on a widget opens its context menu. Back closes overlays first and returns through Sofa.OS screens predictably. On resume, restore focus to the originating tile when the TV returns control. Provide a visible path back to Sofa Home if a provider sends Back to Samsung Home. Test key handling, suspend and resume, long lists and focus recovery on hardware.
 
 ### Visual references
 
@@ -65,7 +66,7 @@ The original Sofa.OS mockups include the Scandinavian home screen and Kids Mode 
 
 Companion is an installable PWA served over HTTPS and reachable only from the LAN or VPN. The Home Screen editor arranges apps, rows, widgets and backgrounds. Apps manages visibility and ordering. Widgets manages sources and presentation. Kids Mode manages approved apps, albums and the Watch Allowance. Settings manages the TV, integrations, appearance, backups and updates.
 
-The Phone Remote is a Companion page that controls the whole TV, including inside provider apps. The page sends keys to the Server, which forwards them through the Home Assistant remote entity. A browser page cannot reach the TV's own network API directly, so the Server stays in the path either way.
+The Phone Remote is a Companion page that controls the whole TV, including inside provider apps. The page sends keys to the Server, which forwards them through the Home Assistant remote entity. A browser page cannot reach the TV's own network API directly, so the Server stays in the path either way. The Menu button is the exception to key forwarding, as described in [Widget interaction](#widget-interaction).
 
 ### System responsibilities
 
@@ -104,7 +105,9 @@ A widget declares its type, size, configuration, profile visibility and freshnes
 | **Long press on the Dashboard** | Opens a context menu with Move and Remove from Dashboard. Move lifts the widget: left and right reorder it, OK places it and Back cancels. |
 | **Long press in the Widgets tab** | Opens a context menu with Add to Dashboard, for widgets not already there. |
 
-The full-screen view is read-only, like the cards. Its display model carries the extra detail, and missing readings still show as a dash. **Device test required:** the target remote must report a held OK, and Phone Remote long press depends on Home Assistant forwarding a hold rather than a single key press. If it cannot, the Phone Remote needs another route to the menu.
+The full-screen view is read-only, like the cards. Its display model carries the extra detail, and missing readings still show as a dash.
+
+Sofa Home detects a long press by timing the gap between `keydown` and `keyup`, because a held key sends no repeat events. Home Assistant cannot forward a hold, so the Phone Remote has a Menu button instead. The Server sends the request over the WebSocket Sofa Home already uses, and Sofa Home opens the context menu for the focused widget. The button does nothing inside a provider app, and it needs that WebSocket to be connected.
 
 ### Home Assistant and household information
 
