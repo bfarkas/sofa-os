@@ -1,0 +1,5 @@
+tv/out/
+.DS_Store
+tv/app/author-signature.xml
+tv/app/signature1.xml
+tv/app/.manifest.tmp
