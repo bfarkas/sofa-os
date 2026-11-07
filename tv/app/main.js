@@ -15,7 +15,22 @@
     events = events.slice(-MAX);
     try { localStorage.setItem(KEY, JSON.stringify(events)); } catch (e) { /* storage full or off */ }
     logEl.textContent = events.join('\n');
+    send(events[events.length - 1]);
   }
+
+  // Fire-and-forget to tv/tools/recv.py on the Mac; SOFA_LOG_URL comes from build.sh (empty = off).
+  function send(line) {
+    if (!window.SOFA_LOG_URL) return;
+    try {
+      var x = new XMLHttpRequest();
+      x.open('POST', window.SOFA_LOG_URL);
+      x.send(line);
+    } catch (e) { /* receiver not running */ }
+  }
+
+  // Colour and media keys only reach the page after registration; log whether each registers.
+  var EXTRA = ['ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue', 'MediaPlayPause', 'MediaPlay', 'MediaPause',
+    'MediaStop', 'MediaRewind', 'MediaFastForward', 'MediaTrackPrevious', 'MediaTrackNext', 'Info', 'Menu', 'Guide', 'Exit', 'ChannelUp', 'ChannelDown', 'VolumeUp', 'VolumeDown', 'VolumeMute'];
 
   function focusStage() { stage.focus(); }
 
@@ -44,6 +59,14 @@
   });
 
   add('START hidden=' + document.hidden);
+  var ok = [], bad = [];
+  EXTRA.forEach(function (k) {
+    try { tizen.tvinputdevice.registerKey(k); ok.push(k); } catch (e) { bad.push(k); }
+  });
+  add('registered ' + ok.length + ' failed: ' + (bad.join(',') || 'none'));
+  try {
+    add('supported: ' + tizen.tvinputdevice.getSupportedKeys().map(function (k) { return k.name + '=' + k.code; }).join(' '));
+  } catch (e) { add('getSupportedKeys failed'); }
   focusStage();
   refocusSoon();
 })();

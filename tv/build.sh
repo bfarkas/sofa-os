@@ -14,6 +14,9 @@ OUT="$HERE/out"
 export PATH="$SDK/tools/ide/bin:$SDK/tools:$PATH"
 
 mkdir -p "$OUT"
+# Tell the app where tools/recv.py listens (this Mac's LAN IP). Set LOG_URL= to turn it off.
+LOG_URL="${LOG_URL-http://$(ipconfig getifaddr en0):8099/log}"
+echo "window.SOFA_LOG_URL = '$LOG_URL';" > "$HERE/app/logurl.js"
 rm -f "$OUT"/*.wgt "$HERE"/app/.manifest.tmp
 
 tizen package -t wgt -s "$PROFILE" -o "$OUT" -- "$HERE/app"
