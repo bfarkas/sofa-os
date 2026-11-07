@@ -38,6 +38,16 @@ _Avoid_: Backend, optional server
 Connecting the TV to the Server by scanning a QR code shown on the TV and authenticating on a phone.
 _Avoid_: Pairing, enrollment
 
+### Providers
+
+**Title handoff**:
+Asking a provider app to open one specific title, rather than just the app.
+_Avoid_: Deep link, title routing, title control, content link
+
+**Launch recipe**:
+The stored way to perform a Title handoff for one favorite. It is kept apart from the provider's own identifier for the title, so it can break without losing the favorite.
+_Avoid_: Deep link, launch URL
+
 ### Household
 
 **Household**:

@@ -32,6 +32,9 @@ Scoped to firmware T-KTM2DEUC 1400.2. Source: the `app-development` track of the
 | **Launcher replacement** | Not possible from a sandboxed app. |
 | **Home Assistant control** | The TV is integrated. Its media player advertises turn-off but not turn-on, lists the installed apps as sources, and a remote entity exists. Key forwarding through the remote entity works. Turn-off and the rest are not yet exercised for Sofa.OS. |
 | **Long press** | Tested 2026-11-07 with a signed test app. The real remote sends one `keydown` and one `keyup` with no repeats, and OK is key code 13. Home Assistant accepts `hold_secs` on `remote.send_command` but ignores it: a 2-second hold arrived as a 12 ms press. |
+| **Provider metadata** | Read 2026-11-07 with a signed probe app using `tizen.application.getAppMetaData`. Plex and Disney+ publish previews through a background service. Netflix, Prime Video and YouTube publish no preview metadata. Plex declares the search format `{"assetId":"%%CONTENT_ID%%"}`, and ARD and ZDF declare `%%CONTENT_ID%%`. YouTube declares `#play?v=` as its search link. ARD and ZDF name public Smart Hub feeds. KiKA 2.0.0 declares neither a preview nor a search format. |
+| **Smart Hub Preview launch** | Checked offline 2026-11-07 against Samsung's docs and this firmware. Selecting a preview tile launches its app with the app control operation `http://samsung.com/appcontrol/operation/eden_resume` and a `PAYLOAD` entry whose JSON `values` holds the tile's `action_data`. The firmware's preview downloader and launch bridge both handle `action_data`, `PAYLOAD` and `values`. ARD's feed links series pages as `ard://grouping/<base64 CRID>`, and none are marked playable. ZDF's feed is empty. A third-party app may send this request, as the title handoff test shows. |
+| **Title handoff** | Tested 2026-11-07 with a signed test app that sent each provider an app control request. ARD opened the requested series page from the Smart Hub Preview request: title opened. KiKA, ZDF, Plex and YouTube reached only app opened. Plex ignored three payload forms carrying a content ID, and YouTube ignored four forms of a video link. YouTube launched this way starts signed out, like a first start, while its normal sign-in stays intact. Netflix opens through `org.tizen.netflix-app`, while the store ID `RN1MCdNq8t.Netflix` leaves a black screen. With Plex open, the TV exposes no Plex Companion player port and does not answer local Plex discovery. |
 | **Plex on this TV** | Tested 2026-11-07 across one episode change and one pause. Home Assistant's Plex client entity reports the show, season, episode, content ID, duration, position and rating during playback. The TV's own media player shows no current app or title. |
 
 ## TV experience
@@ -182,7 +185,7 @@ The Server filters what the Kids Mode profile can retrieve. Sofa Home filters wh
 
 ### Later: favorites library
 
-Kids Mode starts with approved app tiles, plus Plex titles if title handoff passes its device test. A unified favorites library across providers waits for the provider experiments. If built, it is parent-curated with no imports. Each favorite keeps a provider identifier separate from its launch recipe, so a provider update can invalidate a recipe without deleting the item. A favorite offers playback, title or app-only launch according to what passed the device test, and shows a neutral unavailable state otherwise.
+Kids Mode starts with approved app tiles, plus Plex titles if title handoff passes its device test. A unified favorites library across providers waits for the provider experiments. If built, it is parent-curated with no imports. Each favorite keeps a provider identifier separate from its launch recipe, so a provider update can invalidate a recipe without deleting the item. A favorite's launch recipe starts playback, opens the title or opens the app, according to what passed the device test, and shows a neutral unavailable state otherwise.
 
 ## Tizen and streaming providers
 
@@ -192,11 +195,14 @@ Samsung documents Chromium M56 for 2018 Tizen 4 TVs, with Fetch, WebSocket and T
 
 | Provider | Target TV experiment |
 | --- | --- |
-| **KiKA** | The most important provider for Kids Mode, so test it first. Installed as `mvOizTfhQn.KiKAplayer`. Read its metadata, then test app launch and any title link. Record app-only if title handoff fails. |
-| **Plex** | Verify app launch and Companion receiver discovery, then request a specific episode with the intended profile. Check cold and warm receiver states. |
+| **KiKA** | The most important provider for Kids Mode, so test it first. Installed as `mvOizTfhQn.KiKAplayer`. Read its metadata, then test app launch and any title handoff. Record app opened if title handoff fails. |
+| **ARD** | Installed as `SrAoJxGQUf.ARD`. Test title handoff with a content ID taken from its public Smart Hub feed. |
+| **ZDF** | Installed as `yPSlpvfeTf.ZDFmediathek`. Test title handoff with a content ID taken from its public Smart Hub feed. |
+| **Plex** | Verify app launch and Companion receiver discovery, then request a specific episode with the intended profile. Check cold and warm receiver states. As a fallback, test app control with the declared `assetId` format. |
 | **YouTube** | Test native app handoff and a separate IFrame player path. Check embed restrictions, playback after a remote gesture and remote focus. |
-| **Netflix** | Test app launch and any documented or demonstrably accepted title control. Record app-only or unavailable if title handoff fails. |
-| **Disney+** | Test independently with the installed Disney+ build, actual region and intended restricted profile. |
+| **Netflix** | Test app launch and any documented or demonstrably accepted title handoff. Record app opened or unavailable if title handoff fails. |
+
+Other installed apps, such as Disney+, Prime Video and YouTube Kids, get app tiles only and no experiments.
 
 [Plex Companion receivers](https://support.plex.tv/articles/203082707-supported-plex-companion-apps/) · [YouTube embedded player](https://developers.google.com/youtube/iframe_api_reference)
 
@@ -238,7 +244,7 @@ Store the PIN as a salted hash. Keep provider, Home Assistant and Immich credent
 ### Decisions to resolve
 
 - **Platform.** How does auto-launch behave after reboot and firmware updates? Does the signed package survive them?
-- **Provider behavior.** Which apps support title routing? Can each provider return to the originating tile, or does the household reopen Sofa Home manually?
+- **Provider behavior.** Which apps support title handoff? Can each provider return to the originating tile, or does the household reopen Sofa Home manually?
 - **Household policy.** Which apps are approved in Kids Mode, and what is the daily allowance? Is counting pauses against the clock acceptable in practice? Does a hard switch-off need a grace period?
 - **Integration details.** Which Home Assistant entities, calendars and Immich albums are visible in each profile?
 - **Operations.** What are the thumbnail budget and acceptable launch latency on this hardware?
