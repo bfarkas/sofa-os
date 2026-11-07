@@ -192,6 +192,7 @@ Samsung documents Chromium M56 for 2018 Tizen 4 TVs, with Fetch, WebSocket and T
 
 | Provider | Target TV experiment |
 | --- | --- |
+| **KiKA** | The most important provider for Kids Mode, so test it first. Installed as `mvOizTfhQn.KiKAplayer`. Read its metadata, then test app launch and any title link. Record app-only if title handoff fails. |
 | **Plex** | Verify app launch and Companion receiver discovery, then request a specific episode with the intended profile. Check cold and warm receiver states. |
 | **YouTube** | Test native app handoff and a separate IFrame player path. Check embed restrictions, playback after a remote gesture and remote focus. |
 | **Netflix** | Test app launch and any documented or demonstrably accepted title control. Record app-only or unavailable if title handoff fails. |
