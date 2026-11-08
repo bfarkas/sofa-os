@@ -60,7 +60,7 @@ Stack and layout were confirmed with the user on 2026-11-08, at the start of Ses
 
 - **Stack (decided).** TypeScript across all parts. The Server runs on Node 26, which executes its `.ts` files directly (type stripping, so only erasable syntax), with the built-in `node:sqlite`, `node:test` and `ws` for WebSockets. esbuild bundles Companion and Sofa Home, Sofa Home for Chromium M56 (`chrome56,es2017`). Companion is a small SPA without a framework so far. One `tsc` run type-checks everything.
 - **Repository layout (decided).** One repo with npm workspaces `shared/`, `server/`, `companion/` and `tv/`. `deploy/` holds the Dockerfile, compose file, Caddy route and password script.
-- **Household policy** (needed by Session 08, not 04): approved Kids Mode apps, daily allowance minutes, overnight reset time, and whether a hard switch-off needs a grace period.
+- **Household policy (decided 2026-11-08, for Session 08).** Approved Kids Mode apps: Netflix, KiKA and Plex. Daily allowance: 40 minutes, shared by all children. Overnight reset at 04:00. The TV switches off at once at zero, with no grace period (the 5-minute warning comes before).
 
 ---
 
