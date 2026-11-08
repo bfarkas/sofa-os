@@ -33,7 +33,25 @@ export interface DraftUpdate {
 /** Messages the Server sends over the WebSocket. */
 export type ServerMessage =
   | { type: 'hello'; serverTime: string }
-  | { type: 'revision'; revision: number }; // a new revision is published: fetch GET /api/snapshot
+  | { type: 'revision'; revision: number } // a new revision is published: fetch GET /api/snapshot
+  | { type: 'kids' }; // Kids Mode or the Watch Allowance changed (enter, exit, Top-up, zero, reset): fetch GET /api/kids
+
+/** The Watch Allowance as GET /api/kids returns it. All times are whole seconds. */
+export interface KidsStatus {
+  active: boolean; // Kids Mode is on
+  tv: 'on' | 'off' | 'pending'; // the Server's view of the TV; pending is an unconfirmed on, which does not count yet
+  dailySeconds: number; // the layout's kidsMode.dailyMinutes
+  topUpSeconds: number; // Top-ups added today
+  usedSeconds: number; // counted today
+  remainingSeconds: number; // 0 means the allowance has run out
+  donePending: boolean; // the TV was switched off at zero: show the Done Screen, then POST /api/kids/done-shown
+  resetsAt: string; // ISO time of the next overnight reset
+}
+
+/** Body of POST /api/kids/topup (Companion only). */
+export interface TopUpRequest {
+  minutes: number; // whole minutes, 1 to 240
+}
 
 // TV Sign-in (spec: TV Sign-in). The TV keeps `secret`; only `code` goes into the QR code and the approval URL.
 export interface TvCode {
