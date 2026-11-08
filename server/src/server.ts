@@ -2,8 +2,9 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LoginRequest, type ServerMessage, type SessionInfo, type TvApproveRequest, type TvTokenRequest } from '@sofa/shared';
+import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
+import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
 import type { Config } from './config.ts';
 import { createDraft, currentSnapshot, deleteDraft, getDraft, publishDraft, saveDraft } from './layout.ts';
@@ -53,7 +54,8 @@ async function readJson(req: IncomingMessage, limit = MAX_BODY): Promise<unknown
   }
 }
 
-export function startServer(config: Config, db: DatabaseSync): Server {
+// Without an allowance (tests), a clock without Home Assistant, which never runs: it only answers the Kids Mode API.
+export function startServer(config: Config, db: DatabaseSync, allowance: Allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance })): Server {
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {
     const token = readCookie(req.headers.cookie, SESSION_COOKIE);
@@ -131,6 +133,8 @@ export function startServer(config: Config, db: DatabaseSync): Server {
       return send(res, 200, currentSnapshot(db));
     }
 
+    if (pathname === '/api/kids' || pathname.startsWith('/api/kids/')) return kidsRoute(req, res, key);
+
     if (pathname.startsWith('/api/')) {
       const session = sessionOf(req);
       if (!session) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
@@ -148,6 +152,26 @@ export function startServer(config: Config, db: DatabaseSync): Server {
     }
 
     return serveStatic(req, res, pathname);
+  }
+
+  // Kids Mode and the Watch Allowance, for Sofa Home (device token) and Companion. Only Companion adds a Top-up.
+  async function kidsRoute(req: IncomingMessage, res: ServerResponse, key: string): Promise<void> {
+    const companion = sessionOf(req) !== null;
+    const tv = isTv(req);
+    if (!companion && !tv) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+    if (tv) allowance.tvSeen(); // Sofa Home is talking, so the TV is on
+    if (key === 'GET /api/kids') return send(res, 200, allowance.status());
+    if (req.method !== 'POST') throw new HttpError(405, 'method not allowed');
+    const body = (await readJson(req)) as Partial<TopUpRequest>;
+    if (key === 'POST /api/kids/enter') return send(res, 200, allowance.enter());
+    if (key === 'POST /api/kids/exit') return send(res, 200, allowance.exit()); // Session 09 adds the PIN for the TV
+    if (key === 'POST /api/kids/done-shown') return send(res, 200, allowance.doneShown());
+    if (key === 'POST /api/kids/topup') {
+      if (!companion) return send(res, 403, { error: 'only Companion adds a Top-up' } satisfies ApiError);
+      if (!isTopUpMinutes(body?.minutes)) throw new HttpError(400, 'minutes must be a whole number from 1 to 240');
+      return send(res, 200, allowance.topUp(body.minutes, 'companion'));
+    }
+    throw new HttpError(404, 'not found');
   }
 
   // Companion drafts. Only signed-in Companion sessions get here.
@@ -226,6 +250,7 @@ export function startServer(config: Config, db: DatabaseSync): Server {
     const data = JSON.stringify(msg);
     for (const ws of wss.clients) if (ws.readyState === WebSocket.OPEN) ws.send(data);
   }
+  allowance.onChange(() => broadcast({ type: 'kids' }));
   const heartbeat = setInterval(() => {
     for (const ws of wss.clients) {
       if (!alive.get(ws)) {

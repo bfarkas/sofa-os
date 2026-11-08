@@ -36,7 +36,7 @@ function sample(): Layout {
       { id: 'apps', title: 'My Apps', items: apps.map((a) => ({ kind: 'app' as const, id: a.id })) },
     ],
     background: { kind: 'color', color: '#f6f1e7' },
-    kidsMode: { apps: ['mvOizTfhQn.KiKAplayer'], dailyMinutes: 60 },
+    kidsMode: { apps: ['org.tizen.netflix-app', 'mvOizTfhQn.KiKAplayer', 'kIciSQlYEM.plex'], dailyMinutes: 40 }, // household policy, 2026-11-08
   };
 }
 

@@ -11,7 +11,7 @@ mkdirSync(config.mediaDir, { recursive: true });
 const db = openDb(config.dbPath);
 const ha = config.ha && createHaClient(config.ha);
 const allowance = createAllowance({ ...fromDb(db), ha, ...config.allowance });
-const server = startServer(config, db);
+const server = startServer(config, db, allowance);
 
 // The Watch Allowance clock reads the TV's state every few seconds, so a wrong URL or token shows up in the logs at once.
 let stopAllowance = () => {};

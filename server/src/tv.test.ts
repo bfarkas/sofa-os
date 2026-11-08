@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
-import { TV_PROTOCOL_PREFIX, type TvCode } from '@sofa/shared';
+import { TV_PROTOCOL_PREFIX, type KidsStatus, type TvCode } from '@sofa/shared';
 import WebSocket from 'ws';
 import { hashSecret, sha256 } from './auth.ts';
 import type { Config } from './config.ts';
@@ -213,4 +213,38 @@ test('code requests need JSON and approvals need a string code', async () => {
   assert.equal((await fetch(base + '/api/tv/codes', { method: 'POST' })).status, 415);
   assert.equal((await post('/api/tv/approve', { code: 5 }, { cookie })).status, 404);
   assert.equal((await post('/api/tv/token', { code: 5, secret: {} })).status, 404);
+});
+
+test('Kids Mode over HTTP: Sofa Home and Companion enter, read and exit it; only Companion adds a Top-up', async () => {
+  const tv = bearer(await signIn());
+  const kids = async (res: Response | Promise<Response>) => {
+    const r = await res;
+    assert.equal(r.status, 200);
+    return (await r.json()) as KidsStatus;
+  };
+  assert.equal((await fetch(base + '/api/kids')).status, 401);
+  assert.equal((await post('/api/kids/enter', {}, bearer('wrong'))).status, 401);
+  assert.equal((await fetch(base + '/api/kids/enter', { method: 'POST', headers: tv })).status, 415, 'POSTs need JSON');
+
+  const ws = new WebSocket(wsUrl(), [TV_PROTOCOL_PREFIX + tv.Authorization.slice(7)]);
+  const signals: string[] = [];
+  ws.on('message', (m) => signals.push(JSON.parse(String(m)).type));
+  await once(ws, 'open');
+
+  const entered = await kids(post('/api/kids/enter', {}, tv));
+  assert.equal(entered.active, true);
+  assert.equal(entered.dailySeconds, 60 * 60, "revision 1's allowance");
+  assert.equal(entered.remainingSeconds, 60 * 60);
+  for (let i = 0; i < 100 && !signals.includes('kids'); i++) await new Promise((r) => setTimeout(r, 10));
+  assert.ok(signals.includes('kids'), 'the TV hears about the change');
+
+  assert.equal((await post('/api/kids/topup', { minutes: 5 }, tv)).status, 403, 'a child holds the remote');
+  for (const minutes of [0, 241, 2.5, '5', null]) assert.equal((await post('/api/kids/topup', { minutes }, { cookie })).status, 400, String(minutes));
+  assert.equal((await kids(post('/api/kids/topup', { minutes: 5 }, { cookie }))).topUpSeconds, 300);
+  assert.equal((await kids(fetch(base + '/api/kids', { headers: tv }))).remainingSeconds, 65 * 60);
+  assert.equal((await kids(post('/api/kids/done-shown', {}, tv))).donePending, false);
+  assert.equal((await kids(post('/api/kids/exit', {}, { cookie }))).active, false);
+  assert.equal((await kids(fetch(base + '/api/kids', { headers: { cookie } }))).active, false);
+  assert.equal((await post('/api/kids/nothing', {}, { cookie })).status, 404);
+  ws.close();
 });

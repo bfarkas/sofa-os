@@ -9,7 +9,8 @@
     "check": "tsc -p .",
     "test": "node --test \"*/src/**/*.test.ts\"",
     "start": "node server/src/main.ts",
-    "publish-layout": "node server/src/publish-layout.ts"
+    "publish-layout": "node server/src/publish-layout.ts",
+    "kids-mode": "node server/src/kids-mode.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
