@@ -250,6 +250,7 @@ Store the PIN as a salted hash. Keep provider, Home Assistant and Immich credent
 - **Provider behavior.** Which apps support title handoff? Can each provider return to the originating tile, or does the household reopen Sofa Home manually?
 - **Household policy.** Which apps are approved in Kids Mode, and what is the daily allowance? Is counting pauses against the clock acceptable in practice? Does a hard switch-off need a grace period?
 - **Integration details.** Which Home Assistant entities, calendars and Immich albums are visible in each profile?
+- **TV power state.** Home Assistant reports standby about 3 minutes late and briefly shows a false `on`. A candidate fix is for the Server to ask the TV directly: the TV's stock service answers `GET http://<tv>:8001/api/v2/` with a `PowerState` field on most 2019 and later models, and no answer counts as off. [QuietThings](https://github.com/magnetgrouplabs/QuietThings) uses this approach. Its other features need a patched QuietTizen launcher, so they do not apply to Sofa.OS. Untested on this TV: check that `PowerState` exists, and how it reads during and right after remote standby, before the Watch Allowance relies on it.
 - **Operations.** What are the thumbnail budget and acceptable launch latency on this hardware?
 
 ### Inspiration and prior art

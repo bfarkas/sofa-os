@@ -201,6 +201,7 @@ The Server-side clock from the spec's [Watch Allowance](Sofa.OS%20Architecture%2
 - Five minutes before zero: notification with the actions from Session 03. Top-up from a notification action or Companion.
 - At zero: turn the TV off through the write guard. Mark the Done Screen as pending for the next power-on.
 - Survive a Server restart mid-session without losing or double-counting minutes.
+- Decide how the Server knows the TV is on. Home Assistant's state lags standby by about 3 minutes. Test the TV's own port 8001 `PowerState` first, as described under the spec's [Decisions to resolve](Sofa.OS%20Architecture%20v0.2.md#decisions-to-resolve) (needs the TV on, then standby from the remote).
 
 **Done when:** tests with a fake clock and fake Home Assistant cover the reset, carry-over, warning, Top-up, zero, restart and TV-off-while-counting cases, and one live run turns the real TV off.
 
