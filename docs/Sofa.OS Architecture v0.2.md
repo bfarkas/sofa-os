@@ -163,12 +163,12 @@ The Server owns the clock, so it keeps running if a child leaves through the Hom
 | Rule | Behavior |
 | --- | --- |
 | **Unit** | Minutes, for every provider. |
-| **Clock** | Runs while Kids Mode is active and the TV is on, including browsing and pauses. Stops when the TV is off or an adult exits Kids Mode. |
-| **Budget** | One daily budget, shared by all children, reset overnight. Time left over carries across sittings within the day. |
-| **Warning** | Five minutes before zero, the Server sends a Home Assistant mobile notification to both adults' iPhones with **+5 min**, **+10 min** and **Custom** actions. Sofa Home cannot draw over a provider app, so the TV shows no warning. |
-| **Top-up** | A notification action or Companion adds minutes to today's budget. |
-| **Zero** | The Server turns the TV off through Home Assistant, even mid-episode. |
-| **Return** | When the TV comes back on, Sofa Home shows the Done Screen. An adult leaves it with the PIN. |
+| **Clock** | Runs while Kids Mode is active and the TV is on, including browsing and pauses. Stops when the TV is off or an adult exits Kids Mode. Counted in whole seconds. Home Assistant's `off` stops it at once. An `on` within 4 minutes of an `off` counts only once it lasts 4 minutes or Sofa Home makes a request, so the false `on` after a remote standby is never counted. |
+| **Budget** | One daily budget, shared by all children, reset overnight at 04:00 Europe/Berlin, by the wall clock across DST. Time left over carries across sittings within the day. The minutes are the layout's `kidsMode.dailyMinutes`, 40 for this household. |
+| **Warning** | Five minutes before zero, the Server sends a Home Assistant mobile notification to both adults' iPhones with **+5 min**, **+10 min** and **Custom** actions (`SOFA_TOPUP_5`, `SOFA_TOPUP_10`, `SOFA_TOPUP_CUSTOM` with text input). Sofa Home cannot draw over a provider app, so the TV shows no warning. |
+| **Top-up** | A notification action or Companion adds 1 to 240 minutes to today's budget. A tap from either phone counts. |
+| **Zero** | The Server turns the TV off through Home Assistant at once, even mid-episode. There is no grace period, and the switch-off happens once per zero. |
+| **Return** | When the TV comes back on, Sofa Home shows the Done Screen. An adult leaves it with the PIN, and a Top-up also clears it. |
 
 Later: a spike checks whether Home Assistant's Plex entity supports episode-based allowances, such as "two Paw Patrol episodes, then the TV turns off". This could only work for Plex. First tests look workable:
 
@@ -248,9 +248,9 @@ Store the PIN as a salted hash. Keep provider, Home Assistant and Immich credent
 
 - **Platform.** How does auto-launch behave after reboot and firmware updates? Does the signed package survive them?
 - **Provider behavior.** Which apps support title handoff? Can each provider return to the originating tile, or does the household reopen Sofa Home manually?
-- **Household policy.** Which apps are approved in Kids Mode, and what is the daily allowance? Is counting pauses against the clock acceptable in practice? Does a hard switch-off need a grace period?
+- **Household policy.** Decided 2026-11-08: Netflix, KiKA and Plex, 40 minutes a day shared by all children, reset at 04:00 and no grace period. Still open: is counting pauses against the clock acceptable in practice?
 - **Integration details.** Which Home Assistant entities, calendars and Immich albums are visible in each profile?
-- **TV power state.** Home Assistant reports standby about 3 minutes late and briefly shows a false `on`. A candidate fix is for the Server to ask the TV directly: the TV's stock service answers `GET http://<tv>:8001/api/v2/` with a `PowerState` field on most 2019 and later models, and no answer counts as off. [QuietThings](https://github.com/magnetgrouplabs/QuietThings) uses this approach. Its other features need a patched QuietTizen launcher, so they do not apply to Sofa.OS. Untested on this TV: check that `PowerState` exists, and how it reads during and right after remote standby, before the Watch Allowance relies on it.
+- **TV power state.** Home Assistant reports standby about 3 minutes late and briefly shows a false `on`. A candidate fix is for the Server to ask the TV directly: the TV's stock service answers `GET http://<tv>:8001/api/v2/` with a `PowerState` field on most 2019 and later models, and no answer counts as off. [QuietThings](https://github.com/magnetgrouplabs/QuietThings) uses this approach. Its other features need a patched QuietTizen launcher, so they do not apply to Sofa.OS. Untested on this TV: check that `PowerState` exists, and how it reads during and right after remote standby, before the Watch Allowance relies on it. Until then the Watch Allowance holds back an `on` that follows an `off` and takes Sofa Home's own requests as proof (plan, Session 08).
 - **Operations.** What are the thumbnail budget and acceptable launch latency on this hardware?
 
 ### Inspiration and prior art

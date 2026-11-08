@@ -220,6 +220,43 @@ The Server-side clock from the spec's [Watch Allowance](Sofa.OS%20Architecture%2
 
 **Why this rating:** time arithmetic, restarts and external state together. A bug either cuts a child's show short or never switches the TV off.
 
+**Built (2026-11-08).** The engine and its rules are in `server/src/allowance.ts`, with fake-clock tests in `allowance.test.ts`. The Home Assistant event subscription and the dry run are in `ha.ts`, the API is in `server.ts`, and `npm run kids-mode` drives it from a terminal. The live run that turns the real TV off is still to do (below).
+
+- **State.** One JSON document in the `allowance` table (migration 4), saved after every change. It holds the allowance day, the seconds used and topped up, whether Kids Mode is active, the TV as `off`, `pending` or `on` with its timestamps, and three flags: warning sent, at zero, Done Screen pending. Time is counted in whole seconds, and only while Kids Mode is active and the TV is `on`.
+
+| Event | Rule |
+| --- | --- |
+| **HA reports `off`** | The TV is `off` and the clock stops. The time since the last `on` reading (at most one 5-second tick) is not counted. |
+| **HA reports `on` after `off`** | `pending` when it comes within 4 minutes of the `off` and Sofa Home has made no request since; otherwise `on`, counting from now. |
+| **`pending` for 4 minutes** | `on`, and those 4 minutes are counted after all. A false `on` (about 3 minutes, see Known results) ends in `off` first and is never counted. |
+| **A request from Sofa Home** | Any `/api/kids` request with the device token proves the TV is on. A `pending` on becomes `on` from that moment, and the next `on` after an `off` is not held back. |
+| **HA `unavailable`, `unknown` or unreachable** | Proves nothing; the clock waits. |
+| **Enter, exit** | Entering starts counting from now if the TV is on. Exiting stops the clock and clears the Done Screen. |
+| **5 minutes left** | While counting, the notification goes once to each phone with **+5 min**, **+10 min** and **Custom**. It goes again only after a Top-up lifts the time left above 5 minutes. |
+| **Top-up** | Adds minutes to today's budget. Clears at zero and Done Screen pending once there is time left. |
+| **Zero** | While counting, `media_player.turn_off` through the write guard, once per zero, retried every tick while it fails. Then at zero and Done Screen pending. Kids Mode stays active. The clock stops at zero, so a later Top-up gives its full minutes. |
+| **Done Screen shown** | `POST /api/kids/done-shown` clears it. |
+| **04:00 local** | A new day: used, Top-up and all flags reset; Kids Mode and the TV state stay. Time from 04:00:00 counts toward the new day. |
+
+- **Downtime rule.** Time counts only between two readings that both say `on` and are at most 60 seconds apart; the Server reads every 5 seconds. A Server restart or a Home Assistant outage shorter than that loses nothing. A longer one loses the time in between, and the TV returns as `pending`, so it must prove itself again as above. Nothing is counted twice, because counted time moves the clock's start forward in the same saved write.
+- **Days and DST.** The day is read off the wall clock in `SOFA_TIME_ZONE`, so the reset stays at 04:00 local and DST days last 23 or 25 hours. A day only moves forward, so the repeated autumn hour cannot reset twice. A reset time inside the skipped spring hour (02:00 to 02:59) would start that day up to an hour late; this is marked as a `shortcut:` in the code.
+- **Config.** The daily allowance is the layout's existing `kidsMode.dailyMinutes` (0 to 1440). It is read on every use, so a publish applies at once, and the schema is unchanged. Environment variables: `SOFA_TIME_ZONE` (default `Europe/Berlin`), `SOFA_ALLOWANCE_RESET` (`HH:MM`, default `04:00`), `SOFA_ALLOWANCE_GRACE_SECONDS` (default `0`, no grace) and `SOFA_HA_DRY_RUN=1` (writes still pass the write guard, then are logged instead of sent). Fixed in code: the 5-second tick, the 5-minute warning, the 60-second gap, the 4-minute hold and Top-ups of 1 to 240 minutes. The sample layout carries Netflix, KiKA and Plex with 40 minutes. A new database's revision 1 still says 60 minutes, because migrations do not change.
+- **Home Assistant.** Every 5 seconds the Server reads `media_player.samung_tv` over REST. `off` is off; `unavailable`, `unknown` and errors prove nothing; any other state is on. Only changes in reachability are logged. The Server subscribes to `mobile_app_notification_action` over the WebSocket API, sending only `auth` and `subscribe_events`, and reconnects after a drop; events during a drop are lost. `SOFA_TOPUP_5` adds 5 minutes, `SOFA_TOPUP_10` adds 10, and `SOFA_TOPUP_CUSTOM` adds the typed `reply_text` if it is 1 to 240; anything else is ignored. The notification reads "N minutes of Kids Mode left." with the title Sofa.OS. The write guard is unchanged. Its tests now also refuse `turn_off` on `all`, `media_player.media_pause`, `notify` with a `target` and `persistent_notification.create`. Without Home Assistant configured, the clock does not run.
+- **API.** Everything under `/api/kids` needs a Companion session or Sofa Home's device token, and gets 401 otherwise.
+  - `GET /api/kids` returns `{ active, tv, dailySeconds, topUpSeconds, usedSeconds, remainingSeconds, donePending, resetsAt }` (`KidsStatus` in `@sofa/shared`).
+  - `POST /api/kids/enter`, `/exit` and `/done-shown` take a JSON body, `{}`.
+  - `POST /api/kids/topup { minutes }` is for Companion only: the TV gets 403, and anything but 1 to 240 gets 400.
+  - `/ws` sends `{ "type": "kids" }`, with no data, when Kids Mode, the Done Screen, the Top-up, the day or the zero changes.
+  - Session 09 adds the PIN in front of exit from the TV. Sofa Home should `GET /api/kids` on start and on resume, because that request is the proof that the TV is on.
+- **Live run** (for the orchestrator and the user; not done in this session). It needs the TV on, and the CLI on a machine on the LAN with `SOFA_URL=https://sofa.familie-farkas.de SOFA_PASSWORD=…`.
+  1. Deploy as a dry run: `git pull && SOFA_HA_DRY_RUN=1 docker compose -f deploy/compose.yaml up -d --build`. Then watch `docker logs -f sofa-os`. The log shows the dry-run warning, `home assistant reachable` and `home assistant events subscribed`.
+  2. With the TV on, wait until the log shows `tv` `on`. After a restart this can take up to 4 minutes, because a TV that was `on` before the restart must prove itself again.
+  3. Run `npm run kids-mode -- minutes 6`, then `-- enter`. About a minute later the log shows a dry-run `notify` call for each phone, then `allowance warning sent`. At 6 minutes it shows a dry-run `media_player.turn_off` and `allowance at zero`. `-- status` shows the counters at any time.
+  4. Optionally test a Top-up: fire the event `mobile_app_notification_action` with `{"action": "SOFA_TOPUP_5"}` from Home Assistant's Developer Tools. The log shows `top-up` with source `notification`. `-- topup 5` tests the Companion path.
+  5. With the user's go-ahead, repeat without `SOFA_HA_DRY_RUN` and with a real notification. A tap on **+10 min** and on **Custom** checks the untested actions.
+  6. Restore the household settings: `-- exit`, then `-- minutes 40`.
+- **Not verified live:** the real switch-off and notification from the Server, the WebSocket event subscription against the real Home Assistant, **+10 min**, **Custom** and its `reply_text` field, Ioanna's iPhone, a false `on` after remote standby being held back as `pending`, and the clock across a real 04:00 or DST change. Port 8001 `PowerState` is not tested. It would plug in through `observe` (as the TV reading) or `tvSeen` (as proof of on).
+
 ### 09 · Kids Mode on TV and Companion
 
 **Difficulty 3 · Sonnet · high · TV**
