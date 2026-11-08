@@ -1,0 +1,54 @@
+{
+  "morning": {
+    "source_size": [
+      1672,
+      941
+    ],
+    "export_size": [
+      3840,
+      2160
+    ],
+    "upscaled": true,
+    "png": "mountain-lake-morning-3840x2160.png",
+    "jpg": "mountain-lake-morning-3840x2160.jpg"
+  },
+  "midday": {
+    "source_size": [
+      1672,
+      941
+    ],
+    "export_size": [
+      3840,
+      2160
+    ],
+    "upscaled": true,
+    "png": "mountain-lake-midday-3840x2160.png",
+    "jpg": "mountain-lake-midday-3840x2160.jpg"
+  },
+  "evening": {
+    "source_size": [
+      1672,
+      941
+    ],
+    "export_size": [
+      3840,
+      2160
+    ],
+    "upscaled": true,
+    "png": "mountain-lake-evening-3840x2160.png",
+    "jpg": "mountain-lake-evening-3840x2160.jpg"
+  },
+  "night": {
+    "source_size": [
+      1672,
+      941
+    ],
+    "export_size": [
+      3840,
+      2160
+    ],
+    "upscaled": true,
+    "png": "mountain-lake-night-3840x2160.png",
+    "jpg": "mountain-lake-night-3840x2160.jpg"
+  }
+}
