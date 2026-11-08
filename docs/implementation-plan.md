@@ -264,6 +264,7 @@ The Server-side clock from the spec's [Watch Allowance](Sofa.OS%20Architecture%2
 - Sofa Home: a prominent Kids Mode tile on the Dashboard, a child profile with large tiles and only approved apps, PIN to exit, the Done Screen, and an unavailable Kids Mode tile when the Server is unreachable.
 - Server: profile filtering, so the Kids Mode profile retrieves only what is approved. Reload Kids Mode policy on resume.
 - Companion: Kids Mode page for approved apps, allowance minutes, Top-up and setting the PIN.
+- Warning notification (found in the Session 08 live test): on iPhone, tapping the notification body opens Home Assistant and removes the notification, which leaves nothing to act on. Add a `url` (and a `tag`) to the notification data so a tap opens the Companion Top-up page, which shows the running allowance with +5, +10 and custom buttons, or "expired" once the timer has run out. The action buttons stay as they are.
 
 **Done when:** entering Kids Mode starts the clock from Session 08, the PIN leaves it and the Done Screen, and Companion edits apply on the TV.
 
