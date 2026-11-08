@@ -24,7 +24,7 @@ export interface Tile {
   id: string; // focus id: app:<app id>, widget:<widget id> or allapps
   kind: 'app' | 'widget' | 'allapps';
   label: string;
-  detail: string;
+  detail: string; // may hold a line break
   size?: WidgetSize;
   unavailable?: boolean;
 }
@@ -68,7 +68,7 @@ export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, 
         used = 0;
       }
       used += UNITS[w.size];
-      out[out.length - 1].tiles.push(widgetTile(w, cap(w.size) + ' · ' + (placed[w.id] ? 'On Dashboard' : 'Not on Dashboard')));
+      out[out.length - 1].tiles.push(widgetTile(w, cap(w.size) + '\n' + (placed[w.id] ? 'On Dashboard' : 'Not on Dashboard')));
     }
     return out;
   }
@@ -103,7 +103,7 @@ export const clockText = (d: Date) => two(d.getHours()) + ':' + two(d.getMinutes
 export const dateText = (d: Date) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
 
 export interface ShellHooks {
-  onView(): void; // the sections, tab or mode changed: draw again
+  onView(view: View): void; // the sections, tab or mode changed: draw again
   onFocus(id: string | null): void; // highlight this id
 }
 
@@ -125,7 +125,12 @@ export function createShell(hooks: ShellHooks) {
   function rebuild(): void {
     if (mode === 'signin') focus.setBase([['settings']]);
     else focus.setBase([BAR].concat(sections().map((s) => s.tiles.map((t) => t.id))), { bar: true });
-    hooks.onView();
+    hooks.onView(view());
+  }
+
+  function view(): View {
+    const s = sections();
+    return { mode, tab, sections: s, message: mode === 'home' ? (layout ? (s.length ? '' : EMPTY[tab]) : 'Waiting for the first layout from the Server.') : '' };
   }
 
   function showTab(next: Tab, id?: string): void {
@@ -177,10 +182,7 @@ export function createShell(hooks: ShellHooks) {
       else unavailable.delete(appId);
       rebuild();
     },
-    view(): View {
-      const s = sections();
-      return { mode, tab, sections: s, message: mode === 'home' ? (layout ? (s.length ? '' : EMPTY[tab]) : 'Waiting for the first layout from the Server.') : '' };
-    },
+    view,
     /** Arrows move, Back goes back, OK (short or long, until Session 16 claims the long press) activates. */
     key(e: RemoteEvent): Activation | null {
       if (e.key === 'ok') return activate();

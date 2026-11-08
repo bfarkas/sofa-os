@@ -61,8 +61,8 @@ test('the Widgets tab packs six units to a row and says what is on the Dashboard
   const s = sectionsFor(l, 'widgets', new Set());
   // household widgets: w1 medium (2), w2 large (3), w4 small (1), w5 large (3)
   assert.deepEqual(s.map((x) => x.tiles.map((t) => t.id)), [['widget:w1', 'widget:w2', 'widget:w4'], ['widget:w5']]);
-  assert.equal(s[0].tiles[0].detail, 'Medium · On Dashboard');
-  assert.equal(s[0].tiles[1].detail, 'Large · Not on Dashboard');
+  assert.equal(s[0].tiles[0].detail, 'Medium\nOn Dashboard');
+  assert.equal(s[0].tiles[1].detail, 'Large\nNot on Dashboard');
 });
 
 test('rows that point at nothing are skipped', () => {

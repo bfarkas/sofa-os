@@ -3,53 +3,109 @@
 <head>
 <meta charset="utf-8">
 <title>Sofa Home</title>
+<!-- Colours and sizes are the tokens from shared/src/tokens.ts, injected by main.js as --sofa-* custom properties. -->
 <style>
-  html, body { margin: 0; width: 100%; height: 100%; background: #f6f1e7; color: #2b2f2a; font-family: sans-serif; overflow: hidden; }
-  #stage { position: relative; width: 1920px; height: 1080px; padding: 40px 60px; box-sizing: border-box; outline: none; }
-  h1 { margin: 0 0 8px; font-size: 64px; }
-  p { margin: 0 0 24px; font-size: 28px; color: #5f6b5c; }
-  #signin { display: -webkit-flex; display: flex; }
-  #signin[hidden], #home[hidden], #settings[hidden] { display: none; }
+  html, body { margin: 0; width: 100%; height: 100%; background: var(--sofa-color-ivory, #f6f1e7); font-family: var(--sofa-font, sans-serif); overflow: hidden; }
+  [hidden] { display: none !important; }
+  #stage { position: relative; width: 1920px; height: 1080px; padding: var(--sofa-size-margin-y) var(--sofa-size-margin-x); box-sizing: border-box; outline: none; overflow: hidden;
+    --on-bg: var(--sofa-color-ink); color: var(--on-bg); font-size: var(--sofa-size-text-body); }
+
+  /* The bar: tabs on the left, Settings and the clock on the right. */
+  #bar { display: flex; align-items: center; height: 76px; }
+  #tabs { display: flex; flex: 1; }
+  .pill { flex: none; box-sizing: border-box; height: 64px; padding: 0 34px; margin-right: 18px; border-radius: 32px; line-height: 64px; font-size: var(--sofa-size-text-label); font-weight: bold;
+    background: var(--sofa-color-panel-dim); color: var(--sofa-color-ink); }
+  .pill.sel { background: var(--sofa-color-sage-deep); color: var(--sofa-color-ivory); }
+  #clock { margin-left: 24px; text-align: right; line-height: 1.1; }
+  #time { font-size: 56px; font-weight: bold; }
+  #date { font-size: 28px; }
+
+  /* Focus: a ring in the page colour with a deep sage outline around it, readable over any background. */
+  #stage .focus { position: relative; z-index: 2; transform: scale(1.06); transition: transform .12s;
+    box-shadow: 0 0 0 var(--sofa-size-focus-ring) var(--sofa-color-focus-ring), 0 0 0 calc(var(--sofa-size-focus-ring) + var(--sofa-size-focus-outline)) var(--sofa-color-sage-deep); }
+
+  #content { position: absolute; left: calc(var(--sofa-size-margin-x) - 24px); right: calc(var(--sofa-size-margin-x) - 24px); top: 150px; bottom: 100px; padding: 0 24px; overflow: hidden; }
+  #greeting h1 { margin: 6px 0 4px; font-size: var(--sofa-size-text-hero); }
+  #greeting p { margin: 0 0 22px; font-size: 32px; }
+  .section { margin-bottom: 30px; }
+  .section-title { margin: 0 0 4px 4px; font-size: var(--sofa-size-text-title); font-weight: bold; min-height: 20px; }
+  .row { display: flex; padding: 20px 24px; margin: 0 -24px; overflow: hidden; }
+
+  .tile { flex: none; box-sizing: border-box; height: var(--sofa-size-tile); margin-right: var(--sofa-size-gap); border-radius: var(--sofa-size-radius);
+    background: var(--sofa-color-panel); color: var(--sofa-color-ink); border: 2px solid rgba(43, 47, 42, 0.16); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22); display: flex; flex-direction: column; justify-content: center; }
+  .tile:last-child { margin-right: 0; }
+  .tile.app, .tile.allapps { width: var(--sofa-size-tile); align-items: center; text-align: center; padding: 0 12px; }
+  .tile.widget { padding: 0 24px; }
+  .tile.small { width: var(--sofa-size-widget-small); }
+  .tile.medium { width: var(--sofa-size-widget-medium); }
+  .tile.large { width: var(--sofa-size-widget-large); }
+  .tile .badge { width: 96px; height: 96px; margin-bottom: 14px; border-radius: 48px; background: var(--sofa-color-sage); color: var(--sofa-color-ink); font-size: 54px; font-weight: bold; line-height: 96px; }
+  .tile.allapps .badge { background: none; border: 6px solid var(--sofa-color-sage-deep); box-sizing: border-box; line-height: 84px; color: var(--sofa-color-sage-deep); }
+  .tile .label { max-width: 100%; box-sizing: border-box; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--sofa-size-text-label); font-weight: bold; }
+  .tile.widget .label { font-size: var(--sofa-size-text-title); }
+  .tile .detail { margin-top: 6px; white-space: pre-line; font-size: 26px; color: var(--sofa-color-ink-muted); }
+  .tile.unavailable .badge { opacity: .45; }
+  .tile.unavailable .detail { color: var(--sofa-color-warn); font-weight: bold; }
+
+  #message { padding: 40px 4px; font-size: var(--sofa-size-text-title); }
+  #foot { position: absolute; left: var(--sofa-size-margin-x); right: var(--sofa-size-margin-x); bottom: var(--sofa-size-margin-y); font-size: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #toast { position: absolute; left: 50%; bottom: 30px; max-width: 1300px; padding: 20px 40px; border-radius: 20px; transform: translateX(-50%);
+    background: var(--sofa-color-ink); color: var(--sofa-color-ivory); font-size: 34px; font-weight: bold; z-index: 5; }
+  #log { display: none; }
+
+  /* TV Sign-in */
+  #signin { display: flex; padding-top: 40px; }
+  #signin h1 { margin: 0 0 8px; font-size: var(--sofa-size-text-hero); }
+  #signin p { margin: 0 0 24px; font-size: 32px; }
   #signin-text { width: 900px; }
   #code { font: bold 96px/1.2 monospace; letter-spacing: 8px; margin: 24px 0; }
-  #signin-note { font-size: 28px; color: #a3352b; }
+  #signin-note { min-height: 80px; font-size: 28px; color: var(--sofa-color-warn); }
+  #signin-settings { display: inline-block; margin-top: 12px; }
   #qr { margin-left: 60px; background: #fff; }
-  #status { margin: 0 0 16px; font-size: 32px; font-weight: bold; }
-  #layout { margin: 0 0 32px; font-size: 32px; line-height: 1.6; white-space: pre-wrap; }
-  #foot { position: absolute; left: 60px; bottom: 300px; font-size: 26px; color: #5f6b5c; }
-  #log { position: absolute; left: 60px; bottom: 40px; font: 24px/1.4 monospace; white-space: pre; color: #5f6b5c; }
-  #settings { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; padding: 40px 60px; box-sizing: border-box; background: #f6f1e7; }
-  .row { display: block; width: 1200px; box-sizing: border-box; margin: 0 0 24px; padding: 20px 28px; border: 4px solid #cfc8b6; border-radius: 12px; font-size: 36px; }
-  .row.focus { border-color: #3d6b4f; outline: 6px solid #3d6b4f; }
-  #server-input { width: 760px; margin-left: 24px; font-size: 36px; padding: 6px 12px; }
-  #settings-note { font-size: 28px; color: #a3352b; min-height: 40px; }
+
+  /* Settings, an overlay on whatever is showing. */
+  #settings { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: var(--sofa-color-scrim); z-index: 10; }
+  #settings-panel { position: absolute; left: 330px; top: 150px; width: 1260px; box-sizing: border-box; padding: 48px 60px; border-radius: 28px; background: var(--sofa-color-ivory); color: var(--sofa-color-ink); }
+  #settings h1 { margin: 0 0 8px; font-size: var(--sofa-size-text-hero); }
+  #settings p { margin: 0 0 28px; font-size: 28px; color: var(--sofa-color-ink-muted); }
+  .srow { box-sizing: border-box; margin: 0 0 26px; padding: 20px 28px; border: 4px solid var(--sofa-color-sage); border-radius: 14px; font-size: 36px; background: #fff; }
+  #stage .srow.focus { transform: none; }
+  #server-input { width: 700px; margin-left: 24px; font-size: 34px; padding: 6px 12px; }
+  #settings-note { min-height: 40px; font-size: 28px; color: var(--sofa-color-warn); }
+  #settings-help { margin: 0; }
 </style>
 </head>
 <body>
 <div id="stage" tabindex="0">
+  <div id="bar" hidden>
+    <div id="tabs"></div>
+    <div class="pill" id="bar-settings">Settings</div>
+    <div id="clock"><div id="time"></div><div id="date"></div></div>
+  </div>
   <div id="signin" hidden>
     <div id="signin-text">
       <h1>Sign in</h1>
       <p>Scan the code with your phone, sign in to Companion and tap Approve.</p>
       <div id="code"></div>
       <div id="signin-note"></div>
+      <div class="pill" id="signin-settings">Settings</div>
     </div>
     <canvas id="qr" width="1" height="1"></canvas>
   </div>
-  <div id="home" hidden>
-    <h1>Sofa Home</h1>
-    <div id="status"></div>
-    <div id="layout"></div>
-  </div>
+  <div id="content" hidden></div>
   <div id="foot"></div>
+  <div id="toast" hidden></div>
   <div id="log"></div>
   <div id="settings" hidden>
-    <h1>Settings</h1>
-    <p>Up and Down choose, OK selects, Back closes.</p>
-    <div class="row" id="row-server">Server address <input id="server-input" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-    <div class="row" id="row-again">Sign in again</div>
-    <div class="row" id="row-close">Close</div>
-    <div id="settings-note"></div>
+    <div id="settings-panel">
+      <h1>Settings</h1>
+      <p>Up and Down choose, OK selects, Back closes.</p>
+      <div class="srow" id="set:server">Server address <input id="server-input" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="srow" id="set:again">Sign in again</div>
+      <div class="srow" id="set:close">Close</div>
+      <div id="settings-note"></div>
+      <p id="settings-help">Lost in Samsung Home? Press Home on the remote and open Sofa Home from Apps.</p>
+    </div>
   </div>
 </div>
 <script src="env.js"></script>
