@@ -143,6 +143,16 @@ The core data path from the spec's [Edit and sync](Sofa.OS%20Architecture%20v0.2
 
 **Why this rating:** consistency bugs here show up everywhere. Session 16's merge of TV edits into drafts depends on this revision model.
 
+**Built (2026-11-08).** The schema and `validateLayout` are in `shared/src/layout.ts`, the revision model in `server/src/layout.ts`, and Sofa Home's sync in `tv/src/sync.ts`.
+
+- **Revisions** are numbered 1, 2, 3 without gaps, and the highest is current. Each records its `base`, the revision it was built on. Revision 1 is an empty layout created by the migration, so there is always a current snapshot.
+- **Drafts** belong to Companion. Each records `base`, the revision it was started from. `PUT` must send the draft's `base` and gets 409 otherwise. Publishing validates, then inserts the next revision and deletes the draft in one transaction, and is refused with 409 unless the draft's `base` is still current. A refused or failed publish changes nothing.
+- **The rule Session 16 relies on:** whoever commits a revision while drafts are open must bring each draft forward, by applying the same change to the draft's layout and setting its `base` to the new revision in the same transaction. A draft left behind cannot be published and has to be reloaded. Companion learns of a moved draft from the 409 on its next `PUT`.
+- **API:** `GET /api/snapshot` returns `{ revision, publishedAt, layout }`. `POST /api/drafts` starts a draft from the current revision; `GET`, `PUT { base, layout }` and `DELETE /api/drafts/:id` handle one; `POST /api/drafts/:id/publish` returns the new snapshot, or 422 with `errors` or 409. Drafts need a Companion session. The WebSocket `/ws` sends `{ "type": "revision", "revision": n }` after each publish and carries no data.
+- **TV access until Session 06:** the snapshot and `/ws` accept Sofa Home only when the Server runs with `SOFA_TV_OPEN_ACCESS=1`. Session 06 replaces that flag in `isTv` in `server/src/server.ts` with the device token.
+- **Sofa Home** shows its stored snapshot at once, fetches on every socket open and on each signal, polls every 10 seconds while the socket is down, treats a clock jump as a dead socket, and keeps the last valid snapshot when a new one fails validation. The TV's validator is bundled in the signed package, so a schema change needs a Sofa Home release first. The Server address comes from `SOFA_SERVER_URL` in `tv/build.sh` until Session 06 adds the setting.
+- **Publishing from a script:** `SOFA_URL=… SOFA_PASSWORD=… npm run publish-layout` publishes a sample layout stamped with the time, `-- layout.json` a file, and `-- --broken` an invalid one that must be refused.
+
 ### 06 · TV Sign-in
 
 **Difficulty 3 · Sonnet · high · TV**

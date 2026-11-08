@@ -14,9 +14,10 @@ OUT="$HERE/out"
 export PATH="$SDK/tools/ide/bin:$SDK/tools:$PATH"
 
 mkdir -p "$OUT"
-# Tell the app where tools/recv.py listens (this Mac's LAN IP). Set LOG_URL= to turn it off.
+# Tell the app where tools/recv.py listens (this Mac's LAN IP; LOG_URL= turns it off) and where the Server is.
 LOG_URL="${LOG_URL-http://$(ipconfig getifaddr en0):8099/log}"
-echo "window.SOFA_LOG_URL = '$LOG_URL';" > "$HERE/app/logurl.js"
+SOFA_SERVER_URL="${SOFA_SERVER_URL-https://sofa.familie-farkas.de}"
+printf "window.SOFA_LOG_URL = '%s';\nwindow.SOFA_SERVER_URL = '%s';\n" "$LOG_URL" "$SOFA_SERVER_URL" > "$HERE/app/env.js"
 rm -f "$OUT"/*.wgt "$HERE"/app/.manifest.tmp
 npm run build -w tv --prefix "$HERE/.." >/dev/null
 

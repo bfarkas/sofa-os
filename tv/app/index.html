@@ -8,16 +8,20 @@
   #stage { width: 1920px; height: 1080px; padding: 40px 60px; box-sizing: border-box; outline: none; }
   h1 { margin: 0 0 8px; font-size: 64px; }
   p { margin: 0 0 24px; font-size: 28px; color: #5f6b5c; }
-  #log { font: 28px/1.4 monospace; white-space: pre; }
+  #status { margin: 0 0 16px; font-size: 32px; font-weight: bold; }
+  #layout { margin: 0 0 32px; font-size: 32px; line-height: 1.6; white-space: pre-wrap; }
+  #log { font: 24px/1.4 monospace; white-space: pre; color: #5f6b5c; }
 </style>
 </head>
 <body>
 <div id="stage" tabindex="0">
   <h1>Sofa Home</h1>
-  <p>Session 01 skeleton: press remote keys, leave and return. Events are kept across restarts.</p>
+  <p>Session 05: the published layout, kept on the TV when the Server is away. Key and sync events below.</p>
+  <div id="status"></div>
+  <div id="layout"></div>
   <div id="log"></div>
 </div>
-<script src="logurl.js"></script>
+<script src="env.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

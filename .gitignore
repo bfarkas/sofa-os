@@ -3,7 +3,7 @@ tv/out/
 tv/app/author-signature.xml
 tv/app/signature1.xml
 tv/app/.manifest.tmp
-tv/app/logurl.js
+tv/app/env.js
 node_modules/
 tv/app/main.js
 companion/dist/
