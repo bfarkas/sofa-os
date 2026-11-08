@@ -5,21 +5,52 @@
 <title>Sofa Home</title>
 <style>
   html, body { margin: 0; width: 100%; height: 100%; background: #f6f1e7; color: #2b2f2a; font-family: sans-serif; overflow: hidden; }
-  #stage { width: 1920px; height: 1080px; padding: 40px 60px; box-sizing: border-box; outline: none; }
+  #stage { position: relative; width: 1920px; height: 1080px; padding: 40px 60px; box-sizing: border-box; outline: none; }
   h1 { margin: 0 0 8px; font-size: 64px; }
   p { margin: 0 0 24px; font-size: 28px; color: #5f6b5c; }
+  #signin { display: -webkit-flex; display: flex; }
+  #signin[hidden], #home[hidden], #settings[hidden] { display: none; }
+  #signin-text { width: 900px; }
+  #code { font: bold 96px/1.2 monospace; letter-spacing: 8px; margin: 24px 0; }
+  #signin-note { font-size: 28px; color: #a3352b; }
+  #qr { margin-left: 60px; background: #fff; }
   #status { margin: 0 0 16px; font-size: 32px; font-weight: bold; }
   #layout { margin: 0 0 32px; font-size: 32px; line-height: 1.6; white-space: pre-wrap; }
-  #log { font: 24px/1.4 monospace; white-space: pre; color: #5f6b5c; }
+  #foot { position: absolute; left: 60px; bottom: 300px; font-size: 26px; color: #5f6b5c; }
+  #log { position: absolute; left: 60px; bottom: 40px; font: 24px/1.4 monospace; white-space: pre; color: #5f6b5c; }
+  #settings { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; padding: 40px 60px; box-sizing: border-box; background: #f6f1e7; }
+  .row { display: block; width: 1200px; box-sizing: border-box; margin: 0 0 24px; padding: 20px 28px; border: 4px solid #cfc8b6; border-radius: 12px; font-size: 36px; }
+  .row.focus { border-color: #3d6b4f; outline: 6px solid #3d6b4f; }
+  #server-input { width: 760px; margin-left: 24px; font-size: 36px; padding: 6px 12px; }
+  #settings-note { font-size: 28px; color: #a3352b; min-height: 40px; }
 </style>
 </head>
 <body>
 <div id="stage" tabindex="0">
-  <h1>Sofa Home</h1>
-  <p>Session 05: the published layout, kept on the TV when the Server is away. Key and sync events below.</p>
-  <div id="status"></div>
-  <div id="layout"></div>
+  <div id="signin" hidden>
+    <div id="signin-text">
+      <h1>Sign in</h1>
+      <p>Scan the code with your phone, sign in to Companion and tap Approve.</p>
+      <div id="code"></div>
+      <div id="signin-note"></div>
+    </div>
+    <canvas id="qr" width="1" height="1"></canvas>
+  </div>
+  <div id="home" hidden>
+    <h1>Sofa Home</h1>
+    <div id="status"></div>
+    <div id="layout"></div>
+  </div>
+  <div id="foot"></div>
   <div id="log"></div>
+  <div id="settings" hidden>
+    <h1>Settings</h1>
+    <p>Up and Down choose, OK selects, Back closes.</p>
+    <div class="row" id="row-server">Server address <input id="server-input" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="row" id="row-again">Sign in again</div>
+    <div class="row" id="row-close">Close</div>
+    <div id="settings-note"></div>
+  </div>
 </div>
 <script src="env.js"></script>
 <script src="main.js"></script>

@@ -5,6 +5,19 @@ import { validateSnapshot, type ServerMessage, type Snapshot } from '@sofa/share
 
 export const STORAGE_KEY = 'sofahome.snapshot';
 
+/** The Server answered 401: the device token is unknown, e.g. replaced by a newer sign-in. */
+export class Unauthorized extends Error {}
+
+/** GET /api/snapshot with the device token. */
+export function snapshotFetcher(fetchFn: typeof fetch, server: string, token: string): () => Promise<unknown> {
+  return () =>
+    fetchFn(server + '/api/snapshot', { headers: { Authorization: 'Bearer ' + token } }).then((r) => {
+      if (r.status === 401) throw new Unauthorized('HTTP 401');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+}
+
 export interface SocketHandlers {
   open(): void;
   message(data: string): void;
@@ -16,6 +29,7 @@ export interface SyncOptions {
   openSocket(handlers: SocketHandlers): { close(): void };
   storage: { getItem(key: string): string | null; setItem(key: string, value: string): void };
   onChange(state: SyncState): void;
+  onUnauthorized(): void; // sync has stopped itself; the stored snapshot is untouched
   intervalMs?: number; // polling and reconnecting while the socket is down
   now?(): number;
 }
@@ -33,6 +47,7 @@ export function startSync(o: SyncOptions): { stop(): void } {
   let socket: { close(): void } | null = null;
   let connected = false;
   let generation = 0; // ignores events from sockets already given up on
+  let stopped = false;
   let fetching = false;
   let again = false;
   let lastTick = now();
@@ -70,6 +85,7 @@ export function startSync(o: SyncOptions): { stop(): void } {
 
   // One fetch at a time, so answers arrive in order; a request during a fetch runs once more after it.
   function refresh(): void {
+    if (stopped) return;
     if (fetching) {
       again = true;
       return;
@@ -80,6 +96,11 @@ export function startSync(o: SyncOptions): { stop(): void } {
       .then(
         (value) => apply(value, wasConnected && connected && gen === generation),
         (err) => {
+          if (err instanceof Unauthorized) {
+            stop();
+            o.onUnauthorized();
+            return;
+          }
           state.error = 'Server unreachable: ' + (err && err.message ? err.message : String(err));
           emit();
         },
@@ -152,12 +173,12 @@ export function startSync(o: SyncOptions): { stop(): void } {
   refresh();
   connect();
   const timer = setInterval(tick, intervalMs);
-  return {
-    stop() {
-      clearInterval(timer);
-      generation++;
-      if (socket) socket.close();
-      socket = null;
-    },
-  };
+  function stop(): void {
+    stopped = true;
+    clearInterval(timer);
+    generation++;
+    if (socket) socket.close();
+    socket = null;
+  }
+  return { stop };
 }

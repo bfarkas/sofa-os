@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Layout, Snapshot } from '@sofa/shared';
-import { startSync, STORAGE_KEY, type SocketHandlers, type SyncOptions, type SyncState } from './sync.ts';
+import { snapshotFetcher, startSync, STORAGE_KEY, Unauthorized, type SocketHandlers, type SyncOptions, type SyncState } from './sync.ts';
 
 const layout = (title: string): Layout => ({
   schema: 1,
@@ -20,7 +20,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function harness(stored?: string) {
   const store = new Map<string, string>();
   if (stored !== undefined) store.set(STORAGE_KEY, stored);
-  const server = { up: true, current: snap(1) as unknown, fetches: 0 };
+  const server = { up: true, refuse: false, current: snap(1) as unknown, fetches: 0, unauthorized: 0 };
   const sockets: { h: SocketHandlers; closed: boolean }[] = [];
   const states: SyncState[] = [];
   let clock = 1_000_000;
@@ -28,6 +28,7 @@ function harness(stored?: string) {
     fetchSnapshot: async () => {
       server.fetches++;
       if (!server.up) throw new Error('connection refused');
+      if (server.refuse) throw new Unauthorized('HTTP 401');
       return JSON.parse(JSON.stringify(server.current));
     },
     openSocket: (h) => {
@@ -37,6 +38,7 @@ function harness(stored?: string) {
     },
     storage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => void store.set(k, v) },
     onChange: (s) => states.push(s),
+    onUnauthorized: () => void server.unauthorized++,
     intervalMs: 20,
     now: () => clock,
   };
@@ -146,4 +148,32 @@ test('a clock jump (TV standby) drops the socket and reconnects', async () => {
   assert.ok(h.sockets.length >= 2);
   first.h.message(JSON.stringify({ type: 'revision', revision: 9 })); // the dead socket is ignored
   sync.stop();
+});
+
+test('a 401 stops sync, keeps the stored snapshot and reports once', async () => {
+  const h = harness(JSON.stringify(snap(4)));
+  h.server.refuse = true;
+  startSync(h.options);
+  await wait(80); // several ticks
+  assert.equal(h.server.unauthorized, 1);
+  assert.equal(h.store.get(STORAGE_KEY), JSON.stringify(snap(4)));
+  assert.equal(h.last().snapshot?.revision, 4);
+  const fetches = h.server.fetches;
+  h.socket().h.open();
+  await wait(50);
+  assert.equal(h.server.fetches, fetches); // no more requests with the dead token
+  assert.equal(h.sockets.every((s) => s.closed), true);
+});
+
+test('the snapshot request carries the token and maps 401 to Unauthorized', async () => {
+  const seen: { url: string; auth: string }[] = [];
+  const fake = (status: number) =>
+    (async (url: string, init: { headers: Record<string, string> }) => {
+      seen.push({ url, auth: init.headers.Authorization });
+      return { status, ok: status < 300, json: async () => snap(2) };
+    }) as unknown as typeof fetch;
+  assert.deepEqual(await snapshotFetcher(fake(200), 'https://sofa.test', 'tok')(), snap(2));
+  assert.deepEqual(seen[0], { url: 'https://sofa.test/api/snapshot', auth: 'Bearer tok' });
+  await assert.rejects(snapshotFetcher(fake(401), 'https://sofa.test', 'tok')(), Unauthorized);
+  await assert.rejects(snapshotFetcher(fake(500), 'https://sofa.test', 'tok')(), (e: Error) => !(e instanceof Unauthorized) && /500/.test(e.message));
 });

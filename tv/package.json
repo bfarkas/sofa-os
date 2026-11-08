@@ -2,6 +2,11 @@
   "name": "@sofa/tv",
   "private": true,
   "type": "module",
-  "dependencies": { "@sofa/shared": "*" },
-  "scripts": { "build": "esbuild src/main.ts --bundle --target=chrome56,es2017 --outfile=app/main.js" }
+  "dependencies": {
+    "@sofa/shared": "*",
+    "uqr": "^0.1.3"
+  },
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --target=chrome56,es2017 --outfile=app/main.js"
+  }
 }
