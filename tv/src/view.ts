@@ -1,5 +1,5 @@
 // Draws the shell (shell.ts) into tv/app/index.html and shows which id has focus. No decisions are made here.
-import { clockText, dateText, greeting, TABS, type Tile, type View } from './shell.ts';
+import { clockText, dateText, TABS, type Tile, type View } from './shell.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 function h(tag: string, cls: string, text?: string): HTMLElement {
@@ -14,7 +14,6 @@ let tiles: Record<string, HTMLElement> = {}; // the tiles of the current tab, re
 let mode: View['mode'] = 'signin';
 let tab = '';
 let focusId: string | null = null;
-let greetingEl: HTMLElement | null = null;
 
 export function initView(): void {
   for (const t of TABS) {
@@ -49,19 +48,10 @@ export function render(v: View): void {
   const keepScroll = content.scrollTop;
   content.innerHTML = '';
   tiles = {};
-  greetingEl = null;
   if (v.mode === 'home') {
-    if (v.tab === 'dashboard') {
-      const g = h('div', '');
-      g.id = 'greeting';
-      greetingEl = g.appendChild(h('h1', ''));
-      g.appendChild(h('p', '', 'Relax, discover, be at home.'));
-      content.appendChild(g);
-      updateClock(new Date());
-    }
+    if (v.tab === 'dashboard') updateClock(new Date());
     for (const s of v.sections) {
       const sec = h('div', 'section');
-      sec.appendChild(h('div', 'section-title', s.title));
       const row = sec.appendChild(h('div', 'row'));
       for (const t of s.tiles) row.appendChild((tiles[t.id] = tileEl(t)));
       content.appendChild(sec);
@@ -80,7 +70,6 @@ export function render(v: View): void {
 export function updateClock(d: Date): void {
   $('time').textContent = clockText(d);
   $('date').textContent = dateText(d);
-  if (greetingEl) greetingEl.textContent = greeting(d.getHours());
 }
 
 /** Highlights `id` and scrolls its row into view: its section vertically (the first one all the way up), the tile horizontally. */

@@ -95,9 +95,6 @@ const EMPTY: Record<Tab, string> = {
   widgets: 'No widgets yet. Add widgets in Companion.',
 };
 
-export function greeting(hour: number): string {
-  return hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-}
 const two = (n: number) => (n < 10 ? '0' : '') + n;
 export const clockText = (d: Date) => two(d.getHours()) + ':' + two(d.getMinutes());
 export const dateText = (d: Date) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];

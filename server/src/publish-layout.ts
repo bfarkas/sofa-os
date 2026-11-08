@@ -20,8 +20,8 @@ const arg = process.argv[2];
 function sample(): Layout {
   const apps = [
     { id: 'org.tizen.netflix-app', name: 'Netflix' },
-    { id: '111299001912', name: 'YouTube' },
-    { id: '3201512006963', name: 'Plex' },
+    { id: '9Ur5IzDKqV.TizenYouTube', name: 'YouTube' },
+    { id: 'kIciSQlYEM.plex', name: 'Plex' },
     { id: 'SrAoJxGQUf.ARD', name: 'ARD' },
     { id: 'yPSlpvfeTf.ZDFmediathek', name: 'ZDF' },
     { id: 'mvOizTfhQn.KiKAplayer', name: 'KiKA' },

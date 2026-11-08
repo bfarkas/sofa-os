@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Layout } from '@sofa/shared';
 import type { RemoteEvent, RemoteKey } from './keys.ts';
-import { clockText, createShell, dateText, greeting, sectionsFor } from './shell.ts';
+import { clockText, createShell, dateText, sectionsFor } from './shell.ts';
 
 const app = (id: string, name: string) => ({ id, name });
 const layout = (over: Partial<Layout> = {}): Layout => ({
@@ -192,8 +192,7 @@ test('the sign-in screen has one focusable thing, Settings', () => {
   assert.equal(shell.view().mode, 'signin');
 });
 
-test('greeting and clock', () => {
-  assert.deepEqual([3, 8, 13, 20].map(greeting), ['Good night', 'Good morning', 'Good afternoon', 'Good evening']);
+test('clock', () => {
   const d = new Date(2026, 10, 5, 7, 4);
   assert.equal(clockText(d), '07:04');
   assert.equal(dateText(d), 'Thu 5 Nov');
