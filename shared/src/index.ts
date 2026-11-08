@@ -1,5 +1,6 @@
 // Types and constants shared by the Server, Companion and Sofa Home.
 export * from './layout.ts';
+export * from './tokens.ts';
 
 export interface LoginRequest {
   password: string;
