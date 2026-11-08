@@ -56,10 +56,10 @@ Two sessions should never edit the same files at once. In Phase 2 the adapters (
 
 ## Decisions to make before Session 04
 
-These are not settled in the spec. Session 04 should confirm them with the user before writing code.
+Stack and layout were confirmed with the user on 2026-11-08, at the start of Session 04.
 
-- **Stack.** Recommended: TypeScript across all three parts, so Companion's preview and Sofa Home share one layout schema and one set of visual tokens, as the spec requires. Node for the Server with SQLite. Sofa Home bundled for Chromium M56 (ES2017 target, no runtime that M56 cannot run). Companion as a small SPA.
-- **Repository layout.** Recommended: one repo with `server/`, `companion/`, `tv/` and `shared/` (schema and tokens).
+- **Stack (decided).** TypeScript across all parts. The Server runs on Node 26, which executes its `.ts` files directly (type stripping, so only erasable syntax), with the built-in `node:sqlite`, `node:test` and `ws` for WebSockets. esbuild bundles Companion and Sofa Home, Sofa Home for Chromium M56 (`chrome56,es2017`). Companion is a small SPA without a framework so far. One `tsc` run type-checks everything.
+- **Repository layout (decided).** One repo with npm workspaces `shared/`, `server/`, `companion/` and `tv/`. `deploy/` holds the Dockerfile, compose file, Caddy route and password script.
 - **Household policy** (needed by Session 08, not 04): approved Kids Mode apps, daily allowance minutes, overnight reset time, and whether a hard switch-off needs a grace period.
 
 ---

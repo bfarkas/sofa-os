@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sets or changes the Companion password, then restarts the Server. Run on rei3:
-#   ssh -t rei3.local ~/sofa-os/deploy/set-password.sh
+#   ssh -t rei3.local sofa-os/deploy/set-password.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 dir="$HOME/.config/sofa-os/secrets"

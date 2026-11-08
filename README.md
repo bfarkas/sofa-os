@@ -8,7 +8,20 @@ A family TV experience for one household: a remote-friendly screen on a Samsung 
 
 ## Status
 
-This repository holds the design only, with no application code yet. The spec is at v0.2, and key behavior is being tested on the real TV.
+Phase 1 has started. The Server foundation runs on the home server behind Caddy, with Companion sign-in, and Sofa Home is still the Session 01 key logger. See the [implementation plan](docs/implementation-plan.md).
+
+## Development
+
+Needs Node 26.
+
+```bash
+npm install
+npm run check   # type-check every workspace
+npm test        # Server tests, including the Home Assistant write guard
+npm run build   # bundle Companion and Sofa Home
+```
+
+`tv/build.sh install` builds, signs and installs Sofa Home on the TV. To deploy the Server on rei3, run `git pull && docker compose -f deploy/compose.yaml up -d --build` in `~/sofa-os`. `deploy/set-password.sh` sets the Companion password.
 
 ## What it is
 
