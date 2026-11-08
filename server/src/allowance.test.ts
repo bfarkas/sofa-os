@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { actionMinutes, allowanceDays, createAllowance, type Store, type TvPower } from './allowance.ts';
+import { actionMinutes, allowanceDays, createAllowance, fromDb, type Store, type TvPower } from './allowance.ts';
 import type { HaConfig } from './config.ts';
+import { openDb } from './db.ts';
 import { createHaClient } from './ha.ts';
 
 const HA: HaConfig = { url: 'http://ha.test:8123', token: 't', tvEntity: 'media_player.samung_tv', remoteEntity: 'remote.samung_tv', notifyServices: ['mobile_app_a', 'mobile_app_b'] };
@@ -344,4 +348,31 @@ test('the change signal fires on Kids Mode changes, not on every reading', async
   assert.equal(n, 3);
   k.engine.exit();
   assert.equal(n, 4);
+});
+
+test('the state survives in SQLite across a restart, and the budget comes from the current layout', () => {
+  const path = join(mkdtempSync(join(tmpdir(), 'sofa-allowance-')), 'sofa.db');
+  let t = Date.parse('2026-11-09T17:00:00+01:00');
+  const open = () => {
+    const db = openDb(path);
+    return { db, engine: createAllowance({ ...fromDb(db), ha: null, timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, now: () => t }) };
+  };
+  let { db, engine } = open();
+  assert.equal(engine.status().dailySeconds, 60 * 60, "revision 1's kidsMode.dailyMinutes");
+  engine.observe('on');
+  engine.enter();
+  for (let i = 0; i < 12; i++) {
+    t += 5000;
+    engine.observe('on');
+  }
+  db.close(); // the Server stops
+  t += 15_000;
+  ({ db, engine } = open());
+  engine.observe('on');
+  assert.equal(engine.status().usedSeconds, 75);
+  assert.equal(engine.status().active, true);
+  t += 5000;
+  engine.observe('on');
+  assert.equal(engine.status().usedSeconds, 80);
+  db.close();
 });

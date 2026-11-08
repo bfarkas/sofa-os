@@ -36,6 +36,11 @@ const migrations: string[] = [
      token_hash TEXT NOT NULL,
      created_at INTEGER NOT NULL
    ) STRICT;`,
+  // The Watch Allowance clock (see allowance.ts): its whole state as one JSON document.
+  `CREATE TABLE allowance (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     state TEXT NOT NULL
+   ) STRICT;`,
 ];
 
 export function openDb(path: string): DatabaseSync {

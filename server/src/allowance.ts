@@ -1,5 +1,7 @@
+import type { DatabaseSync } from 'node:sqlite';
 import type { KidsStatus } from '@sofa/shared';
 import type { HaClient } from './ha.ts';
+import { currentSnapshot } from './layout.ts';
 import { log } from './log.ts';
 
 // The Watch Allowance clock (spec: Kids Mode > Watch Allowance; rules in the plan's Session 08 note).
@@ -78,6 +80,15 @@ export interface Store {
   load(): string | undefined;
   save(json: string): void;
 }
+
+/** The state in SQLite, and the daily allowance from the current layout. */
+export const fromDb = (db: DatabaseSync) => ({
+  store: {
+    load: () => (db.prepare('SELECT state FROM allowance WHERE id = 1').get() as { state: string } | undefined)?.state,
+    save: (json: string) => void db.prepare('INSERT INTO allowance (id, state) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET state = excluded.state').run(json),
+  } satisfies Store,
+  budgetSeconds: () => currentSnapshot(db).layout.kidsMode.dailyMinutes * 60,
+});
 
 export interface AllowanceOptions {
   store: Store;
