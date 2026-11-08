@@ -49,3 +49,15 @@ test('keys that are not ours are left to the browser', () => {
   assert.equal(remote.down(10252), false);
   assert.deepEqual(events, []);
 });
+
+test('number keys and the keypad act on keydown and carry the digit', () => {
+  const { remote, events } = setup();
+  for (const code of [48, 53, 57, 96, 105]) assert.equal(remote.down(code), true);
+  remote.down(53); // a repeat while held
+  remote.up(53);
+  remote.down(53);
+  assert.deepEqual(events.map((e) => e.digit), ['0', '5', '9', '0', '9', '5']);
+  assert.ok(events.every((e) => e.key === 'digit' && !e.long));
+  assert.equal(remote.down(47), false);
+  assert.equal(remote.down(58), false);
+});

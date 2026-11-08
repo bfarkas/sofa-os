@@ -71,6 +71,51 @@
   #server-input { width: 700px; margin-left: 24px; font-size: 34px; padding: 6px 12px; }
   #settings-note { min-height: 40px; font-size: 28px; color: var(--sofa-color-warn); }
   #settings-help { margin: 0; }
+
+  /* Kids Mode. The Dashboard tile is composed here: a lavender panel with the forest fading in on the right and the unicorn
+     stepping out of its top-left corner. Everything is flex and margins, nothing newer than Chromium 56 needs. */
+  .tile.kids { position: relative; width: 700px; height: 150px; flex-direction: row; align-items: center; justify-content: flex-start; overflow: visible;
+    background: linear-gradient(to right, #e9dff4 0%, #e9dff4 52%, rgba(233, 223, 244, 0) 78%), url(img/kids-tile-forest.jpg) no-repeat right center #e9dff4; border-color: rgba(83, 59, 112, 0.35); }
+  .tile.kids .uni { position: absolute; left: 16px; top: -16px; width: 166px; height: 175px; }
+  .tile.kids .kt { margin-left: 200px; max-width: 330px; }
+  .tile.kids .label { color: #533b70; font-size: 46px; }
+  .tile.kids .detail { color: #533b70; font-size: 26px; font-weight: bold; }
+  .tile.kids .go { position: absolute; right: 36px; top: 35px; width: 80px; height: 80px; border-radius: 40px; background: #533b70; color: #fff; font-size: 48px; font-weight: bold; line-height: 80px; text-align: center; }
+  .tile.kids.unavailable { background: #e9dff4; }
+  .tile.kids.unavailable .go { display: none; }
+  .tile.kids.unavailable .label, .tile.kids.unavailable .detail { color: #6b5b7d; }
+  .tile.kids.unavailable .detail { font-weight: bold; }
+  .tile.kids.unavailable .uni { top: 14px; left: 30px; width: 130px; height: 123px; }
+  body.kids #stage { --on-bg: #fffdf8; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55); }
+  #stage .pill, #stage .tile, #stage .srow, #stage .pkey, #stage #toast { text-shadow: none; }
+  #kids-head { display: flex; align-items: center; height: 120px; }
+  #kids-head img { width: 95px; height: 100px; margin-right: 24px; }
+  #kids-title { flex: 1; font-size: var(--sofa-size-text-hero); font-weight: bold; }
+  #content.kidsview { top: 220px; }
+  .kidsview .tile.app { width: 300px; height: 300px; border-radius: 34px; }
+  .kidsview .tile .badge { width: 150px; height: 150px; margin-bottom: 20px; border-radius: 75px; font-size: 84px; line-height: 150px; }
+  .kidsview .tile .label { font-size: 44px; }
+  #done { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #done-panel { position: absolute; left: 480px; top: 150px; width: 960px; box-sizing: border-box; padding: 40px 60px 50px; border-radius: 40px; text-align: center;
+    background: rgba(31, 36, 30, 0.7); color: #fffdf8; }
+  #done-panel img { width: 340px; height: 336px; }
+  #done-panel h1 { margin: 10px 0 8px; font-size: 76px; }
+  #done-panel p { margin: 0 0 36px; font-size: 40px; }
+  #done-panel .pill { display: inline-block; margin-right: 0; }
+
+  /* The PIN pad, an overlay: four dots, a line for the answer, three keys to a row. */
+  #pin { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: var(--sofa-color-scrim); z-index: 10; }
+  #pin-panel { position: absolute; left: 650px; top: 90px; width: 620px; box-sizing: border-box; padding: 36px 40px 40px; border-radius: 28px; text-align: center;
+    background: var(--sofa-color-ivory); color: var(--sofa-color-ink); text-shadow: none; }
+  #pin-panel h1 { margin: 0 0 18px; font-size: 48px; }
+  #pin-dots { height: 40px; margin-bottom: 14px; }
+  #pin-dots .dot { display: inline-block; width: 32px; height: 32px; margin: 0 14px; box-sizing: border-box; border-radius: 16px; border: 4px solid var(--sofa-color-sage-deep); }
+  #pin-dots .dot.on { background: var(--sofa-color-sage-deep); }
+  #pin-note { min-height: 44px; margin-bottom: 14px; font-size: 30px; font-weight: bold; color: var(--sofa-color-warn); }
+  .pin-row { display: flex; justify-content: center; margin-bottom: 16px; }
+  .pkey { flex: none; box-sizing: border-box; width: 160px; height: 110px; margin: 0 8px; border-radius: 20px; border: 4px solid var(--sofa-color-sage); background: #fff;
+    font-size: 54px; font-weight: bold; line-height: 102px; }
+  .pkey.word { font-size: 32px; }
 </style>
 </head>
 <body>
@@ -90,10 +135,31 @@
     </div>
     <canvas id="qr" width="1" height="1"></canvas>
   </div>
+  <div id="kids-head" hidden>
+    <img src="img/unicorn-welcome.png" alt="">
+    <div id="kids-title">Kids Mode</div>
+    <div class="pill" id="kids:exit">Adults</div>
+  </div>
   <div id="content" hidden></div>
+  <div id="done" hidden>
+    <div id="done-panel">
+      <img src="img/unicorn-resting.png" alt="">
+      <h1>All done for now</h1>
+      <p>See you next time.</p>
+      <div class="pill" id="done:adults">Adults</div>
+    </div>
+  </div>
   <div id="foot"></div>
   <div id="toast" hidden></div>
   <div id="log"></div>
+  <div id="pin" hidden>
+    <div id="pin-panel">
+      <h1>Enter the PIN</h1>
+      <div id="pin-dots"></div>
+      <div id="pin-note"></div>
+      <div id="pin-keys"></div>
+    </div>
+  </div>
   <div id="settings" hidden>
     <div id="settings-panel">
       <h1>Settings</h1>

@@ -4,11 +4,12 @@
 import { textOn, tokensCss, TV_PROTOCOL_PREFIX } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
+import { createKids, createPad, forestFor, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
 import { drawQr } from './qr.ts';
 import { createShell, type Tab } from './shell.ts';
 import { dashed, normalizeServer, SERVER_KEY, startSignIn, TOKEN_KEY, type SignInState } from './signin.ts';
-import { snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
-import { initView, render, setFocus, updateClock } from './view.ts';
+import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
+import { initView, render, renderPad, setFocus, updateClock } from './view.ts';
 
 declare global {
   interface Window {
@@ -65,7 +66,8 @@ function send(line: string): void {
 
 // Colour and media keys only reach the page after registration; log whether each registers.
 const EXTRA = ['ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue', 'MediaPlayPause', 'MediaPlay', 'MediaPause',
-  'MediaStop', 'MediaRewind', 'MediaFastForward', 'MediaTrackPrevious', 'MediaTrackNext', 'Info', 'Menu', 'Guide', 'Exit', 'ChannelUp', 'ChannelDown', 'VolumeUp', 'VolumeDown', 'VolumeMute'];
+  'MediaStop', 'MediaRewind', 'MediaFastForward', 'MediaTrackPrevious', 'MediaTrackNext', 'Info', 'Menu', 'Guide', 'Exit', 'ChannelUp', 'ChannelDown', 'VolumeUp', 'VolumeDown', 'VolumeMute',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']; // the number keys are the PIN pad's
 
 const focusStage = () => stage.focus();
 // Tizen resumes the web view before input focus settles, so refocus a few times.
@@ -110,6 +112,10 @@ document.addEventListener('visibilitychange', () => {
     updateClock(new Date());
     shell.focus.refresh(); // the focus model survived; draw it again
     resumeFromLaunch();
+    if (token && server) {
+      kidsCtl.refresh(); // the Server counts this request as proof that the TV is on
+      if (sync) sync.refresh();
+    }
   }
 });
 
@@ -156,15 +162,21 @@ const RESUME_KEY = 'sofahome.resume';
 const RESUME_MAX_MS = 6 * 3600_000;
 let server = normalizeServer(store.get(SERVER_KEY) || window.SOFA_SERVER_URL || '') || '';
 let token = store.get(TOKEN_KEY) || '';
-let sync: { stop(): void } | null = null;
+let sync: { stop(): void; refresh(): void } | null = null;
 let signIn: { stop(): void } | null = null;
 let lastRevision = 0;
 let lastNote = '';
 let lastSync: SyncState | null = null;
 let appNames: Record<string, string> = {};
 let resumed = false;
+const SCREEN_KEY = 'sofahome.screen'; // the last screen, so a restart in Kids Mode does not flash the household Dashboard
+let screen: Screen = store.get(SCREEN_KEY) === 'kids' ? 'kids' : store.get(SCREEN_KEY) === 'done' ? 'done' : 'household';
+let syncKids = screen !== 'household'; // which view of the layout the sync fetches
+let bgColor = ''; // the household layout's background
+let overlay: 'settings' | 'pin' | null = null;
+let kidsTileOk = false; // the Kids Mode request has been answered
 
-const settingsEl = $('settings'), codeEl = $('code'), signinNote = $('signin-note'), toastEl = $('toast');
+const settingsEl = $('settings'), pinEl = $('pin'), codeEl = $('code'), signinNote = $('signin-note'), toastEl = $('toast');
 const serverInput = $('server-input') as HTMLInputElement;
 const settingsNote = $('settings-note');
 
@@ -173,6 +185,7 @@ style.textContent = tokensCss();
 document.head.appendChild(style);
 initView();
 const shell = createShell({ onView: render, onFocus: setFocus });
+shell.setScreen(screen);
 const launcher = tizenLauncher(typeof tizen === 'undefined' ? undefined : tizen);
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -193,6 +206,7 @@ function updateFoot(): void {
 
 function renderHome(s: SyncState): void {
   lastSync = s;
+  updateKidsTile();
   const snap = s.snapshot;
   const note = (snap ? 'revision ' + snap.revision : 'no layout yet') + (s.live ? ', live' : ', offline') + (s.error ? '. ' + s.error : '');
   if (note !== lastNote) add('sync ' + (lastNote = note));
@@ -202,9 +216,8 @@ function renderHome(s: SyncState): void {
     appNames = {};
     for (const a of l.apps) appNames[a.id] = a.name;
     // Only a colour background until Session 14; text colour follows it so labels outside tiles stay legible.
-    const bg = l.background.kind === 'color' ? l.background.color : '';
-    document.body.style.background = bg;
-    stage.style.setProperty('--on-bg', textOn(bg));
+    bgColor = l.background.kind === 'color' ? l.background.color : '';
+    paintBackground();
     shell.setLayout(l);
   }
   updateFoot();
@@ -229,33 +242,11 @@ function start(signedOutNote = ''): void {
   lastSync = null;
   updateFoot();
   shell.setMode(token && server ? 'home' : 'signin');
-  if (!token) {
-    document.body.style.background = '';
-    stage.style.removeProperty('--on-bg');
-  }
+  paintBackground();
   if (!server) return openSettings('Enter the Server address first.');
   if (token) {
-    const t = token;
-    sync = startSync({
-      fetchSnapshot: snapshotFetcher(window.fetch.bind(window), server, t),
-      openSocket: (h) => {
-        // Browsers cannot set WebSocket headers, so the token travels as a subprotocol, never in the URL.
-        const ws = new WebSocket(server.replace(/^http/, 'ws') + '/ws', [TV_PROTOCOL_PREFIX + t]);
-        ws.onopen = h.open;
-        ws.onmessage = (e) => h.message(String(e.data));
-        ws.onclose = h.close;
-        return ws;
-      },
-      storage: localStorage,
-      onChange: renderHome,
-      onUnauthorized: () => {
-        // The Server replaced or forgot this token. The stored layout stays; it shows again after signing in.
-        add('token refused, signing in again');
-        token = '';
-        store.remove(TOKEN_KEY);
-        start('This TV was signed out. ' + (lastRevision ? 'The last layout (revision ' + lastRevision + ') is kept.' : ''));
-      },
-    });
+    runSync();
+    kidsCtl.refresh();
   } else {
     renderSignIn({ code: '', url: '', error: '' }, signedOutNote);
     signIn = startSignIn({
@@ -270,6 +261,128 @@ function start(signedOutNote = ''): void {
       },
     });
   }
+}
+
+// The household layout (or the kids view of it while Kids Mode shows) with a live socket. Restarted when the screen changes sides.
+function runSync(): void {
+  if (sync) sync.stop();
+  const t = token, kids = syncKids;
+  lastRevision = 0; // the other view has the same revision numbers: draw it anyway
+  sync = startSync({
+    fetchSnapshot: snapshotFetcher(window.fetch.bind(window), server, t, kids),
+    openSocket: (h) => {
+      // Browsers cannot set WebSocket headers, so the token travels as a subprotocol, never in the URL.
+      const ws = new WebSocket(server.replace(/^http/, 'ws') + '/ws', [TV_PROTOCOL_PREFIX + t]);
+      ws.onopen = () => {
+        h.open();
+        if (!document.hidden) kidsCtl.refresh(); // a dropped socket may have missed a Kids Mode signal
+      };
+      ws.onmessage = (e) => h.message(String(e.data));
+      ws.onclose = h.close;
+      return ws;
+    },
+    storage: localStorage,
+    storageKey: kids ? KIDS_STORAGE_KEY : STORAGE_KEY,
+    onKids: () => kidsCtl.refresh(),
+    onChange: renderHome,
+    onUnauthorized: tokenRefused,
+  });
+}
+
+function tokenRefused(): void {
+  // The Server replaced or forgot this token. The stored layout stays; it shows again after signing in.
+  add('token refused, signing in again');
+  token = '';
+  store.remove(TOKEN_KEY);
+  start('This TV was signed out. ' + (lastRevision ? 'The last layout (revision ' + lastRevision + ') is kept.' : ''));
+}
+
+// ---- Kids Mode: the Server says which screen shows; the forest paints the background ----
+const kidsCtl = createKids({
+  send: (method, path, body) => {
+    const headers: Record<string, string> = { Authorization: 'Bearer ' + token };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    return window.fetch(server + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+      .then((r) => r.json().then((b) => b, () => null).then((b) => ({ status: r.status, body: b })));
+  },
+  onChange: (k: KidsState) => {
+    kidsTileOk = tileAvailable(k);
+    updateKidsTile();
+    showScreen(screenFor(k.status));
+  },
+  onUnauthorized: tokenRefused,
+});
+
+// Unavailable while the Server has not answered, and while the layout sync is failing: the Server is gone.
+function updateKidsTile(): void {
+  shell.setKidsTile(kidsTileOk && !(lastSync && lastSync.error));
+}
+
+function showScreen(next: Screen): void {
+  if (next === screen) return;
+  add('screen ' + screen + ' -> ' + next);
+  screen = next;
+  store.set(SCREEN_KEY, next);
+  while (shell.focus.depth() > 1) shell.focus.pop(); // the Settings or PIN overlay belongs to the screen that is gone
+  overlay = null;
+  syncOverlays();
+  padCtl.reset();
+  shell.setScreen(next);
+  paintBackground();
+  if ((next !== 'household') !== syncKids) {
+    syncKids = next !== 'household';
+    if (token && server) runSync();
+  }
+}
+
+let painted = '';
+function paintBackground(): void {
+  const look = token ? screen : 'household';
+  const bg = look === 'household' ? (token ? bgColor : '') : '#26331f url(img/kids-forest-' + forestFor(new Date()) + '.jpg) center / cover no-repeat';
+  if (bg === painted) return;
+  painted = bg;
+  document.body.className = look === 'household' ? '' : 'kids';
+  document.body.style.background = bg;
+  if (look === 'household' && bgColor && token) stage.style.setProperty('--on-bg', textOn(bgColor)); // kids: the stylesheet's ivory
+  else stage.style.removeProperty('--on-bg');
+}
+
+// ---- The PIN pad: an overlay over Kids Mode or the Done Screen. Arrows and OK, or the number keys. ----
+const padCtl = createPad((pin) => {
+  kidsCtl.exit(pin).then((r) => {
+    if (r.ok) return closePin(); // the Server's answer already moved the screen
+    padCtl.reset();
+    renderPad(0, r.message);
+  });
+});
+
+function openPin(): void {
+  padCtl.reset();
+  renderPad(0, '');
+  overlay = 'pin';
+  shell.focus.push(PAD_ROWS);
+  syncOverlays();
+}
+
+function closePin(): void {
+  if (overlay !== 'pin') return;
+  shell.focus.pop();
+  overlay = null;
+  syncOverlays();
+  padCtl.reset();
+  focusStage();
+}
+
+function padKey(id: string): void {
+  if (id === 'pin:close') return closePin();
+  if (id === 'pin:del') padCtl.del();
+  else padCtl.push(id.slice(4));
+  renderPad(padCtl.count(), '');
+}
+
+function syncOverlays(): void {
+  settingsEl.hidden = overlay !== 'settings';
+  pinEl.hidden = overlay !== 'pin';
 }
 
 // ---- Launching apps, and coming back ----
@@ -306,20 +419,20 @@ function resumeFromLaunch(): void {
 }
 
 // ---- Settings: an overlay. Server address and signing in again. OK opens it, Back closes it. ----
-const settingsOpen = () => shell.focus.depth() > 1;
-
 function openSettings(note = ''): void {
   settingsNote.textContent = note;
   serverInput.value = server;
-  if (!settingsOpen()) shell.focus.push([['set:server'], ['set:again'], ['set:close']], { wrap: true });
-  settingsEl.hidden = false;
+  if (overlay !== 'settings') shell.focus.push([['set:server'], ['set:again'], ['set:close']], { wrap: true });
+  overlay = 'settings';
+  syncOverlays();
 }
 
 function closeSettings(): void {
-  if (!server) return; // nothing to go back to without an address
+  if (!server || overlay !== 'settings') return; // nothing to go back to without an address
   serverInput.blur();
   shell.focus.pop();
-  settingsEl.hidden = true;
+  overlay = null;
+  syncOverlays();
   focusStage();
 }
 
@@ -353,12 +466,22 @@ function endTyping(): void {
 }
 
 function onRemote(e: RemoteEvent): void {
-  if (e.key === 'back' && settingsOpen() && !server) return;
+  if (e.key === 'back' && overlay === 'settings' && !server) return;
   const act = shell.key(e);
-  settingsEl.hidden = !settingsOpen();
+  if (shell.focus.depth() <= 1) overlay = null; // Back closed it
+  syncOverlays();
   if (!act) return;
   if (act.type === 'launch') launchApp(act.appId);
   else if (act.type === 'settings') openSettings();
+  else if (act.type === 'pin') openPin();
+  else if (act.type === 'digit') {
+    if (overlay === 'pin') padKey('pin:' + act.digit);
+  } else if (act.type === 'kids-enter') {
+    kidsCtl.enter().then((ok) => { if (!ok) toast('Kids Mode is not available right now.'); });
+  } else if (act.type === 'kids-unavailable') {
+    toast('Kids Mode is not available right now.');
+    kidsCtl.refresh();
+  } else if (overlay === 'pin') padKey(act.id);
   else if (act.id === 'set:server') serverInput.focus(); // the TV's on-screen keyboard opens for a focused text field
   else if (act.id === 'set:again') {
     token = '';
@@ -369,7 +492,10 @@ function onRemote(e: RemoteEvent): void {
   } else closeSettings();
 }
 
-setInterval(() => updateClock(new Date()), 10_000);
+setInterval(() => {
+  updateClock(new Date());
+  paintBackground(); // the forest changes with the hour
+}, 10_000);
 start();
 
 export {};

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Layout, Snapshot } from '@sofa/shared';
-import { snapshotFetcher, startSync, STORAGE_KEY, Unauthorized, type SocketHandlers, type SyncOptions, type SyncState } from './sync.ts';
+import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, Unauthorized, type SocketHandlers, type SyncOptions, type SyncState } from './sync.ts';
 
 const layout = (title: string): Layout => ({
   schema: 1,
@@ -176,4 +176,22 @@ test('the snapshot request carries the token and maps 401 to Unauthorized', asyn
   assert.deepEqual(seen[0], { url: 'https://sofa.test/api/snapshot', auth: 'Bearer tok' });
   await assert.rejects(snapshotFetcher(fake(401), 'https://sofa.test', 'tok')(), Unauthorized);
   await assert.rejects(snapshotFetcher(fake(500), 'https://sofa.test', 'tok')(), (e: Error) => !(e instanceof Unauthorized) && /500/.test(e.message));
+});
+
+test('the kids view is fetched with ?profile=kids, kept under its own key, and a kids signal reaches onKids', async () => {
+  const urls: string[] = [];
+  const fetchFn = (async (url: string) => (urls.push(url), { status: 200, ok: true, json: async () => snap(1) })) as unknown as typeof fetch;
+  await snapshotFetcher(fetchFn, 'https://s.test', 't')();
+  await snapshotFetcher(fetchFn, 'https://s.test', 't', true)();
+  assert.deepEqual(urls, ['https://s.test/api/snapshot', 'https://s.test/api/snapshot?profile=kids']);
+
+  const h = harness();
+  let signals = 0;
+  const sync = startSync({ ...h.options, storageKey: KIDS_STORAGE_KEY, onKids: () => void signals++ });
+  await tick();
+  assert.ok(h.store.has(KIDS_STORAGE_KEY) && !h.store.has(STORAGE_KEY));
+  h.socket().h.open();
+  h.socket().h.message(JSON.stringify({ type: 'kids' }));
+  assert.equal(signals, 1);
+  sync.stop();
 });

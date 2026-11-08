@@ -1,4 +1,5 @@
 // Draws the shell (shell.ts) into tv/app/index.html and shows which id has focus. No decisions are made here.
+import { PAD_ROWS } from './kids.ts';
 import { clockText, dateText, TABS, type Tile, type View } from './shell.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -21,13 +22,42 @@ export function initView(): void {
     $('tabs').appendChild(el);
     fixed['tab:' + t.id] = el;
   }
-  ['set:server', 'set:again', 'set:close'].forEach((id) => (fixed[id] = $(id)));
+  ['set:server', 'set:again', 'set:close', 'kids:exit', 'done:adults'].forEach((id) => (fixed[id] = $(id)));
+  // The PIN pad: three keys to a row, the ids are the focus grid (kids.ts PAD_ROWS).
+  for (const ids of PAD_ROWS) {
+    const row = $('pin-keys').appendChild(h('div', 'pin-row'));
+    for (const id of ids) {
+      const key = row.appendChild(h('div', 'pkey', id === 'pin:del' ? 'Delete' : id === 'pin:close' ? 'Close' : id.slice(4)));
+      if (id.length > 5) key.className += ' word';
+      fixed[id] = key;
+    }
+  }
+  for (let i = 0; i < 4; i++) $('pin-dots').appendChild(h('span', 'dot'));
+}
+
+/** The PIN pad's dots and the line under them. */
+export function renderPad(count: number, note: string): void {
+  const dots = $('pin-dots').children;
+  for (let i = 0; i < dots.length; i++) dots[i].className = 'dot' + (i < count ? ' on' : '');
+  $('pin-note').textContent = note;
 }
 
 const find = (id: string): HTMLElement | undefined => (id === 'settings' ? $(mode === 'home' ? 'bar-settings' : 'signin-settings') : tiles[id] || fixed[id]);
 
 function tileEl(t: Tile): HTMLElement {
   const el = h('div', 'tile ' + t.kind + (t.size ? ' ' + t.size : '') + (t.unavailable ? ' unavailable' : ''));
+  if (t.kind === 'kids') {
+    // Composed here, not a picture: a lavender panel, the forest fading in on the right, the unicorn, live text.
+    const uni = h('img', 'uni');
+    uni.setAttribute('src', t.unavailable ? 'img/unicorn-sleeping.png' : 'img/unicorn-welcome.png');
+    uni.setAttribute('alt', '');
+    el.appendChild(uni);
+    const text = el.appendChild(h('div', 'kt'));
+    text.appendChild(h('div', 'label', t.label));
+    if (t.detail) text.appendChild(h('div', 'detail', t.detail));
+    if (!t.unavailable) el.appendChild(h('div', 'go', '\u2192'));
+    return el;
+  }
   if (t.kind === 'widget') {
     el.appendChild(h('div', 'label', t.label));
   } else {
@@ -40,7 +70,13 @@ function tileEl(t: Tile): HTMLElement {
 
 export function render(v: View): void {
   mode = v.mode;
-  $('bar').hidden = $('content').hidden = v.mode !== 'home';
+  const kids = v.mode === 'kids';
+  $('bar').hidden = v.mode !== 'home';
+  $('content').hidden = v.mode !== 'home' && !kids;
+  $('content').className = kids ? 'kidsview' : '';
+  $('kids-head').hidden = !kids;
+  $('done').hidden = v.mode !== 'done';
+  $('foot').hidden = kids || v.mode === 'done'; // the Server line is for adults
   $('signin').hidden = v.mode !== 'signin';
   TABS.forEach((t) => fixed['tab:' + t.id].classList.toggle('sel', t.id === v.tab));
 
@@ -48,10 +84,10 @@ export function render(v: View): void {
   const keepScroll = content.scrollTop;
   content.innerHTML = '';
   tiles = {};
-  if (v.mode === 'home') {
-    if (v.tab === 'dashboard') updateClock(new Date());
-    // On the Dashboard the rows sit at the bottom, with the wallpaper showing above them.
-    const host = v.tab === 'dashboard' ? content.appendChild(h('div', '')) : content;
+  if (v.mode === 'home' || kids) {
+    if (v.mode === 'home' && v.tab === 'dashboard') updateClock(new Date());
+    // On the Dashboard and in Kids Mode the rows sit at the bottom, with the wallpaper or the forest showing above them.
+    const host = v.tab === 'dashboard' || kids ? content.appendChild(h('div', '')) : content;
     if (host !== content) host.id = 'dash';
     for (const s of v.sections) {
       const sec = h('div', 'section');

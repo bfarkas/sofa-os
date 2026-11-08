@@ -4,9 +4,12 @@
 // Focus order: a bar on top (Dashboard, Apps, Widgets, Settings), then the tab's rows. Focusing a tab shows it. Down goes into
 // the first tile, Back comes back to the bar, and Back on the Apps or Widgets tab goes to Dashboard. Overlays (Settings) sit
 // on top and Back closes them first.
+// Kids Mode is a screen of its own over the same shell: large tiles for the approved apps only, or the Done Screen. Back never
+// leaves it; only the PIN does (main.ts asks the Server). The Server decides which screen shows (kids.ts `screenFor`).
 import type { Layout, Profile, WidgetSize } from '@sofa/shared';
 import { createFocus } from './focus.ts';
 import type { RemoteEvent } from './keys.ts';
+import type { Screen } from './kids.ts';
 
 export type Tab = 'dashboard' | 'apps' | 'widgets';
 export const TABS: { id: Tab; label: string }[] = [
@@ -22,7 +25,7 @@ const APP_COLUMNS = 7;
 
 export interface Tile {
   id: string; // focus id: app:<app id>, widget:<widget id> or allapps
-  kind: 'app' | 'widget' | 'allapps';
+  kind: 'app' | 'widget' | 'allapps' | 'kids';
   label: string;
   detail: string; // may hold a line break
   size?: WidgetSize;
@@ -33,19 +36,38 @@ export interface Section {
   tiles: Tile[]; // one visual row, and one row of the focus grid
 }
 export interface View {
-  mode: 'signin' | 'home';
+  mode: 'signin' | 'home' | 'kids' | 'done';
   tab: Tab;
   sections: Section[];
   message: string; // shown instead of the sections when there is nothing to show
 }
 
-export type Activation = { type: 'launch'; appId: string } | { type: 'settings' } | { type: 'select'; id: string };
+export type Activation =
+  | { type: 'launch'; appId: string }
+  | { type: 'settings' }
+  | { type: 'select'; id: string } // OK on an overlay row
+  | { type: 'digit'; digit: string } // a number key while an overlay (the PIN pad) is open
+  | { type: 'kids-enter' }
+  | { type: 'kids-unavailable' }
+  | { type: 'pin' }; // the Adults button: open the PIN pad
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const BAR = TABS.map((t) => 'tab:' + t.id).concat('settings');
 
-/** The sections of one tab. `unavailable` holds app ids that failed to launch. */
-export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, profile: Profile = PROFILE): Section[] {
+const KIDS_COLUMNS = 5;
+
+/** Kids Mode: the approved apps, in the approved order, five large tiles to a row. Nothing else, whatever the layout holds. */
+export function kidsSections(layout: Layout): Section[] {
+  const byId: Record<string, string> = {};
+  for (const a of layout.apps) byId[a.id] = a.name;
+  const tiles: Tile[] = layout.kidsMode.apps.filter((id) => byId[id] !== undefined).map((id) => ({ id: 'app:' + id, kind: 'app' as const, label: byId[id], detail: '' }));
+  const out: Section[] = [];
+  for (let i = 0; i < tiles.length; i += KIDS_COLUMNS) out.push({ title: '', tiles: tiles.slice(i, i + KIDS_COLUMNS) });
+  return out;
+}
+
+/** The sections of one tab. `unavailable` holds app ids that failed to launch; `kidsTile` is whether Kids Mode can be entered. */
+export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, profile: Profile = PROFILE, kidsTile = true): Section[] {
   const apps: Record<string, Tile> = {};
   for (const a of layout.apps) apps[a.id] = { id: 'app:' + a.id, kind: 'app', label: a.name, detail: unavailable.has(a.id) ? 'Unavailable' : '', unavailable: unavailable.has(a.id) };
   const shown = layout.widgets.filter((w) => w.profiles.indexOf(profile) >= 0);
@@ -72,7 +94,8 @@ export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, 
     }
     return out;
   }
-  const out: Section[] = [];
+  // The Kids Mode tile leads the Dashboard: one selection opens the child profile.
+  const out: Section[] = [{ title: '', tiles: [{ id: 'kids', kind: 'kids', label: 'Kids Mode', detail: kidsTile ? '' : 'Not available right now', unavailable: !kidsTile }] }];
   for (const r of layout.rows) {
     const tiles: Tile[] = [];
     for (const i of r.items) {
@@ -107,10 +130,17 @@ export interface ShellHooks {
 export function createShell(hooks: ShellHooks) {
   let layout: Layout | null = null;
   let tab: Tab = 'dashboard';
-  let mode: View['mode'] = 'signin';
+  let signedIn = false; // false: the sign-in screen
+  let screen: Screen = 'household';
+  let kidsTile = true;
   let unavailable = new Set<string>();
 
-  const sections = () => (layout && mode === 'home' ? sectionsFor(layout, tab, unavailable) : []);
+  const mode = (): View['mode'] => (!signedIn ? 'signin' : screen === 'household' ? 'home' : screen);
+  const sections = () => {
+    if (!layout || !signedIn) return [];
+    if (screen === 'kids') return kidsSections(layout);
+    return screen === 'household' ? sectionsFor(layout, tab, unavailable, PROFILE, kidsTile) : [];
+  };
   const focus = createFocus((id) => {
     if (id && id.indexOf('tab:') === 0 && focus.depth() === 1 && id.slice(4) !== tab) {
       tab = id.slice(4) as Tab;
@@ -120,14 +150,19 @@ export function createShell(hooks: ShellHooks) {
   });
 
   function rebuild(): void {
-    if (mode === 'signin') focus.setBase([['settings']]);
-    else focus.setBase([BAR].concat(sections().map((s) => s.tiles.map((t) => t.id))), { bar: true });
+    const m = mode();
+    const grid = sections().map((s) => s.tiles.map((t) => t.id));
+    if (m === 'signin') focus.setBase([['settings']]);
+    else if (m === 'done') focus.setBase([['done:adults']]);
+    else focus.setBase([m === 'kids' ? ['kids:exit'] : BAR].concat(grid), { bar: true });
     hooks.onView(view());
   }
 
   function view(): View {
     const s = sections();
-    return { mode, tab, sections: s, message: mode === 'home' ? (layout ? (s.length ? '' : EMPTY[tab]) : 'Waiting for the first layout from the Server.') : '' };
+    const m = mode();
+    const waiting = !layout ? 'Waiting for the first layout from the Server.' : '';
+    return { mode: m, tab, sections: s, message: m === 'home' ? (layout ? (s.length ? '' : EMPTY[tab]) : waiting) : m === 'kids' ? (s.length ? '' : layout ? 'No apps are approved yet. Ask a grown-up.' : waiting) : '' };
   }
 
   function showTab(next: Tab, id?: string): void {
@@ -140,7 +175,7 @@ export function createShell(hooks: ShellHooks) {
   function back(): boolean {
     if (focus.pop()) return true;
     const id = focus.current();
-    if (mode !== 'home' || !id) return false;
+    if (mode() !== 'home' || !id) return false; // Kids Mode and the Done Screen: Back does nothing
     if (BAR.indexOf(id) < 0) return focus.focus('tab:' + tab);
     return tab !== 'dashboard' && focus.focus('tab:dashboard');
   }
@@ -150,6 +185,8 @@ export function createShell(hooks: ShellHooks) {
     if (!id) return null;
     if (id === 'settings') return { type: 'settings' };
     if (focus.depth() > 1) return { type: 'select', id };
+    if (id === 'kids') return { type: kidsTile ? 'kids-enter' : 'kids-unavailable' };
+    if (id === 'kids:exit' || id === 'done:adults') return { type: 'pin' };
     if (id.indexOf('tab:') === 0) focus.move('down');
     else if (id === 'allapps') {
       const first = layout && layout.apps[0];
@@ -158,14 +195,34 @@ export function createShell(hooks: ShellHooks) {
     return null; // widgets have no full-screen view until Session 11
   }
 
+  // Where a screen starts: the tab, the first approved app, or the Adults button.
+  function firstId(): string {
+    if (screen === 'done') return 'done:adults';
+    if (screen === 'kids') return (sections()[0] && sections()[0].tiles[0].id) || 'kids:exit';
+    return 'tab:' + tab;
+  }
+
   rebuild();
   return {
     focus,
-    setMode(m: View['mode']): void {
-      const changed = m !== mode;
-      mode = m;
+    setMode(m: 'signin' | 'home'): void {
+      const changed = (m === 'home') !== signedIn;
+      signedIn = m === 'home';
       rebuild();
-      if (changed) focus.focus(m === 'home' ? 'tab:' + tab : 'settings'); // a new screen starts at its top
+      if (changed) focus.focus(signedIn ? firstId() : 'settings'); // a new screen starts at its top
+    },
+    /** Which screen the signed-in TV shows: the household Dashboard, Kids Mode or the Done Screen. */
+    setScreen(next: Screen): void {
+      if (next === screen) return;
+      screen = next;
+      rebuild();
+      focus.focus(firstId());
+    },
+    /** Whether the Kids Mode tile can be used; false while the Server is unreachable. */
+    setKidsTile(available: boolean): void {
+      if (available === kidsTile) return;
+      kidsTile = available;
+      rebuild();
     },
     setLayout(l: Layout | null): void {
       layout = l;
@@ -183,6 +240,7 @@ export function createShell(hooks: ShellHooks) {
     /** Arrows move, Back goes back, OK (short or long, until Session 16 claims the long press) activates. */
     key(e: RemoteEvent): Activation | null {
       if (e.key === 'ok') return activate();
+      if (e.key === 'digit') return focus.depth() > 1 && e.digit !== undefined ? { type: 'digit', digit: e.digit } : null;
       if (e.key === 'back') back();
       else focus.move(e.key);
       return null;
@@ -193,7 +251,9 @@ export function createShell(hooks: ShellHooks) {
       return id && focus.depth() === 1 ? { tab, id } : null;
     },
     restore(w: { tab: Tab; id: string }): void {
-      if (focus.depth() === 1 && mode === 'home') showTab(w.tab, w.id);
+      if (focus.depth() !== 1) return;
+      if (screen === 'kids') focus.focus(w.id);
+      else if (screen === 'household' && signedIn) showTab(w.tab, w.id);
     },
   };
 }

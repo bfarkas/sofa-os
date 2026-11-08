@@ -4,14 +4,15 @@
 import { validateSnapshot, type ServerMessage, type Snapshot } from '@sofa/shared';
 
 export const STORAGE_KEY = 'sofahome.snapshot';
+export const KIDS_STORAGE_KEY = 'sofahome.snapshot.kids'; // the kids view of the layout, kept apart from the household one
 
 /** The Server answered 401: the device token is unknown, e.g. replaced by a newer sign-in. */
 export class Unauthorized extends Error {}
 
-/** GET /api/snapshot with the device token. */
-export function snapshotFetcher(fetchFn: typeof fetch, server: string, token: string): () => Promise<unknown> {
+/** GET /api/snapshot with the device token. In Kids Mode `kids` asks for the view with only the approved apps. */
+export function snapshotFetcher(fetchFn: typeof fetch, server: string, token: string, kids = false): () => Promise<unknown> {
   return () =>
-    fetchFn(server + '/api/snapshot', { headers: { Authorization: 'Bearer ' + token } }).then((r) => {
+    fetchFn(server + '/api/snapshot' + (kids ? '?profile=kids' : ''), { headers: { Authorization: 'Bearer ' + token } }).then((r) => {
       if (r.status === 401) throw new Unauthorized('HTTP 401');
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
@@ -28,6 +29,8 @@ export interface SyncOptions {
   fetchSnapshot(): Promise<unknown>; // GET /api/snapshot as parsed JSON; rejects when the Server cannot be reached
   openSocket(handlers: SocketHandlers): { close(): void };
   storage: { getItem(key: string): string | null; setItem(key: string, value: string): void };
+  storageKey?: string; // where the last valid snapshot is kept (default STORAGE_KEY)
+  onKids?(): void; // the Server signalled that Kids Mode or the Watch Allowance changed
   onChange(state: SyncState): void;
   onUnauthorized(): void; // sync has stopped itself; the stored snapshot is untouched
   intervalMs?: number; // polling and reconnecting while the socket is down
@@ -40,7 +43,8 @@ export interface SyncState {
   error: string; // the last problem, '' when none
 }
 
-export function startSync(o: SyncOptions): { stop(): void } {
+export function startSync(o: SyncOptions): { stop(): void; refresh(): void } {
+  const storageKey = o.storageKey || STORAGE_KEY;
   const intervalMs = o.intervalMs || 10_000;
   const now = o.now || Date.now;
   const state: SyncState = { snapshot: load(), live: false, error: '' };
@@ -54,7 +58,7 @@ export function startSync(o: SyncOptions): { stop(): void } {
 
   function load(): Snapshot | null {
     try {
-      const value: unknown = JSON.parse(o.storage.getItem(STORAGE_KEY) || 'null');
+      const value: unknown = JSON.parse(o.storage.getItem(storageKey) || 'null');
       return validateSnapshot(value).length ? null : (value as Snapshot);
     } catch {
       return null;
@@ -72,7 +76,7 @@ export function startSync(o: SyncOptions): { stop(): void } {
       if (!state.snapshot || state.snapshot.revision !== snap.revision) {
         state.snapshot = snap;
         try {
-          o.storage.setItem(STORAGE_KEY, JSON.stringify(snap));
+          o.storage.setItem(storageKey, JSON.stringify(snap));
         } catch {
           /* storage full or off: still show it */
         }
@@ -134,6 +138,7 @@ export function startSync(o: SyncOptions): { stop(): void } {
             return;
           }
           if (msg.type === 'revision' && (!state.snapshot || msg.revision !== state.snapshot.revision)) refresh();
+          else if (msg.type === 'kids' && o.onKids) o.onKids();
         },
         close: () => {
           if (current()) drop();
@@ -180,5 +185,5 @@ export function startSync(o: SyncOptions): { stop(): void } {
     if (socket) socket.close();
     socket = null;
   }
-  return { stop };
+  return { stop, refresh };
 }
