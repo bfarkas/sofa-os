@@ -14,19 +14,27 @@ if (!password) {
 }
 const arg = process.argv[2];
 
+// A layout with something to navigate: real Tizen app IDs and one widget of each size. The first four IDs are from the
+// spec (Known results); YouTube and Plex are the Samsung store IDs, not yet checked on this TV (an app the TV does not
+// have shows as unavailable). Netflix launches through org.tizen.netflix-app, not its store ID.
 function sample(): Layout {
+  const apps = [
+    { id: 'org.tizen.netflix-app', name: 'Netflix' },
+    { id: '111299001912', name: 'YouTube' },
+    { id: '3201512006963', name: 'Plex' },
+    { id: 'SrAoJxGQUf.ARD', name: 'ARD' },
+    { id: 'yPSlpvfeTf.ZDFmediathek', name: 'ZDF' },
+    { id: 'mvOizTfhQn.KiKAplayer', name: 'KiKA' },
+  ];
+  const both: Layout['widgets'][number]['profiles'] = ['household', 'kids'];
+  const widget = (id: string, size: 'small' | 'medium' | 'large', profiles = both): Layout['widgets'][number] => ({ id, type: id, size, config: {}, profiles, freshness: 'hourly' });
   return {
     schema: 1,
-    apps: [
-      { id: 'mvOizTfhQn.KiKAplayer', name: 'KiKA' },
-      { id: 'SrAoJxGQUf.ARD', name: 'ARD' },
-      { id: 'yPSlpvfeTf.ZDFmediathek', name: 'ZDF' },
-      { id: 'org.tizen.netflix-app', name: 'Netflix' },
-    ],
-    widgets: [{ id: 'weather', type: 'weather', size: 'medium', config: {}, profiles: ['household', 'kids'], freshness: 'hourly' }],
+    apps,
+    widgets: [widget('weather', 'medium'), widget('calendar', 'large', ['household']), widget('energy', 'small', ['household']), widget('photos', 'medium'), widget('home', 'small', ['household'])],
     rows: [
-      { id: 'apps', title: 'Published ' + new Date().toLocaleTimeString('en-GB'), items: ['mvOizTfhQn.KiKAplayer', 'SrAoJxGQUf.ARD', 'yPSlpvfeTf.ZDFmediathek', 'org.tizen.netflix-app'].map((id) => ({ kind: 'app' as const, id })) },
-      { id: 'widgets', title: 'Today', items: [{ kind: 'widget', id: 'weather' }] },
+      { id: 'today', title: 'Today (published ' + new Date().toLocaleTimeString('en-GB') + ')', items: ['weather', 'calendar', 'energy'].map((id) => ({ kind: 'widget' as const, id })) },
+      { id: 'apps', title: 'My Apps', items: apps.map((a) => ({ kind: 'app' as const, id: a.id })) },
     ],
     background: { kind: 'color', color: '#f6f1e7' },
     kidsMode: { apps: ['mvOizTfhQn.KiKAplayer'], dailyMinutes: 60 },
@@ -36,7 +44,7 @@ function sample(): Layout {
 function layoutToPublish(): unknown {
   if (arg === '--broken') {
     const l = sample() as any;
-    l.rows[0].items.push({ kind: 'app', id: 'missing.App' });
+    l.rows[1].items.push({ kind: 'app', id: 'missing.App' });
     l.widgets[0].size = 'huge';
     return l;
   }
