@@ -17,7 +17,7 @@ Needs Node 26.
 ```bash
 npm install
 npm run check   # type-check every workspace
-npm test        # Server tests, including the Home Assistant write guard
+npm test        # Server, shared and Sofa Home tests
 npm run build   # bundle Companion and Sofa Home
 ```
 

@@ -7,7 +7,7 @@
   "scripts": {
     "build": "npm run build -w companion -w tv",
     "check": "tsc -p .",
-    "test": "node --test \"server/src/**/*.test.ts\"",
+    "test": "node --test \"*/src/**/*.test.ts\"",
     "start": "node server/src/main.ts"
   },
   "devDependencies": {
