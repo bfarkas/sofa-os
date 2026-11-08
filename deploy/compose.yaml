@@ -14,14 +14,14 @@ services:
     environment:
       TZ: Europe/Berlin
       SOFA_PASSWORD_HASH_FILE: /run/secrets/companion_password_hash
-      # Home Assistant, needed from Session 08 on:
-      # SOFA_HA_URL: http://192.168.42.x:8123
-      # SOFA_HA_TOKEN_FILE: /run/secrets/ha_token
+      SOFA_HA_URL: http://192.168.42.24:8123
+      SOFA_HA_TOKEN_FILE: /run/secrets/ha_token # long-lived token; the write guard limits what it may do
     volumes:
       - sofa-data:/data # SQLite database, back this up
       - sofa-media:/media # media cache, safe to lose
     secrets:
       - companion_password_hash
+      - ha_token
 
 volumes:
   sofa-data:
@@ -31,3 +31,5 @@ secrets:
   # Secret files live outside the repository, owned by the deploying user (uid 1000, as the container's node user).
   companion_password_hash:
     file: ${HOME}/.config/sofa-os/secrets/companion_password_hash
+  ha_token:
+    file: ${HOME}/.config/sofa-os/secrets/ha_token
