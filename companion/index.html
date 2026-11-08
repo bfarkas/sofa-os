@@ -22,10 +22,43 @@
     <p id="tv-result" role="status"></p>
   </section>
   <section id="home" hidden>
-    <p>Signed in. Nothing to set up yet.</p>
+    <p>Signed in.</p>
+    <p><a class="button" href="/kids">Kids Mode</a></p>
     <button id="logout" type="button">Sign out</button>
   </section>
+  <section id="kids" hidden>
+    <h2>Kids Mode</h2>
+    <p id="kids-status" role="status"></p>
+    <h3>Top-up</h3>
+    <div class="topup" id="kids-topup"></div>
+    <h3>Allowance and apps</h3>
+    <label for="kids-minutes">Daily minutes</label>
+    <input id="kids-minutes" type="number" min="0" max="1440" inputmode="numeric">
+    <fieldset id="kids-apps"><legend>Approved apps</legend></fieldset>
+    <button id="kids-save" type="button">Save and publish</button>
+    <h3>PIN</h3>
+    <p id="kids-pin-status"></p>
+    <label for="kids-pin">New PIN (four digits)</label>
+    <input id="kids-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+    <button id="kids-pin-set" type="button">Set PIN</button>
+    <h3>Adult exit</h3>
+    <button id="kids-exit" type="button">Exit Kids Mode</button>
+    <p id="kids-result" role="status"></p>
+    <p><a href="/">Back</a></p>
+  </section>
+  <section id="topup" hidden>
+    <h2>Kids Mode Top-up</h2>
+    <p class="code" id="topup-left"></p>
+    <p id="topup-text" role="status"></p>
+    <div class="topup" id="topup-controls"></div>
+    <p><a href="/kids">Kids Mode page</a></p>
+  </section>
 </main>
+<template id="topup-template">
+  <div class="buttons"><button type="button" data-minutes="5">+5 min</button><button type="button" data-minutes="10">+10 min</button></div>
+  <div class="custom"><input type="number" min="1" max="240" inputmode="numeric" placeholder="Minutes" aria-label="Custom minutes"><button type="button" data-custom>Add</button></div>
+  <p class="result" role="status"></p>
+</template>
 <script src="main.js"></script>
 </body>
 </html>
