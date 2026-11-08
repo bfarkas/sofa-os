@@ -255,7 +255,7 @@ The Server-side clock from the spec's [Watch Allowance](Sofa.OS%20Architecture%2
   4. Optionally test a Top-up: fire the event `mobile_app_notification_action` with `{"action": "SOFA_TOPUP_5"}` from Home Assistant's Developer Tools. The log shows `top-up` with source `notification`. `-- topup 5` tests the Companion path.
   5. With the user's go-ahead, repeat without `SOFA_HA_DRY_RUN` and with a real notification. A tap on **+10 min** and on **Custom** checks the untested actions.
   6. Restore the household settings: `-- exit`, then `-- minutes 40`.
-- **Not verified live:** the real switch-off and notification from the Server, the WebSocket event subscription against the real Home Assistant, **+10 min**, **Custom** and its `reply_text` field, Ioanna's iPhone, a false `on` after remote standby being held back as `pending`, and the clock across a real 04:00 or DST change. Port 8001 `PowerState` is not tested. It would plug in through `observe` (as the TV reading) or `tvSeen` (as proof of on).
+- **Verified live (2026-11-08):** a 6-minute allowance on the real TV: the warning reached both iPhones (dry run), and with real writes the Server switched the TV off at zero. **Not verified live:** the **+5 min** action (the test tapped the notification body, which opens Home Assistant instead), the WebSocket event subscription against the real Home Assistant, **+10 min**, **Custom** and its `reply_text` field, Ioanna's iPhone, a false `on` after remote standby being held back as `pending`, and the clock across a real 04:00 or DST change. Port 8001 `PowerState` is not tested. It would plug in through `observe` (as the TV reading) or `tvSeen` (as proof of on).
 
 ### 09 · Kids Mode on TV and Companion
 
