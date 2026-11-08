@@ -8,5 +8,7 @@ input, button { font: inherit; width: 100%; box-sizing: border-box; padding: 10p
 input { border: 1px solid var(--muted); background: transparent; color: inherit; margin-bottom: 12px; }
 button { border: 0; background: var(--accent); color: var(--bg); cursor: pointer; }
 button:disabled { opacity: .6; }
+p.code { font: 600 32px/1.2 ui-monospace, monospace; letter-spacing: .1em; text-align: center; margin: 8px 0 16px; }
+#tv-result { min-height: 1.5em; margin: 12px 0 0; }
 p.error { color: var(--error); min-height: 1.5em; margin: 8px 0 0; }
 [hidden] { display: none; }
