@@ -14,6 +14,8 @@ export interface SessionInfo {
 export interface ApiError {
   error: string;
   errors?: string[]; // validation problems, from a refused publish
+  triesLeft?: number; // a wrong Kids Mode PIN: tries before the lockout
+  retryAfterSeconds?: number; // a locked-out PIN: when to try again
 }
 
 /** A Companion draft. `base` is the revision it was started from; publishing is refused unless it is still current. */
@@ -46,7 +48,24 @@ export interface KidsStatus {
   remainingSeconds: number; // 0 means the allowance has run out
   donePending: boolean; // the TV was switched off at zero: show the Done Screen, then POST /api/kids/done-shown
   resetsAt: string; // ISO time of the next overnight reset
+  pinSet: boolean; // an adult has set the Kids Mode PIN; the TV cannot leave Kids Mode without one
 }
+
+/** The Kids Mode PIN: exactly four digits, so the TV's pad needs no OK key. */
+export const PIN_PATTERN = /^\d{4}$/;
+
+/** Body of PUT /api/kids/pin (Companion only). */
+export interface KidsPinRequest {
+  pin: string;
+}
+
+/** Body of POST /api/kids/exit. Sofa Home must send the PIN; a Companion session needs none. */
+export interface KidsExitRequest {
+  pin?: string;
+}
+
+/** The Kids Mode notification's tap target and tag, and where Companion shows the Top-up page. */
+export const KIDS_TOPUP_PATH = '/kids/topup';
 
 /** Body of POST /api/kids/topup (Companion only). */
 export interface TopUpRequest {

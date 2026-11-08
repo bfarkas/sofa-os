@@ -14,6 +14,8 @@ export const GAP_MS = 60_000; // two "on" observations further apart than this p
 export const HOLD_MS = 240_000; // Home Assistant's false "on" after a remote standby lasted about 3 minutes
 export const WARN_SECONDS = 300;
 export const MAX_TOPUP_MINUTES = 240;
+export const DONE_SCREEN_MS = 60_000; // how long the Done Screen may stay up on a TV that is on again at zero
+export const WARNING_TAG = 'sofa-kids-warning'; // a new warning replaces the old one on the phone
 
 /** The notification actions (spec Known results: a tap arrives as mobile_app_notification_action with { action }). */
 export const TOPUP_ACTIONS = [
@@ -80,8 +82,9 @@ interface State {
   warned: boolean; // the 5-minute warning for the current approach to zero is sent
   zeroed: boolean; // the TV was switched off for the current zero
   donePending: boolean; // show the Done Screen at the next power-on
+  doneAt: number; // ms; when Sofa Home showed the Done Screen at zero (0: not yet); the TV goes off again DONE_SCREEN_MS later
 }
-const INITIAL: State = { day: '', used: 0, topUp: 0, kids: false, tv: 'off', since: 0, onAt: 0, offAt: 0, seenAt: 0, provenAt: 0, warned: false, zeroed: false, donePending: false };
+const INITIAL: State = { day: '', used: 0, topUp: 0, kids: false, tv: 'off', since: 0, onAt: 0, offAt: 0, seenAt: 0, provenAt: 0, warned: false, zeroed: false, donePending: false, doneAt: 0 };
 
 /** Where the state is kept between restarts: one JSON document. */
 export interface Store {
@@ -105,9 +108,12 @@ export interface AllowanceOptions {
   timeZone: string;
   resetMinutes: number; // local time of the overnight reset, in minutes after midnight
   graceSeconds: number; // time between zero and the switch-off
+  topUpUrl?: string; // the Companion Top-up page: the tap target of the warning notification
   now?: () => number;
 }
 
+/** The clock's part of KidsStatus; the server adds whether a PIN is set. */
+export type AllowanceStatus = Omit<KidsStatus, 'pinSet'>;
 export type Allowance = ReturnType<typeof createAllowance>;
 
 export function createAllowance(o: AllowanceOptions) {
@@ -127,7 +133,7 @@ export function createAllowance(o: AllowanceOptions) {
     const day = days.of(now);
     if (day <= s.day) return; // date order; never back, so a reset inside the repeated DST hour happens once
     if (s.day) log.info('allowance reset', { day });
-    Object.assign(s, { day, used: 0, topUp: 0, warned: false, zeroed: false, donePending: false });
+    Object.assign(s, { day, used: 0, topUp: 0, warned: false, zeroed: false, donePending: false, doneAt: 0 });
     s.since = Math.max(s.since, days.start(day));
   }
 
@@ -141,7 +147,7 @@ export function createAllowance(o: AllowanceOptions) {
   function commit(): void {
     const rem = remaining();
     if (rem > WARN_SECONDS) s.warned = false; // time was added: warn again on the way down
-    if (rem > 0) Object.assign(s, { zeroed: false, donePending: false });
+    if (rem > 0) Object.assign(s, { zeroed: false, donePending: false, doneAt: 0 });
     const json = JSON.stringify(counting() ? s : { ...s, seenAt: 0 }); // only a running clock needs its last observation
     if (json !== saved) o.store.save((saved = json));
     if (signature() !== signalled) {
@@ -150,7 +156,7 @@ export function createAllowance(o: AllowanceOptions) {
     }
   }
 
-  function status(): KidsStatus {
+  function status(): AllowanceStatus {
     return {
       active: s.kids,
       tv: s.tv,
@@ -164,7 +170,7 @@ export function createAllowance(o: AllowanceOptions) {
   }
 
   /** Applies a change at the current time, after rolling the day over, and saves it. */
-  function change(fn: (now: number) => void = () => {}): KidsStatus {
+  function change(fn: (now: number) => void = () => {}): AllowanceStatus {
     const now = clock();
     roll(now);
     fn(now);
@@ -183,7 +189,10 @@ export function createAllowance(o: AllowanceOptions) {
         const was = s.tv, prev = s.seenAt;
         s.seenAt = now;
         if (power === 'off') {
-          if (s.tv !== 'off') Object.assign(s, { tv: 'off', offAt: now });
+          if (s.tv !== 'off') {
+            Object.assign(s, { tv: 'off', offAt: now, doneAt: 0 });
+            if (s.kids && s.zeroed) s.donePending = true; // off before the minute was up: the next power-on shows the Done Screen again
+          }
         } else if (s.tv === 'off') {
           // Right after an off, Home Assistant reports a false on for about 3 minutes, unless the TV has spoken since.
           Object.assign(s, { onAt: now, since: now, tv: now - s.offAt < HOLD_MS && s.provenAt < s.offAt ? 'pending' : 'on' });
@@ -211,14 +220,15 @@ export function createAllowance(o: AllowanceOptions) {
       change((now) => {
         if (s.kids) return;
         Object.assign(s, { kids: true, since: now });
+        if (remaining() <= 0) s.donePending = true; // entered with nothing left: the Done Screen, not the tiles
         log.info('kids mode entered');
       }),
 
-    /** An adult leaves Kids Mode. Session 09 puts the PIN check in front of this for the TV. */
+    /** An adult leaves Kids Mode. The Server checks the PIN before this for the TV; a Companion session needs none. */
     exit: () =>
       change(() => {
         if (!s.kids) return;
-        Object.assign(s, { kids: false, donePending: false });
+        Object.assign(s, { kids: false, donePending: false, doneAt: 0 });
         log.info('kids mode exited');
       }),
 
@@ -229,8 +239,12 @@ export function createAllowance(o: AllowanceOptions) {
         log.info('top-up', { minutes, source });
       }),
 
-    /** Sofa Home showed the Done Screen. */
-    doneShown: () => change(() => void (s.donePending = false)),
+    /** Sofa Home showed the Done Screen. At zero, that starts the 60 seconds after which a TV that is on again goes off again. */
+    doneShown: () =>
+      change((now) => {
+        s.donePending = false;
+        if (s.kids && s.zeroed && remaining() <= 0 && !s.doneAt) s.doneAt = now;
+      }),
 
     /** Sends the warning and switches the TV off when due. Called after each observation. */
     async act(): Promise<void> {
@@ -241,10 +255,20 @@ export function createAllowance(o: AllowanceOptions) {
         s.warned = true; // once, even if it fails: a retry would repeat it on the phone that did get it
         const minutes = Math.ceil(rem / 60);
         try {
-          await o.ha.notifyAdults(`${minutes} minute${minutes === 1 ? '' : 's'} of Kids Mode left.`, { title: 'Sofa.OS', data: { actions: TOPUP_ACTIONS } });
+          await o.ha.notifyAdults(`${minutes} minute${minutes === 1 ? '' : 's'} of Kids Mode left.`, { title: 'Sofa.OS', data: { actions: TOPUP_ACTIONS, ...(o.topUpUrl ? { url: o.topUpUrl } : {}), tag: WARNING_TAG } });
           log.info('allowance warning sent', { remainingSeconds: rem });
         } catch (err) {
           log.warn('allowance warning failed', { err: String(err) });
+        }
+      }
+      // A TV switched on again at zero: once Sofa Home has shown the Done Screen for a minute, off again, unless a Top-up came.
+      if (s.zeroed && s.doneAt && rem <= 0 && clock() - s.doneAt >= DONE_SCREEN_MS) {
+        try {
+          await o.ha.turnOffTv();
+          Object.assign(s, { doneAt: 0, donePending: true });
+          log.info('allowance still at zero: tv switched off again');
+        } catch (err) {
+          log.warn('switching the tv off again failed', { err: String(err) });
         }
       }
       if (!s.zeroed && rem <= -o.graceSeconds) {

@@ -12,7 +12,7 @@ import WebSocket from 'ws';
 import { hashSecret } from './auth.ts';
 import type { Config } from './config.ts';
 import { openDb } from './db.ts';
-import { createDraft, currentSnapshot, publishDraft, saveDraft } from './layout.ts';
+import { createDraft, currentSnapshot, kidsView, publishDraft, saveDraft } from './layout.ts';
 import { startServer } from './server.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'sofa-layout-'));
@@ -48,6 +48,41 @@ test('publishing numbers revisions without gaps and records each base', () => {
   const rows = db.prepare('SELECT number, base FROM revisions ORDER BY number').all().map((r) => ({ ...r }));
   assert.deepEqual(rows, [{ number: 1, base: null }, { number: 2, base: 1 }, { number: 3, base: 2 }]);
   assert.equal((db.prepare('SELECT count(*) AS n FROM drafts').get() as { n: number }).n, 0);
+});
+
+test('the kids view holds only approved apps in tile order, kids widgets and the rows that remain', () => {
+  const l: Layout = {
+    schema: 1,
+    apps: [{ id: 'a.Netflix', name: 'Netflix' }, { id: 'a.Banking', name: 'Banking' }, { id: 'a.KiKA', name: 'KiKA' }, { id: 'a.Plex', name: 'Plex' }],
+    widgets: [
+      { id: 'w.cal', type: 'calendar', size: 'large', config: { calendar: 'private' }, profiles: ['household'], freshness: 'hourly' },
+      { id: 'w.pics', type: 'photos', size: 'medium', config: {}, profiles: ['household', 'kids'], freshness: 'daily' },
+    ],
+    rows: [
+      { id: 'r1', title: 'Today', items: [{ kind: 'widget', id: 'w.pics' }] },
+      { id: 'r2', title: 'Apps', items: [{ kind: 'app', id: 'a.Netflix' }, { kind: 'app', id: 'a.Banking' }] },
+      { id: 'r3', title: 'Private', items: [{ kind: 'widget', id: 'w.cal' }] },
+    ],
+    background: { kind: 'color', color: '#f6f1e7' },
+    kidsMode: { apps: ['a.KiKA', 'a.Netflix', 'a.Plex'], dailyMinutes: 40 },
+  };
+  const snap: Snapshot = { revision: 7, publishedAt: '2026-11-08T10:00:00.000Z', layout: l };
+  const k = kidsView(snap);
+  assert.deepEqual(k.layout.apps.map((a) => a.id), ['a.KiKA', 'a.Netflix', 'a.Plex'], 'the approved order, no Banking');
+  assert.deepEqual(k.layout.widgets.map((w) => w.id), ['w.pics']);
+  assert.deepEqual(k.layout.rows.map((r) => [r.id, r.items.map((i) => i.id)]), [['r1', ['w.pics']], ['r2', ['a.Netflix']]], 'empty rows go');
+  assert.equal(k.revision, 7);
+  assert.equal(k.layout.kidsMode.dailyMinutes, 40);
+  assert.deepEqual(validateSnapshot({ ...snap }), [], 'the input is a valid snapshot');
+  assert.deepEqual(validateSnapshot(k), [], 'Sofa Home accepts the view like any snapshot');
+  assert.ok(!JSON.stringify(k).includes('Banking') && !JSON.stringify(k).includes('private'));
+  assert.equal(snap.layout.apps.length, 4, 'the input is untouched');
+});
+
+test('an approved id with no app is dropped, not invented', () => {
+  const snap = currentSnapshot(freshDb());
+  snap.layout.kidsMode.apps = ['gone.App'];
+  assert.deepEqual(kidsView(snap).layout.apps, []);
 });
 
 test('a draft from an older revision is refused and changes nothing', () => {
@@ -98,7 +133,7 @@ const config = async (dbPath: string): Promise<Config> => ({
   passwordHash: await hashSecret('correct horse'),
   secureCookies: false,
   ha: null,
-  allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 },
+  allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.test/kids/topup' },
 });
 async function start(c: Config): Promise<string> {
   const server = startServer(c, openDb(c.dbPath));

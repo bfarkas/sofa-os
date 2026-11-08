@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { KIDS_TOPUP_PATH } from '@sofa/shared';
 
 export interface HaConfig {
   url: string;
@@ -13,6 +14,7 @@ export interface AllowanceConfig {
   timeZone: string; // the household's, for the overnight reset
   resetMinutes: number; // the overnight reset, in minutes after local midnight
   graceSeconds: number; // between zero and the switch-off
+  topUpUrl: string; // the Companion Top-up page, the tap target of the warning notification
 }
 
 export interface Config {
@@ -50,6 +52,12 @@ function wholeNumber(value: string, name: string): number {
   return Number(value);
 }
 
+function publicUrl(value: string): string {
+  const s = value.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\/[^\s/?#]+$/i.test(s)) throw new Error(`SOFA_PUBLIC_URL must be like https://sofa.example.de, got ${JSON.stringify(value)}`);
+  return s;
+}
+
 export function loadConfig(env: Env = process.env): Config {
   const token = secret(env, 'SOFA_HA_TOKEN');
   return {
@@ -74,6 +82,8 @@ export function loadConfig(env: Env = process.env): Config {
       timeZone: env.SOFA_TIME_ZONE ?? 'Europe/Berlin',
       resetMinutes: clockTime(env.SOFA_ALLOWANCE_RESET ?? '04:00', 'SOFA_ALLOWANCE_RESET'),
       graceSeconds: wholeNumber(env.SOFA_ALLOWANCE_GRACE_SECONDS ?? '0', 'SOFA_ALLOWANCE_GRACE_SECONDS'),
+      // Where a phone lands when the warning notification is tapped: Companion, on the address the household's phones reach.
+      topUpUrl: publicUrl(env.SOFA_PUBLIC_URL ?? 'https://sofa.familie-farkas.de') + KIDS_TOPUP_PATH,
     },
   };
 }

@@ -26,7 +26,7 @@ before(async () => {
     passwordHash: await hashSecret('correct horse'),
     secureCookies: true,
     ha: null,
-    allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 },
+    allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.test/kids/topup' },
   };
   server = startServer(config, openDb(config.dbPath));
   await once(server, 'listening');
@@ -49,7 +49,7 @@ test('migrations run once and reopen cleanly', () => {
   const path = join(dir, 'migrate.db');
   openDb(path).close();
   const db = openDb(path);
-  assert.deepEqual({ ...(db.prepare('PRAGMA user_version').get() as object) }, { user_version: 4 });
+  assert.deepEqual({ ...(db.prepare('PRAGMA user_version').get() as object) }, { user_version: 5 });
   db.close();
 });
 

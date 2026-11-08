@@ -37,6 +37,7 @@ function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?
       timeZone: 'Europe/Berlin',
       resetMinutes: o.resetMinutes ?? 240,
       graceSeconds: o.grace ?? 0,
+      topUpUrl: 'https://sofa.test/kids/topup',
       now: () => clock.t,
     });
   let engine = make();
@@ -230,6 +231,8 @@ test('the 5-minute warning is sent once to both phones, and again after a Top-up
   assert.equal(body.message, '5 minutes of Kids Mode left.');
   assert.deepEqual(body.data.actions.map((a: { action: string }) => a.action), ['SOFA_TOPUP_5', 'SOFA_TOPUP_10', 'SOFA_TOPUP_CUSTOM']);
   assert.equal(body.data.actions[2].behavior, 'textInput');
+  assert.equal(body.data.url, 'https://sofa.test/kids/topup', 'a tap opens the Companion Top-up page');
+  assert.equal(body.data.tag, 'sofa-kids-warning');
   await k.watch(60);
   assert.equal(k.notifies().length, 2, 'sent once');
   k.engine.topUp(10, 'test'); // 4 + 10 minutes left
@@ -289,6 +292,70 @@ test('a Top-up at zero clears the pending Done Screen', async () => {
   await k.watch(60);
   assert.equal(k.engine.status().donePending, true);
   assert.equal(k.engine.topUp(10, 'notification').donePending, false);
+});
+
+/** The TV is switched on again at zero and Sofa Home (which proves the TV is on) is showing the Done Screen. */
+async function backOnAtZero(k: ReturnType<typeof setup>) {
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60); // zero: the TV goes off
+  await k.watch(300, 'off');
+  k.engine.tvSeen();
+  await k.watch(5, 'on');
+  assert.equal(k.engine.status().donePending, true);
+  k.engine.doneShown();
+  assert.equal(k.engine.status().donePending, false);
+}
+
+test('a TV switched on again at zero goes off again a minute after the Done Screen was shown', async () => {
+  const k = setup({ minutes: 1 });
+  await backOnAtZero(k);
+  await k.watch(55);
+  assert.equal(k.turnOffs().length, 1, 'the Done Screen has a minute');
+  await k.watch(5);
+  assert.equal(k.turnOffs().length, 2);
+  assert.equal(k.engine.status().donePending, true, 'the next power-on shows the Done Screen again');
+  await k.watch(60); // still on in Home Assistant's eyes until it catches up: one switch-off, not one per reading
+  assert.equal(k.turnOffs().length, 2);
+});
+
+test('a Top-up within the Done Screen minute cancels the second switch-off', async () => {
+  const k = setup({ minutes: 1 });
+  await backOnAtZero(k);
+  await k.watch(30);
+  k.engine.topUp(5, 'companion');
+  await k.watch(120);
+  assert.equal(k.turnOffs().length, 1);
+  assert.equal(k.used(), 60 + 120);
+});
+
+test('a TV switched off by hand during the Done Screen minute shows it again next time, with a fresh minute', async () => {
+  const k = setup({ minutes: 1 });
+  await backOnAtZero(k);
+  await k.watch(20);
+  await k.watch(5, 'off');
+  assert.equal(k.engine.status().donePending, true);
+  await k.watch(600, 'off');
+  k.engine.tvSeen();
+  await k.watch(5, 'on');
+  k.engine.doneShown();
+  await k.watch(50);
+  assert.equal(k.turnOffs().length, 1, 'the minute counts from the second Done Screen');
+  await k.watch(10);
+  assert.equal(k.turnOffs().length, 2);
+});
+
+test('entering Kids Mode with nothing left shows the Done Screen; leaving clears it', async () => {
+  const k = setup({ minutes: 1 });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60);
+  k.engine.exit();
+  assert.equal(k.engine.status().donePending, false);
+  assert.equal(k.engine.enter().donePending, true, 'still zero today');
+  const none = setup({ minutes: 0 });
+  assert.equal(none.engine.enter().donePending, true);
+  assert.equal(none.engine.topUp(5, 'companion').donePending, false);
 });
 
 test('a failed switch-off is retried on the next reading', async () => {
@@ -389,7 +456,9 @@ test("Home Assistant's media player state as TV power: only off is off", () => {
 
 test('allowance settings default to the household policy and refuse malformed values', () => {
   const env = { SOFA_PASSWORD_HASH: 'x' };
-  assert.deepEqual(loadConfig(env).allowance, { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 });
+  assert.deepEqual(loadConfig(env).allowance, { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.familie-farkas.de/kids/topup' });
+  assert.equal(loadConfig({ ...env, SOFA_PUBLIC_URL: 'https://sofa.example.de/' }).allowance.topUpUrl, 'https://sofa.example.de/kids/topup');
+  for (const bad of ['sofa.example.de', 'https://', 'ftp://x', 'https://a b']) assert.throws(() => loadConfig({ ...env, SOFA_PUBLIC_URL: bad }), /SOFA_PUBLIC_URL/);
   assert.equal(loadConfig({ ...env, SOFA_ALLOWANCE_RESET: '05:30' }).allowance.resetMinutes, 330);
   assert.equal(loadConfig({ ...env, SOFA_ALLOWANCE_GRACE_SECONDS: '30' }).allowance.graceSeconds, 30);
   for (const bad of ['4:00', '24:00', '04:60', 'four']) assert.throws(() => loadConfig({ ...env, SOFA_ALLOWANCE_RESET: bad }), /SOFA_ALLOWANCE_RESET/);

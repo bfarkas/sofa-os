@@ -2,13 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest } from '@sofa/shared';
+import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
 import type { Config } from './config.ts';
-import { createDraft, currentSnapshot, deleteDraft, getDraft, publishDraft, saveDraft } from './layout.ts';
+import { createDraft, currentSnapshot, deleteDraft, getDraft, kidsView, publishDraft, saveDraft } from './layout.ts';
 import { log } from './log.ts';
+import { createPin } from './pin.ts';
 import { approveCode, checkDeviceToken, claimToken, createCode } from './tv.ts';
 
 const MAX_BODY = 4096;
@@ -69,6 +70,8 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
     return checkDeviceToken(db, bearer ?? protocol?.slice(TV_PROTOCOL_PREFIX.length));
   };
   const canRead = (req: IncomingMessage) => sessionOf(req) !== null || isTv(req);
+  const pin = createPin(db);
+  const kidsStatus = (): KidsStatus => ({ ...allowance.status(), pinSet: pin.isSet() });
   const info = (expiresAt: number): SessionInfo => ({ signedIn: true, expiresAt: new Date(expiresAt).toISOString() });
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<void> {
@@ -130,7 +133,10 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
 
     if (key === 'GET /api/snapshot') {
       if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
-      return send(res, 200, currentSnapshot(db));
+      // ?profile=kids is what Sofa Home fetches in Kids Mode: only the approved apps and kids-visible widgets.
+      const profile = new URL(req.url ?? '/', 'http://localhost').searchParams.get('profile');
+      if (profile !== null && profile !== 'household' && profile !== 'kids') throw new HttpError(400, 'profile must be household or kids');
+      return send(res, 200, profile === 'kids' ? kidsView(currentSnapshot(db)) : currentSnapshot(db));
     }
 
     if (pathname === '/api/kids' || pathname.startsWith('/api/kids/')) return kidsRoute(req, res, key);
@@ -154,22 +160,40 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
     return serveStatic(req, res, pathname);
   }
 
-  // Kids Mode and the Watch Allowance, for Sofa Home (device token) and Companion. Only Companion adds a Top-up.
+  // Kids Mode and the Watch Allowance, for Sofa Home (device token) and Companion. Only Companion adds a Top-up or sets the PIN.
+  // Leaving Kids Mode needs the PIN from the TV; a Companion session is an adult and needs none.
   async function kidsRoute(req: IncomingMessage, res: ServerResponse, key: string): Promise<void> {
     const companion = sessionOf(req) !== null;
     const tv = isTv(req);
     if (!companion && !tv) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
     if (tv) allowance.tvSeen(); // Sofa Home is talking, so the TV is on
-    if (key === 'GET /api/kids') return send(res, 200, allowance.status());
-    if (req.method !== 'POST') throw new HttpError(405, 'method not allowed');
-    const body = (await readJson(req)) as Partial<TopUpRequest>;
-    if (key === 'POST /api/kids/enter') return send(res, 200, allowance.enter());
-    if (key === 'POST /api/kids/exit') return send(res, 200, allowance.exit()); // Session 09 adds the PIN for the TV
-    if (key === 'POST /api/kids/done-shown') return send(res, 200, allowance.doneShown());
+    if (key === 'GET /api/kids') return send(res, 200, kidsStatus());
+    if (req.method !== 'POST' && req.method !== 'PUT') throw new HttpError(405, 'method not allowed');
+    const body = (await readJson(req)) as Partial<TopUpRequest & KidsExitRequest & KidsPinRequest>;
+    if (key === 'PUT /api/kids/pin') {
+      if (!companion) return send(res, 403, { error: 'only Companion sets the PIN' } satisfies ApiError);
+      if (!(await pin.set(body?.pin))) throw new HttpError(400, 'the PIN must be four digits');
+      log.info('kids pin set');
+      return send(res, 200, kidsStatus());
+    }
+    if (key === 'POST /api/kids/enter') return send(res, 200, (allowance.enter(), kidsStatus()));
+    if (key === 'POST /api/kids/exit') {
+      if (!companion) {
+        const check = await pin.check(body?.pin);
+        if (!check.ok) {
+          log.warn('kids exit refused', { reason: check.reason, ip: req.socket.remoteAddress });
+          if (check.reason === 'unset') return send(res, 409, { error: 'no PIN is set; set one in Companion' } satisfies ApiError);
+          if (check.reason === 'locked') return send(res, 429, { error: 'too many wrong tries', retryAfterSeconds: check.retryAfterSeconds } satisfies ApiError, { 'Retry-After': String(check.retryAfterSeconds) });
+          return send(res, 403, { error: 'wrong PIN', triesLeft: check.triesLeft } satisfies ApiError);
+        }
+      }
+      return send(res, 200, (allowance.exit(), kidsStatus()));
+    }
+    if (key === 'POST /api/kids/done-shown') return send(res, 200, (allowance.doneShown(), kidsStatus()));
     if (key === 'POST /api/kids/topup') {
       if (!companion) return send(res, 403, { error: 'only Companion adds a Top-up' } satisfies ApiError);
       if (!isTopUpMinutes(body?.minutes)) throw new HttpError(400, 'minutes must be a whole number from 1 to 240');
-      return send(res, 200, allowance.topUp(body.minutes, 'companion'));
+      return send(res, 200, (allowance.topUp(body.minutes, 'companion'), kidsStatus()));
     }
     throw new HttpError(404, 'not found');
   }

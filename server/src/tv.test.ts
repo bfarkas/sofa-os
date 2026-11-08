@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
-import { TV_PROTOCOL_PREFIX, type KidsStatus, type TvCode } from '@sofa/shared';
+import { TV_PROTOCOL_PREFIX, type ApiError, type Draft, type KidsStatus, type Layout, type Snapshot, type TvCode } from '@sofa/shared';
 import WebSocket from 'ws';
 import { hashSecret, sha256 } from './auth.ts';
 import type { Config } from './config.ts';
@@ -110,7 +110,7 @@ before(async () => {
     passwordHash: await hashSecret('correct horse'),
     secureCookies: false,
     ha: null,
-    allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 },
+    allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.test/kids/topup' },
   };
   server = startServer(config, openDb(config.dbPath));
   await once(server, 'listening');
@@ -247,4 +247,74 @@ test('Kids Mode over HTTP: Sofa Home and Companion enter, read and exit it; only
   assert.equal((await kids(fetch(base + '/api/kids', { headers: { cookie } }))).active, false);
   assert.equal((await post('/api/kids/nothing', {}, { cookie })).status, 404);
   ws.close();
+});
+
+const put = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+  fetch(base + path, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+test('the Kids Mode PIN: only Companion sets it; the TV needs it to exit, with a lockout; Companion exits without it', async () => {
+  const tv = bearer(await signIn());
+  const status = async (headers: Record<string, string>) => (await (await fetch(base + '/api/kids', { headers })).json()) as KidsStatus;
+  await post('/api/kids/exit', {}, { cookie });
+  assert.equal((await status(tv)).pinSet, false);
+
+  await post('/api/kids/enter', {}, tv);
+  const exit = (pin: unknown) => post('/api/kids/exit', { pin }, tv);
+  assert.equal((await exit('1234')).status, 409, 'no PIN set: the TV cannot leave; an adult uses Companion');
+  assert.equal((await status(tv)).active, true);
+
+  assert.equal((await put('/api/kids/pin', { pin: '1234' }, tv)).status, 403, 'the TV never sets the PIN');
+  assert.equal((await put('/api/kids/pin', { pin: '1234' })).status, 401);
+  for (const pin of ['123', '12345', 'abcd', 1234, null]) assert.equal((await put('/api/kids/pin', { pin }, { cookie })).status, 400, String(pin));
+  const set = await put('/api/kids/pin', { pin: '4821' }, { cookie });
+  assert.equal(set.status, 200);
+  assert.equal(((await set.json()) as KidsStatus).pinSet, true);
+  assert.ok(!JSON.stringify(await (await fetch(base + '/api/kids', { headers: tv })).json()).includes('4821'));
+
+  for (const pin of [undefined, '', '1234', 'x']) {
+    const res = await exit(pin);
+    assert.equal(res.status, 403, String(pin));
+    assert.equal(typeof ((await res.json()) as ApiError).triesLeft, 'number');
+  }
+  assert.equal((await status(tv)).active, true, 'wrong PINs leave Kids Mode on');
+  const locked = await exit('0000'); // the fifth wrong try
+  assert.equal(locked.status, 429);
+  assert.equal(((await locked.json()) as ApiError).retryAfterSeconds, 300);
+  assert.equal(locked.headers.get('retry-after'), '300');
+  assert.equal((await exit('4821')).status, 429, 'locked out, even with the right PIN');
+  assert.equal((await status(tv)).active, true);
+
+  assert.equal((await put('/api/kids/pin', { pin: '4821' }, { cookie })).status, 200, 'an adult in Companion ends the lockout');
+  assert.equal((await exit('4821')).status, 200);
+  assert.equal((await status(tv)).active, false);
+
+  await post('/api/kids/enter', {}, tv);
+  assert.equal(((await (await post('/api/kids/exit', {}, { cookie })).json()) as KidsStatus).active, false, 'Companion needs no PIN');
+});
+
+test('the kids snapshot holds only what is approved and needs the TV token or a session', async () => {
+  const tv = bearer(await signIn());
+  const draft = (await (await post('/api/drafts', {}, { cookie })).json()) as Draft;
+  const layout: Layout = {
+    schema: 1,
+    apps: [{ id: 'a.Netflix', name: 'Netflix' }, { id: 'a.Banking', name: 'Banking' }],
+    widgets: [],
+    rows: [{ id: 'r', title: '', items: [{ kind: 'app', id: 'a.Netflix' }, { kind: 'app', id: 'a.Banking' }] }],
+    background: { kind: 'color', color: '#f6f1e7' },
+    kidsMode: { apps: ['a.Netflix'], dailyMinutes: 40 },
+  };
+  assert.equal((await put('/api/drafts/' + draft.id, { base: draft.base, layout }, { cookie })).status, 200);
+  assert.equal((await post(`/api/drafts/${draft.id}/publish`, {}, { cookie })).status, 200);
+
+  const get = (query: string, headers: Record<string, string>) => fetch(base + '/api/snapshot' + query, { headers });
+  assert.equal((await get('?profile=kids', {})).status, 401);
+  assert.equal((await get('?profile=kids', bearer('wrong'))).status, 401);
+  const kids = (await (await get('?profile=kids', tv)).json()) as Snapshot;
+  assert.deepEqual(kids.layout.apps.map((a) => a.id), ['a.Netflix']);
+  assert.deepEqual(kids.layout.rows[0].items.map((i) => i.id), ['a.Netflix']);
+  assert.ok(!JSON.stringify(kids).includes('Banking'));
+  assert.equal(((await (await get('?profile=kids', { cookie })).json()) as Snapshot).layout.apps.length, 1);
+  assert.equal(((await (await get('', tv)).json()) as Snapshot).layout.apps.length, 2, 'the household snapshot is unchanged');
+  assert.equal(((await (await get('?profile=household', tv)).json()) as Snapshot).layout.apps.length, 2);
+  assert.equal((await get('?profile=adults', tv)).status, 400);
 });

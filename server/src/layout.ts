@@ -26,6 +26,23 @@ export function currentSnapshot(db: DatabaseSync): Snapshot {
   return { revision: row.number, publishedAt: new Date(row.created_at).toISOString(), layout: JSON.parse(row.layout) as Layout };
 }
 
+/**
+ * What the Kids Mode profile may retrieve: the approved apps in tile order, the widgets that are visible to kids, and only
+ * the Dashboard rows' items that remain. Still a valid layout, so Sofa Home's validator and renderer work on it unchanged.
+ * Curation, not containment (ADR 0001): the household snapshot stays readable with the TV's token.
+ */
+export function kidsView(snapshot: Snapshot): Snapshot {
+  const { layout } = snapshot;
+  const byId = new Map(layout.apps.map((a) => [a.id, a]));
+  const apps = layout.kidsMode.apps.flatMap((id) => byId.get(id) ?? []);
+  const widgets = layout.widgets.filter((w) => w.profiles.includes('kids'));
+  const keep = new Set([...apps.map((a) => 'app:' + a.id), ...widgets.map((w) => 'widget:' + w.id)]);
+  const rows = layout.rows
+    .map((r) => ({ ...r, items: r.items.filter((i) => keep.has(i.kind + ':' + i.id)) }))
+    .filter((r) => r.items.length);
+  return { ...snapshot, layout: { ...layout, apps, widgets, rows, kidsMode: { ...layout.kidsMode, apps: apps.map((a) => a.id) } } };
+}
+
 function toDraft(row: DraftRow): Draft {
   const layout: unknown = JSON.parse(row.layout);
   return { id: row.id, base: row.base, layout, errors: validateLayout(layout) };

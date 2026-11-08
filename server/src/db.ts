@@ -41,6 +41,11 @@ const migrations: string[] = [
      id INTEGER PRIMARY KEY CHECK (id = 1),
      state TEXT NOT NULL
    ) STRICT;`,
+  // The Kids Mode PIN (see pin.ts): a salted hash, never the PIN.
+  `CREATE TABLE kids_pin (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     hash TEXT NOT NULL
+   ) STRICT;`,
 ];
 
 export function openDb(path: string): DatabaseSync {
