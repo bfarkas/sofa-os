@@ -21,6 +21,9 @@ export const SIZES = {
   marginX: 96,
   marginY: 54,
   tile: 220, // an app tile is a square this wide; widgets are this tall
+  widgetSmall: 268, // six small widgets fill a row; a medium takes two, a large three
+  widgetMedium: 564,
+  widgetLarge: 860,
   gap: 28, // between tiles
   radius: 22,
   focusRing: 5, // inner ring; the outline adds 6 more
