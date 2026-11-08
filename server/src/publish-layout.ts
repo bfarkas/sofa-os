@@ -15,12 +15,11 @@ if (!password) {
 const arg = process.argv[2];
 
 // A layout with something to navigate: real Tizen app IDs and one widget of each size. The first four IDs are from the
-// spec (Known results); YouTube and Plex are the Samsung store IDs, not yet checked on this TV (an app the TV does not
-// have shows as unavailable). Netflix launches through org.tizen.netflix-app, not its store ID.
+// spec (Known results); YouTube and Plex are read from this TV's `0 applist` (9Ur5IzDKqV.TizenYouTube launched without the logged-in users, so YouTube uses the Cobalt app). Netflix launches through org.tizen.netflix-app, not its store ID.
 function sample(): Layout {
   const apps = [
     { id: 'org.tizen.netflix-app', name: 'Netflix' },
-    { id: '9Ur5IzDKqV.TizenYouTube', name: 'YouTube' },
+    { id: 'com.samsung.tv.cobalt-yt', name: 'YouTube' },
     { id: 'kIciSQlYEM.plex', name: 'Plex' },
     { id: 'SrAoJxGQUf.ARD', name: 'ARD' },
     { id: 'yPSlpvfeTf.ZDFmediathek', name: 'ZDF' },

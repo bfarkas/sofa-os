@@ -50,16 +50,19 @@ export function render(v: View): void {
   tiles = {};
   if (v.mode === 'home') {
     if (v.tab === 'dashboard') updateClock(new Date());
+    // On the Dashboard the rows sit at the bottom, with the wallpaper showing above them.
+    const host = v.tab === 'dashboard' ? content.appendChild(h('div', '')) : content;
+    if (host !== content) host.id = 'dash';
     for (const s of v.sections) {
       const sec = h('div', 'section');
       const row = sec.appendChild(h('div', 'row'));
       for (const t of s.tiles) row.appendChild((tiles[t.id] = tileEl(t)));
-      content.appendChild(sec);
+      host.appendChild(sec);
     }
     if (v.message) {
       const m = h('div', '', v.message);
       m.id = 'message';
-      content.appendChild(m);
+      host.appendChild(m);
     }
   }
   content.scrollTop = v.tab === tab ? keepScroll : 0;
