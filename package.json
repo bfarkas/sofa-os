@@ -8,7 +8,8 @@
     "build": "npm run build -w companion -w tv",
     "check": "tsc -p .",
     "test": "node --test \"*/src/**/*.test.ts\"",
-    "start": "node server/src/main.ts"
+    "start": "node server/src/main.ts",
+    "publish-layout": "node server/src/publish-layout.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

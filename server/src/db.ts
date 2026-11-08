@@ -7,6 +7,22 @@ const migrations: string[] = [
      created_at INTEGER NOT NULL,
      expires_at INTEGER NOT NULL
    ) STRICT;`,
+  // Layout revisions (see layout.ts). Revision 1 is an empty layout, so there is always a current one.
+  `CREATE TABLE revisions (
+     number INTEGER PRIMARY KEY,
+     base INTEGER REFERENCES revisions(number),
+     layout TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   ) STRICT;
+   CREATE TABLE drafts (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     base INTEGER NOT NULL REFERENCES revisions(number),
+     layout TEXT NOT NULL,
+     updated_at INTEGER NOT NULL
+   ) STRICT;
+   INSERT INTO revisions (number, base, layout, created_at) VALUES (1, NULL,
+     '{"schema":1,"apps":[],"widgets":[],"rows":[],"background":{"kind":"color","color":"#f6f1e7"},"kidsMode":{"apps":[],"dailyMinutes":60}}',
+     unixepoch() * 1000);`,
 ];
 
 export function openDb(path: string): DatabaseSync {
