@@ -8,7 +8,7 @@ A family TV experience for one household: a remote-friendly screen on a Samsung 
 
 ## Status
 
-Phase 1 has started. The Server foundation runs on the home server behind Caddy, with Companion sign-in. Layout revisions and their sync to Sofa Home, which shows the layout as text for now, are built but not yet deployed or tried on the TV. See the [implementation plan](docs/implementation-plan.md).
+Phase 1 has started. The Server foundation runs on the home server behind Caddy, with Companion sign-in. Layout revisions, their sync to Sofa Home (which shows the layout as text for now) and TV Sign-in by QR code are built but not yet deployed or tried on the TV. See the [implementation plan](docs/implementation-plan.md).
 
 ## Development
 
@@ -21,7 +21,7 @@ npm test        # Server, shared and Sofa Home tests
 npm run build   # bundle Companion and Sofa Home
 ```
 
-`tv/build.sh install` builds, signs and installs Sofa Home on the TV (`SOFA_SERVER_URL` overrides the Server it syncs from). `SOFA_URL=… SOFA_PASSWORD=… npm run publish-layout` publishes a sample layout, as described under Session 05 in the plan. To deploy the Server on rei3, run `git pull && docker compose -f deploy/compose.yaml up -d --build` in `~/sofa-os`. `deploy/set-password.sh` sets the Companion password.
+`tv/build.sh install` builds, signs and installs Sofa Home on the TV (`SOFA_SERVER_URL` sets the default Server address, which can be changed on the TV). A fresh install shows a QR code; scan it, sign in to Companion and tap Approve. On the TV, OK opens Settings, where **Sign in again** replaces the token. `SOFA_URL=… SOFA_PASSWORD=… npm run publish-layout` publishes a sample layout, as described under Session 05 in the plan. To deploy the Server on rei3, run `git pull && docker compose -f deploy/compose.yaml up -d --build` in `~/sofa-os`. `deploy/set-password.sh` sets the Companion password.
 
 ## What it is
 

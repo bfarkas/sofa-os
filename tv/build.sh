@@ -2,6 +2,7 @@
 # Package and sign Sofa Home with the `hideki` profile, then optionally install on the TV.
 #   tv/build.sh            build + sign only
 #   tv/build.sh install    build, sign, install on the TV
+# Sofa Home signs in by QR code on first start; SOFA_SERVER_URL below is only its default Server address.
 # Output: tv/out/SofaHome.wgt (gitignored). Open the app from Apps on the TV; there is no remote launch.
 set -euo pipefail
 
