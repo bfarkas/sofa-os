@@ -25,7 +25,6 @@ before(async () => {
     companionDir: dir,
     passwordHash: await hashSecret('correct horse'),
     secureCookies: true,
-    tvOpenAccess: false,
     ha: null,
   };
   server = startServer(config, openDb(config.dbPath));
@@ -49,7 +48,7 @@ test('migrations run once and reopen cleanly', () => {
   const path = join(dir, 'migrate.db');
   openDb(path).close();
   const db = openDb(path);
-  assert.deepEqual({ ...(db.prepare('PRAGMA user_version').get() as object) }, { user_version: 2 });
+  assert.deepEqual({ ...(db.prepare('PRAGMA user_version').get() as object) }, { user_version: 3 });
   db.close();
 });
 

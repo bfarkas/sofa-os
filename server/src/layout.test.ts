@@ -90,14 +90,13 @@ test('a publish that fails midway leaves the current revision unchanged', () => 
 let base = '';
 let cookie = '';
 const servers: ReturnType<typeof startServer>[] = [];
-const config = async (dbPath: string, tvOpenAccess: boolean): Promise<Config> => ({
+const config = async (dbPath: string): Promise<Config> => ({
   port: 0,
   dbPath,
   mediaDir: join(dir, 'media'),
   companionDir: dir,
   passwordHash: await hashSecret('correct horse'),
   secureCookies: false,
-  tvOpenAccess,
   ha: null,
 });
 async function start(c: Config): Promise<string> {
@@ -108,7 +107,7 @@ async function start(c: Config): Promise<string> {
 }
 
 before(async () => {
-  base = await start(await config(join(dir, 'http.db'), false));
+  base = await start(await config(join(dir, 'http.db')));
   const res = await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'correct horse' }) });
   cookie = res.headers.get('set-cookie')!.split(';')[0];
 });
@@ -170,18 +169,6 @@ test('a WebSocket client gets the revision signal within a second', async () => 
   assert.ok(Date.now() - t0 < 1000);
   assert.deepEqual(JSON.parse(String(data)), { type: 'revision', revision: (await snapshot()).revision });
   ws.close();
-});
-
-test('with open TV access, Sofa Home reads the snapshot and signal without credentials, but not drafts', async () => {
-  const tv = await start(await config(join(dir, 'tv.db'), true));
-  const res = await fetch(tv + '/api/snapshot');
-  assert.equal(res.status, 200);
-  assert.deepEqual(validateSnapshot(await res.json()), []);
-  const ws = new WebSocket(tv.replace('http', 'ws') + '/ws');
-  const [hello] = await once(ws, 'message');
-  assert.equal(JSON.parse(String(hello)).type, 'hello');
-  ws.close();
-  assert.equal((await fetch(tv + '/api/drafts', { method: 'POST' })).status, 401);
 });
 
 test('the publish script publishes, and its broken layout is refused', async () => {

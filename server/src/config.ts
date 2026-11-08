@@ -15,7 +15,6 @@ export interface Config {
   companionDir: string;
   passwordHash: string;
   secureCookies: boolean;
-  tvOpenAccess: boolean; // until Session 06: Sofa Home reads the snapshot and the WebSocket without a device token
   ha: HaConfig | null; // null until a Home Assistant token is configured
 }
 
@@ -41,7 +40,6 @@ export function loadConfig(env: Env = process.env): Config {
     companionDir: env.SOFA_COMPANION_DIR ?? new URL('../../companion/dist', import.meta.url).pathname,
     passwordHash: required(secret(env, 'SOFA_PASSWORD_HASH'), 'SOFA_PASSWORD_HASH or SOFA_PASSWORD_HASH_FILE'),
     secureCookies: env.SOFA_INSECURE_COOKIES !== '1',
-    tvOpenAccess: env.SOFA_TV_OPEN_ACCESS === '1',
     ha: token
       ? {
           url: required(env.SOFA_HA_URL, 'SOFA_HA_URL').replace(/\/$/, ''),

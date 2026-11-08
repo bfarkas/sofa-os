@@ -2,12 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import type { ApiError, DraftUpdate, LoginRequest, ServerMessage, SessionInfo } from '@sofa/shared';
+import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LoginRequest, type ServerMessage, type SessionInfo, type TvApproveRequest, type TvTokenRequest } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
 import type { Config } from './config.ts';
 import { createDraft, currentSnapshot, deleteDraft, getDraft, publishDraft, saveDraft } from './layout.ts';
 import { log } from './log.ts';
+import { approveCode, checkDeviceToken, claimToken, createCode } from './tv.ts';
 
 const MAX_BODY = 4096;
 const MAX_LAYOUT = 256 * 1024;
@@ -59,8 +60,12 @@ export function startServer(config: Config, db: DatabaseSync): Server {
     const expiresAt = checkSession(db, token);
     return expiresAt ? { token, expiresAt } : null;
   };
-  // Seam for Session 06, which replaces the open-access flag with a check of the TV's device token.
-  const isTv = (_req: IncomingMessage) => config.tvOpenAccess;
+  // The TV's device token: a Bearer header on REST, a WebSocket subprotocol on /ws (never in a URL, so it cannot reach a log).
+  const isTv = (req: IncomingMessage) => {
+    const bearer = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1];
+    const protocol = String(req.headers['sec-websocket-protocol'] ?? '').split(',').map((p) => p.trim()).find((p) => p.startsWith(TV_PROTOCOL_PREFIX));
+    return checkDeviceToken(db, bearer ?? protocol?.slice(TV_PROTOCOL_PREFIX.length));
+  };
   const canRead = (req: IncomingMessage) => sessionOf(req) !== null || isTv(req);
   const info = (expiresAt: number): SessionInfo => ({ signedIn: true, expiresAt: new Date(expiresAt).toISOString() });
 
@@ -105,6 +110,22 @@ export function startServer(config: Config, db: DatabaseSync): Server {
       return send(res, 200, {}, { 'Set-Cookie': sessionCookie('', 0, config.secureCookies) });
     }
 
+    // TV Sign-in. The TV has no credentials yet, so these two are open; see tv.ts for why that is safe.
+    if (key === 'POST /api/tv/codes') {
+      await readJson(req);
+      return send(res, 201, createCode(db));
+    }
+    if (key === 'POST /api/tv/token') {
+      const body = (await readJson(req)) as Partial<TvTokenRequest>;
+      const result = typeof body?.code === 'string' && typeof body.secret === 'string' ? claimToken(db, body.code, body.secret) : null;
+      if (!result) return send(res, 404, { error: 'unknown or expired code' } satisfies ApiError);
+      if (result.status === 'approved') {
+        log.info('tv signed in'); // the new token replaces the old one, so the old one's sockets go
+        for (const ws of tvSockets) ws.terminate();
+      }
+      return send(res, 200, result);
+    }
+
     if (key === 'GET /api/snapshot') {
       if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
       return send(res, 200, currentSnapshot(db));
@@ -114,6 +135,12 @@ export function startServer(config: Config, db: DatabaseSync): Server {
       const session = sessionOf(req);
       if (!session) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
       if (key === 'GET /api/session') return send(res, 200, info(session.expiresAt));
+      if (key === 'POST /api/tv/approve') {
+        const body = (await readJson(req)) as Partial<TvApproveRequest>;
+        if (typeof body?.code !== 'string' || !approveCode(db, body.code)) return send(res, 404, { error: 'unknown or expired code' } satisfies ApiError);
+        log.info('tv code approved');
+        return send(res, 200, {});
+      }
       if (key === 'POST /api/drafts') return send(res, 201, createDraft(db));
       const m = /^\/api\/drafts\/(\d+)(\/publish)?$/.exec(pathname);
       if (m) return draftRoute(req, res, Number(m[1]), req.method + (m[2] ?? ''));
@@ -165,8 +192,14 @@ export function startServer(config: Config, db: DatabaseSync): Server {
     });
   });
 
-  // WebSocket at /ws for signed-in Companion clients and Sofa Home. It only signals; data comes over REST.
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+  // WebSocket at /ws for signed-in Companion clients and Sofa Home (with its device token). It only signals; data comes over REST.
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: 64 * 1024,
+    // A browser closes the socket unless the Server answers with one of the subprotocols it offered.
+    handleProtocols: (protocols) => [...protocols].find((p) => p.startsWith(TV_PROTOCOL_PREFIX)) ?? false,
+  });
+  const tvSockets = new Set<WebSocket>();
   const alive = new WeakMap<WebSocket, boolean>();
   server.on('upgrade', (req, socket, head) => {
     const { pathname } = new URL(req.url ?? '/', 'http://localhost');
@@ -174,7 +207,14 @@ export function startServer(config: Config, db: DatabaseSync): Server {
       socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws));
+    const tv = isTv(req);
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      if (tv) {
+        tvSockets.add(ws);
+        ws.on('close', () => tvSockets.delete(ws));
+      }
+      wss.emit('connection', ws);
+    });
   });
   wss.on('connection', (ws) => {
     alive.set(ws, true);

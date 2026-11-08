@@ -30,7 +30,7 @@ export async function verifySecret(secret: string, stored: string): Promise<bool
 export const SESSION_COOKIE = 'sofa_session';
 export const SESSION_DAYS = 90;
 
-const sha256 = (token: string) => createHash('sha256').update(token).digest('hex');
+export const sha256 = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export function createSession(db: DatabaseSync, now = Date.now()): { token: string; expiresAt: number } {
   const token = randomBytes(32).toString('base64url');

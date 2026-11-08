@@ -33,3 +33,25 @@ export interface DraftUpdate {
 export type ServerMessage =
   | { type: 'hello'; serverTime: string }
   | { type: 'revision'; revision: number }; // a new revision is published: fetch GET /api/snapshot
+
+// TV Sign-in (spec: TV Sign-in). The TV keeps `secret`; only `code` goes into the QR code and the approval URL.
+export interface TvCode {
+  code: string; // 8 characters, shown on the TV and carried by the QR code
+  secret: string; // never leaves the TV; the Server stores only its hash
+  expiresAt: string; // ISO time
+}
+
+export interface TvTokenRequest {
+  code: string;
+  secret: string;
+}
+
+/** Answer to POST /api/tv/token. The token is delivered once, to the holder of the code's secret. */
+export type TvTokenResponse = { status: 'pending' } | { status: 'approved'; token: string };
+
+export interface TvApproveRequest {
+  code: string;
+}
+
+/** Browsers cannot set headers on a WebSocket, so Sofa Home sends its device token as `sofa-token.<token>` in Sec-WebSocket-Protocol. */
+export const TV_PROTOCOL_PREFIX = 'sofa-token.';

@@ -23,6 +23,19 @@ const migrations: string[] = [
    INSERT INTO revisions (number, base, layout, created_at) VALUES (1, NULL,
      '{"schema":1,"apps":[],"widgets":[],"rows":[],"background":{"kind":"color","color":"#f6f1e7"},"kidsMode":{"apps":[],"dailyMinutes":60}}',
      unixepoch() * 1000);`,
+  // TV Sign-in (see tv.ts): pending codes, and the one device token. Only hashes are stored.
+  `CREATE TABLE tv_codes (
+     code TEXT PRIMARY KEY,
+     secret_hash TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL,
+     approved INTEGER NOT NULL DEFAULT 0
+   ) STRICT;
+   CREATE TABLE tv_device (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     token_hash TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   ) STRICT;`,
 ];
 
 export function openDb(path: string): DatabaseSync {
