@@ -1,4 +1,6 @@
+import WebSocket from 'ws';
 import type { HaConfig } from './config.ts';
+import { log } from './log.ts';
 
 // Home Assistant client. Every service call passes the write guard, which allows exactly the
 // spec's three writes (Home Assistant and household information) and refuses everything else.
@@ -50,6 +52,10 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
 
   async function callService(call: ServiceCall): Promise<unknown> {
     checkWrite(call, ha);
+    if (ha.dryRun) {
+      log.info('home assistant dry run', { service: `${call.domain}.${call.service}`, data: call.data });
+      return null;
+    }
     return request(`/api/services/${call.domain}/${call.service}`, { method: 'POST', body: JSON.stringify(call.data) });
   }
 
@@ -63,5 +69,56 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
     notifyAdults: (message: string, extra: { title?: string; data?: Record<string, unknown> } = {}) =>
       Promise.all(ha.notifyServices.map((service) => callService({ domain: 'notify', service, data: { message, ...extra } }))),
     sendKey: (key: string) => callService({ domain: 'remote', service: 'send_command', data: { entity_id: ha.remoteEntity, command: key } }),
+  };
+}
+
+/**
+ * Listens for one Home Assistant event type over its WebSocket API and reconnects after a drop. Read-only: it sends
+ * nothing but auth and subscribe_events, so no write can get past the guard this way. Events during a drop are lost.
+ */
+export function subscribeEvents(ha: HaConfig, eventType: string, onEvent: (data: Record<string, unknown>) => void, retryMs = 5000): () => void {
+  let ws: WebSocket;
+  let stopped = false;
+  let down = false; // log a drop once, not on every retry
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  const connect = () => {
+    ws = new WebSocket(ha.url.replace(/^http/, 'ws') + '/api/websocket', { handshakeTimeout: 10_000 });
+    let alive = true;
+    let beat: ReturnType<typeof setInterval> | undefined;
+    ws.on('open', () => {
+      // A connection that dies without a close (a host gone from the LAN) would otherwise wait forever.
+      beat = setInterval(() => (alive ? ((alive = false), ws.ping()) : ws.terminate()), 30_000);
+    });
+    ws.on('pong', () => (alive = true));
+    ws.on('message', (raw) => {
+      let msg: { type?: string; success?: boolean; error?: unknown; event?: { event_type?: string; data?: Record<string, unknown> } };
+      try {
+        msg = JSON.parse(String(raw));
+      } catch {
+        return;
+      }
+      if (msg.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: ha.token }));
+      else if (msg.type === 'auth_ok') ws.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: eventType }));
+      else if (msg.type === 'auth_invalid') log.warn('home assistant refused the token', { eventType });
+      else if (msg.type === 'result') {
+        if (msg.success) log.info('home assistant events subscribed', { eventType });
+        else log.warn('home assistant subscription failed', { eventType, error: msg.error });
+        down = false;
+      } else if (msg.type === 'event' && msg.event?.event_type === eventType) onEvent(msg.event.data ?? {});
+    });
+    ws.on('error', () => {}); // a close follows
+    ws.on('close', () => {
+      clearInterval(beat);
+      if (stopped) return;
+      if (!down) log.warn('home assistant events disconnected, retrying', { eventType });
+      down = true;
+      retry = setTimeout(connect, retryMs);
+    });
+  };
+  connect();
+  return () => {
+    stopped = true;
+    clearTimeout(retry);
+    ws.close();
   };
 }

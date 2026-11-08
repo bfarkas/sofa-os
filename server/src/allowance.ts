@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { KidsStatus } from '@sofa/shared';
-import type { HaClient } from './ha.ts';
+import type { HaConfig } from './config.ts';
+import { subscribeEvents, type HaClient } from './ha.ts';
 import { currentSnapshot } from './layout.ts';
 import { log } from './log.ts';
 
@@ -57,6 +58,13 @@ export function allowanceDays(timeZone: string, resetMinutes: number) {
 const nextDay = (day: string) => new Date(Date.parse(day) + 86_400_000).toISOString().slice(0, 10);
 
 export type TvPower = 'on' | 'off';
+
+/** The TV's media player state as power. Only "off" is off; unavailable or unknown proves nothing either way. */
+export function tvPower(entity: unknown): TvPower | null {
+  const state = (entity as { state?: unknown } | null)?.state;
+  if (state === 'off') return 'off';
+  return typeof state === 'string' && state !== 'unavailable' && state !== 'unknown' ? 'on' : null;
+}
 
 interface State {
   day: string; // the allowance day the counters belong to
@@ -250,5 +258,45 @@ export function createAllowance(o: AllowanceOptions) {
       }
       commit();
     },
+  };
+}
+
+/**
+ * Runs the clock against Home Assistant: reads the TV's state every tick, then acts, and applies Top-ups from the
+ * notification actions. Returns a stop function.
+ */
+export function startAllowance(engine: Allowance, ha: HaConfig, client: Pick<HaClient, 'getState'>, tickMs = TICK_MS): () => void {
+  const stopEvents = subscribeEvents(ha, 'mobile_app_notification_action', (data) => {
+    const minutes = actionMinutes(data);
+    if (minutes) engine.topUp(minutes, 'notification');
+    else if (data.action === 'SOFA_TOPUP_CUSTOM') log.warn('top-up ignored: not 1 to 240 minutes', { reply: String(data.reply_text ?? '').slice(0, 20) });
+  }, tickMs);
+  let stopped = false;
+  let reachable: boolean | undefined; // log changes only
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const step = async () => {
+    let power: TvPower | null = null;
+    try {
+      const entity = await client.getState(ha.tvEntity);
+      power = tvPower(entity);
+      if (reachable !== true) log.info('home assistant reachable', { entity: ha.tvEntity, state: (entity as { state?: string }).state });
+      reachable = true;
+    } catch (err) {
+      if (reachable !== false) log.warn('home assistant tv state failed', { entity: ha.tvEntity, err: String(err) });
+      reachable = false;
+    }
+    try {
+      engine.observe(power);
+      await engine.act();
+    } catch (err) {
+      log.error('allowance tick failed', { err: String(err) });
+    }
+    if (!stopped) timer = setTimeout(step, tickMs);
+  };
+  void step();
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+    stopEvents();
   };
 }

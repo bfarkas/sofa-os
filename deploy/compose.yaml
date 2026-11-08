@@ -16,6 +16,7 @@ services:
       SOFA_PASSWORD_HASH_FILE: /run/secrets/companion_password_hash
       SOFA_HA_URL: http://192.168.42.24:8123
       SOFA_HA_TOKEN_FILE: /run/secrets/ha_token # long-lived token; the write guard limits what it may do
+      SOFA_HA_DRY_RUN: ${SOFA_HA_DRY_RUN:-0} # 1: log Home Assistant writes instead of sending them (Watch Allowance live run)
     volumes:
       - sofa-data:/data # SQLite database, back this up
       - sofa-media:/media # media cache, safe to lose

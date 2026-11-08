@@ -11,13 +11,13 @@ const ha: HaConfig = {
   notifyServices: ['mobile_app_hidekis_iphone', 'mobile_app_ioannas_iphone'],
 };
 
-function fakeHa() {
+function fakeHa(config = ha) {
   const calls: { url: string; init: RequestInit }[] = [];
   const fetchFn = (async (url: string, init: RequestInit) => {
     calls.push({ url, init });
     return new Response('[]', { status: 200 });
   }) as unknown as typeof fetch;
-  return { calls, client: createHaClient(ha, fetchFn) };
+  return { calls, client: createHaClient(config, fetchFn) };
 }
 
 test('allowed: turn this TV off', async () => {
@@ -60,6 +60,10 @@ const refused: [string, ServiceCall][] = [
   ['a non-key command', { domain: 'remote', service: 'send_command', data: { entity_id: 'remote.samung_tv', command: 'power_on' } }],
   ['a key held down', { domain: 'remote', service: 'send_command', data: { entity_id: 'remote.samung_tv', command: 'KEY_POWER', hold_secs: 5 } }],
   ['remote.turn_off', { domain: 'remote', service: 'turn_off', data: { entity_id: 'remote.samung_tv' } }],
+  ['turn-off of every player', { domain: 'media_player', service: 'turn_off', data: { entity_id: 'all' } }],
+  ['pausing the TV', { domain: 'media_player', service: 'media_pause', data: { entity_id: 'media_player.samung_tv' } }],
+  ['notify with an added target', { domain: 'notify', service: 'mobile_app_hidekis_iphone', data: { message: 'hi', target: ['mobile_app_guest'] } }],
+  ['a persistent notification', { domain: 'persistent_notification', service: 'create', data: { message: 'hi' } }],
 ];
 
 for (const [label, call] of refused) {
@@ -74,4 +78,13 @@ for (const [label, call] of refused) {
 test('getState rejects anything but an entity id', () => {
   const { client } = fakeHa();
   assert.throws(() => client.getState('../config'), /not an entity id/);
+});
+
+test('dry run: allowed writes pass the guard and are logged, not sent; everything else is still refused', async () => {
+  const { calls, client } = fakeHa({ ...ha, dryRun: true });
+  await client.turnOffTv();
+  await client.notifyAdults('5 minutes left');
+  await client.sendKey('KEY_ENTER');
+  assert.equal(calls.length, 0);
+  for (const [, call] of refused) await assert.rejects(client.callService(call), WriteRefused);
 });

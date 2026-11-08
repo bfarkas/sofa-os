@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { mkdtempSync } from 'node:fs';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { actionMinutes, allowanceDays, createAllowance, fromDb, type Store, type TvPower } from './allowance.ts';
-import type { HaConfig } from './config.ts';
+import { WebSocketServer } from 'ws';
+import { actionMinutes, allowanceDays, createAllowance, fromDb, startAllowance, tvPower, type Store, type TvPower } from './allowance.ts';
+import { loadConfig, type HaConfig } from './config.ts';
 import { openDb } from './db.ts';
 import { createHaClient } from './ha.ts';
 
@@ -375,4 +378,71 @@ test('the state survives in SQLite across a restart, and the budget comes from t
   engine.observe('on');
   assert.equal(engine.status().usedSeconds, 80);
   db.close();
+});
+
+test("Home Assistant's media player state as TV power: only off is off", () => {
+  assert.equal(tvPower({ state: 'on' }), 'on');
+  assert.equal(tvPower({ state: 'playing' }), 'on');
+  assert.equal(tvPower({ state: 'off' }), 'off');
+  for (const v of [{ state: 'unavailable' }, { state: 'unknown' }, {}, null]) assert.equal(tvPower(v), null);
+});
+
+test('allowance settings default to the household policy and refuse malformed values', () => {
+  const env = { SOFA_PASSWORD_HASH: 'x' };
+  assert.deepEqual(loadConfig(env).allowance, { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 });
+  assert.equal(loadConfig({ ...env, SOFA_ALLOWANCE_RESET: '05:30' }).allowance.resetMinutes, 330);
+  assert.equal(loadConfig({ ...env, SOFA_ALLOWANCE_GRACE_SECONDS: '30' }).allowance.graceSeconds, 30);
+  for (const bad of ['4:00', '24:00', '04:60', 'four']) assert.throws(() => loadConfig({ ...env, SOFA_ALLOWANCE_RESET: bad }), /SOFA_ALLOWANCE_RESET/);
+  assert.throws(() => loadConfig({ ...env, SOFA_ALLOWANCE_GRACE_SECONDS: '-1' }), /GRACE/);
+  assert.equal(loadConfig({ ...env, SOFA_HA_TOKEN: 't', SOFA_HA_URL: 'http://ha', SOFA_HA_DRY_RUN: '1' }).ha?.dryRun, true);
+});
+
+async function until(ok: () => boolean): Promise<void> {
+  for (const end = Date.now() + 3000; !ok(); await new Promise((r) => setTimeout(r, 5))) if (Date.now() > end) throw new Error('timed out');
+}
+
+test('the loop reads the TV state, and Top-ups arrive as notification actions over a read-only WebSocket', async () => {
+  // A fake Home Assistant WebSocket API: auth, then subscribe_events, then events.
+  const wss = new WebSocketServer({ port: 0 });
+  await once(wss, 'listening');
+  const received: Record<string, unknown>[] = [];
+  wss.on('connection', (ws, req) => {
+    assert.equal(req.url, '/api/websocket');
+    ws.on('message', (raw) => {
+      const msg = JSON.parse(String(raw));
+      received.push(msg);
+      if (msg.type === 'auth') ws.send(JSON.stringify({ type: msg.access_token === 't' ? 'auth_ok' : 'auth_invalid' }));
+      if (msg.type === 'subscribe_events') ws.send(JSON.stringify({ id: msg.id, type: 'result', success: true, result: null }));
+    });
+    ws.send(JSON.stringify({ type: 'auth_required' }));
+  });
+  const action = (data: Record<string, unknown>) => {
+    for (const ws of wss.clients) ws.send(JSON.stringify({ id: 1, type: 'event', event: { event_type: 'mobile_app_notification_action', data } }));
+  };
+  const subscribed = () => received.filter((m) => m.type === 'subscribe_events').length;
+
+  const engine = createAllowance({ store: memoryStore(), budgetSeconds: () => 2400, ha: null, timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 });
+  const reads: string[] = [];
+  const client = { getState: async (id: string) => (reads.push(id), { state: 'on' }) };
+  const stop = startAllowance(engine, { ...HA, url: `http://127.0.0.1:${(wss.address() as AddressInfo).port}` }, client, 10);
+  try {
+    await until(() => subscribed() === 1);
+    assert.deepEqual(received, [{ type: 'auth', access_token: 't' }, { id: 1, type: 'subscribe_events', event_type: 'mobile_app_notification_action' }]);
+    action({ action: 'SOFA_TOPUP_5' });
+    action({ action: 'SOMEONE_ELSES_ACTION' });
+    action({ action: 'SOFA_TOPUP_CUSTOM', reply_text: 'lots' });
+    action({ action: 'SOFA_TOPUP_CUSTOM', reply_text: '12' });
+    await until(() => engine.status().topUpSeconds === 17 * 60);
+    for (const ws of wss.clients) ws.terminate(); // a drop: the subscription comes back
+    await until(() => subscribed() === 2);
+    action({ action: 'SOFA_TOPUP_10' });
+    await until(() => engine.status().topUpSeconds === 27 * 60);
+    assert.ok(received.every((m) => m.type === 'auth' || m.type === 'subscribe_events'), 'nothing but auth and subscribe_events');
+    await until(() => reads.length > 2);
+    assert.ok(reads.every((id) => id === HA.tvEntity));
+    assert.equal(engine.status().tv, 'on');
+  } finally {
+    stop();
+    wss.close();
+  }
 });

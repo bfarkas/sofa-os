@@ -110,6 +110,7 @@ before(async () => {
     passwordHash: await hashSecret('correct horse'),
     secureCookies: false,
     ha: null,
+    allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 },
   };
   server = startServer(config, openDb(config.dbPath));
   await once(server, 'listening');

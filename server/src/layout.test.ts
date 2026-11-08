@@ -98,6 +98,7 @@ const config = async (dbPath: string): Promise<Config> => ({
   passwordHash: await hashSecret('correct horse'),
   secureCookies: false,
   ha: null,
+  allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0 },
 });
 async function start(c: Config): Promise<string> {
   const server = startServer(c, openDb(c.dbPath));
