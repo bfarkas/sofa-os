@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sofa.OS Companion</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>Sofa.OS</h1>
+  <form id="login" hidden>
+    <label for="password">Companion password</label>
+    <input id="password" type="password" autocomplete="current-password" required autofocus>
+    <button type="submit">Sign in</button>
+    <p class="error" id="error" role="alert"></p>
+  </form>
+  <section id="home" hidden>
+    <p>Signed in. Nothing to set up yet.</p>
+    <button id="logout" type="button">Sign out</button>
+  </section>
+</main>
+<script src="main.js"></script>
+</body>
+</html>

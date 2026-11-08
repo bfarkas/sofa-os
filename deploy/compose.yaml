@@ -1,0 +1,33 @@
+# Sofa.OS Server on rei3. From the repository root:
+#   git pull && docker compose -f deploy/compose.yaml up -d --build
+# Set the Companion password first with deploy/set-password.sh.
+services:
+  sofa:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: sofa-os-server:latest
+    container_name: sofa-os
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090" # Caddy only; the route allows LAN and VPN clients (ADR 0002)
+    environment:
+      TZ: Europe/Berlin
+      SOFA_PASSWORD_HASH_FILE: /run/secrets/companion_password_hash
+      # Home Assistant, needed from Session 08 on:
+      # SOFA_HA_URL: http://192.168.42.x:8123
+      # SOFA_HA_TOKEN_FILE: /run/secrets/ha_token
+    volumes:
+      - sofa-data:/data # SQLite database, back this up
+      - sofa-media:/media # media cache, safe to lose
+    secrets:
+      - companion_password_hash
+
+volumes:
+  sofa-data:
+  sofa-media:
+
+secrets:
+  # Secret files live outside the repository, owned by the deploying user (uid 1000, as the container's node user).
+  companion_password_hash:
+    file: ${HOME}/.config/sofa-os/secrets/companion_password_hash

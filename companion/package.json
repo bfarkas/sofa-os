@@ -1,0 +1,7 @@
+{
+  "name": "@sofa/companion",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@sofa/shared": "*" },
+  "scripts": { "build": "esbuild src/main.ts --bundle --minify --target=es2020 --outfile=dist/main.js && cp index.html style.css dist/" }
+}

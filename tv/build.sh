@@ -17,9 +17,8 @@ mkdir -p "$OUT"
 # Tell the app where tools/recv.py listens (this Mac's LAN IP). Set LOG_URL= to turn it off.
 LOG_URL="${LOG_URL-http://$(ipconfig getifaddr en0):8099/log}"
 echo "window.SOFA_LOG_URL = '$LOG_URL';" > "$HERE/app/logurl.js"
-# NET_TEST=1 turns on the Session 02 Fetch/WSS probes against sofa.familie-farkas.de (needs a test route on the Server host).
-[ "${NET_TEST:-}" = "1" ] && echo "window.SOFA_NET_TEST = true;" >> "$HERE/app/logurl.js"
 rm -f "$OUT"/*.wgt "$HERE"/app/.manifest.tmp
+npm run build -w tv --prefix "$HERE/.." >/dev/null
 
 tizen package -t wgt -s "$PROFILE" -o "$OUT" -- "$HERE/app"
 # The CLI names the file after the app ("Sofa Home.wgt"); some runs write it to the SDK's own out/ instead.

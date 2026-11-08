@@ -1,0 +1,7 @@
+{
+  "name": "@sofa/server",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@sofa/shared": "*", "ws": "^8.22.1" },
+  "devDependencies": { "@types/ws": "^8.18.1" }
+}

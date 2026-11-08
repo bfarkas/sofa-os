@@ -1,0 +1,9 @@
+# Inside the *.familie-farkas.de block of ~/homeserver/caddy/Caddyfile on rei3, before the final `handle { abort }`.
+# Pi-hole resolves the name to rei3's LAN addresses, so LAN clients never arrive from a public address.
+	@sofa host sofa.familie-farkas.de
+	handle @sofa {
+		# Sofa.OS Server, LAN and VPN clients only (ADR 0002)
+		@outside not remote_ip private_ranges
+		abort @outside
+		reverse_proxy 127.0.0.1:8090
+	}

@@ -1,0 +1,8 @@
+.git
+**/node_modules
+companion/dist
+tv/app
+tv/out
+docs
+*.db
+HANDOFF.md
