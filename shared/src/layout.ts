@@ -40,12 +40,13 @@ export interface Row {
 
 export type Background =
   | { kind: 'color'; color: string } // #rrggbb
-  | { kind: 'image'; image: string } // an image id the Server serves (Session 14)
-  | { kind: 'slideshow'; album: string }; // an album id (Session 14)
+  | { kind: 'image'; image: string } // "<album id>/<asset id>": one Immich photo, from an album (Session 14)
+  | { kind: 'slideshow'; album: string }; // an Immich album id: its photos fade through behind the Dashboard (Session 14)
 
 export interface KidsModeSettings {
   apps: string[]; // approved app ids, in tile order
   dailyMinutes: number; // the Watch Allowance
+  albums?: string[]; // Immich album ids approved for Kids Mode (Session 14); absent means none
 }
 
 export interface Layout {
@@ -160,6 +161,13 @@ export function validateLayout(value: unknown): string[] {
       if (typeof id !== 'string' || !appIds.has(id)) return err(p, 'unknown app ' + JSON.stringify(id));
       unique(approved, id, p);
     });
+    if (kids.albums !== undefined) {
+      const albums = new Set<unknown>();
+      list(kids.albums, 'kidsMode.albums', 100).forEach((id, i) => {
+        str(id, 'kidsMode.albums[' + i + ']', 64);
+        unique(albums, id, 'kidsMode.albums[' + i + ']');
+      });
+    }
   }
   return errors;
 }

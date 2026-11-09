@@ -7,9 +7,12 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
 import { createCatalogue } from './catalogue.ts';
+import { createImmich } from './immich.ts';
 import type { Config } from './config.ts';
 import { createDraft, currentSnapshot, deleteDraft, getDraft, kidsView, publishDraft, saveDraft } from './layout.ts';
 import { log } from './log.ts';
+import { createPhotos, type Photos } from './photos.ts';
+import { photoRoute } from './photos-http.ts';
 import { createPin } from './pin.ts';
 import { approveCode, checkDeviceToken, claimToken, createCode } from './tv.ts';
 import { createWidgets, type WidgetAdapter } from './widgets.ts';
@@ -58,13 +61,15 @@ async function readJson(req: IncomingMessage, limit = MAX_BODY): Promise<unknown
 }
 
 // Without an allowance (tests), a clock without Home Assistant, which never runs: it only answers the Kids Mode API.
-// `adapters` is the widget catalogue; tests pass their own.
+// `adapters` is the widget catalogue and `photos` the Immich photo service; tests pass their own.
 export function startServer(
   config: Config,
   db: DatabaseSync,
   allowance: Allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance }),
-  adapters: WidgetAdapter[] = createCatalogue({ db, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone }),
+  adapters?: WidgetAdapter[],
+  photos: Photos = createPhotos({ immich: config.immich ? createImmich(config.immich) : null, mediaDir: config.mediaDir, layout: () => currentSnapshot(db).layout }),
 ): Server {
+  adapters ??= createCatalogue({ db, photos, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {
     const token = readCookie(req.headers.cookie, SESSION_COOKIE);
@@ -154,6 +159,10 @@ export function startServer(
       const profile = new URL(req.url ?? '/', 'http://localhost').searchParams.get('profile') ?? 'household';
       if (profile !== 'household' && profile !== 'kids') throw new HttpError(400, 'profile must be household or kids');
       return send(res, 200, { serverTime: new Date().toISOString(), widgets: widgets.data(profile) } satisfies WidgetsResponse);
+    }
+
+    if (pathname.startsWith('/api/media/') || pathname.startsWith('/api/photos/')) {
+      if (await photoRoute(photos, req, res, { companion: sessionOf(req) !== null, tv: isTv(req) })) return;
     }
 
     if (pathname === '/api/kids' || pathname.startsWith('/api/kids/')) return kidsRoute(req, res, key);

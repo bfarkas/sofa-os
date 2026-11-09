@@ -17,12 +17,23 @@ services:
       SOFA_HA_URL: http://192.168.42.24:8123
       SOFA_HA_TOKEN_FILE: /run/secrets/ha_token # long-lived token; the write guard limits what it may do
       SOFA_HA_DRY_RUN: ${SOFA_HA_DRY_RUN:-0} # 1: log Home Assistant writes instead of sending them (Watch Allowance live run)
+      SOFA_IMMICH_URL: http://immich_server:2283 # over the homeserver_immich network below; Immich publishes no port on the LAN
+      SOFA_IMMICH_API_KEY_FILE: /run/secrets/immich_api_key # empty file: Immich off, photo widgets say so
     volumes:
       - sofa-data:/data # SQLite database, back this up
-      - sofa-media:/media # media cache, safe to lose
+      - sofa-media:/media # media cache (photos/ and albums/), safe to lose
+    networks:
+      - default
+      - immich
     secrets:
       - companion_password_hash
       - ha_token
+      - immich_api_key
+
+networks:
+  immich:
+    name: homeserver_immich # Immich's own bridge (~/homeserver/immich/docker-compose.yml); it must be up before this service starts
+    external: true
 
 volumes:
   sofa-data:
@@ -34,3 +45,7 @@ secrets:
     file: ${HOME}/.config/sofa-os/secrets/companion_password_hash
   ha_token:
     file: ${HOME}/.config/sofa-os/secrets/ha_token
+  # An Immich API key (Immich: Account Settings > API Keys) with exactly album.read, asset.read and asset.view. Create the
+  # file before deploying, even empty (then Immich is off): compose refuses a secret whose file is missing.
+  immich_api_key:
+    file: ${HOME}/.config/sofa-os/secrets/immich_api_key

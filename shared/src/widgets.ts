@@ -3,6 +3,7 @@
 // only these templates, so adding one means a new signed package.
 // This file also runs on the TV (Chromium 56), so it uses no runtime API newer than ES2017.
 import type { Freshness, WidgetSize } from './layout.ts';
+import { UUID } from './photos.ts';
 
 /** The fixed set of display templates in Sofa Home 0.x. Changing it needs a Sofa Home release (ADR 0003). */
 export const TEMPLATES = ['value', 'list', 'columns', 'agenda', 'photo'] as const;
@@ -116,6 +117,7 @@ export type ConfigField = FieldBase &
     | { kind: 'boolean'; default: boolean }
     | { kind: 'entity'; domains: string[]; required?: boolean } // one entity id of these domains
     | { kind: 'entities'; domains: string[]; max: number; required?: boolean } // a list of them, in card order
+    | { kind: 'album'; required?: boolean } // an Immich album id; Companion lists them from GET /api/photos/albums
   );
 
 /** One entry of GET /api/widget-types, the catalogue Companion builds its widget forms from. */
@@ -157,6 +159,8 @@ export function readConfig(fields: ConfigField[], raw: unknown): { config: Obj; 
       if (!f.options.some((o) => o.value === v)) err('must be one of ' + f.options.map((o) => o.value).join(', '));
     } else if (f.kind === 'boolean') {
       if (typeof v !== 'boolean') err('must be true or false');
+    } else if (f.kind === 'album') {
+      if (typeof v !== 'string' || !UUID.test(v)) err('must be an Immich album id');
     } else if (f.kind === 'entity') {
       if (!isEntity(v, f.domains)) err('must be an entity of ' + f.domains.join(', '));
     } else if (!Array.isArray(v) || v.length > f.max || !v.every((e) => isEntity(e, f.domains)) || new Set(v).size !== v.length) {
