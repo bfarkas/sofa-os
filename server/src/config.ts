@@ -22,6 +22,7 @@ export interface Config {
   port: number;
   dbPath: string;
   mediaDir: string;
+  backupDir?: string | null; // SQLite backups (backup.ts); null: off. The media cache is never backed up.
   companionDir: string;
   passwordHash: string;
   secureCookies: boolean;
@@ -67,6 +68,7 @@ export function loadConfig(env: Env = process.env): Config {
     port: Number(env.SOFA_PORT ?? 8090),
     dbPath: env.SOFA_DB_PATH ?? 'sofa.db',
     mediaDir: env.SOFA_MEDIA_DIR ?? 'media',
+    backupDir: env.SOFA_BACKUP_DIR || null,
     companionDir: env.SOFA_COMPANION_DIR ?? new URL('../../companion/dist', import.meta.url).pathname,
     passwordHash: required(secret(env, 'SOFA_PASSWORD_HASH'), 'SOFA_PASSWORD_HASH or SOFA_PASSWORD_HASH_FILE'),
     secureCookies: env.SOFA_INSECURE_COOKIES !== '1',

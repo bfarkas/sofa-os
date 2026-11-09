@@ -296,7 +296,7 @@ export function createAllowance(o: AllowanceOptions) {
  * Runs the clock against Home Assistant: reads the TV's state every tick, then acts, and applies Top-ups from the
  * notification actions. Returns a stop function.
  */
-export function startAllowance(engine: Allowance, ha: HaConfig, client: Pick<HaClient, 'getState'>, tickMs = TICK_MS): () => void {
+export function startAllowance(engine: Allowance, ha: HaConfig, client: Pick<HaClient, 'getState'>, tickMs = TICK_MS, onReach: (ok: boolean) => void = () => {}): () => void {
   const stopEvents = subscribeEvents(ha, 'mobile_app_notification_action', (data) => {
     const minutes = actionMinutes(data);
     if (minutes) engine.topUp(minutes, 'notification');
@@ -316,6 +316,7 @@ export function startAllowance(engine: Allowance, ha: HaConfig, client: Pick<HaC
       if (reachable !== false) log.warn('home assistant tv state failed', { entity: ha.tvEntity, err: String(err) });
       reachable = false;
     }
+    onReach(reachable === true);
     try {
       engine.observe(power);
       await engine.act();

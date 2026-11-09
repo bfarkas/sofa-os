@@ -50,6 +50,9 @@ const migrations: string[] = [
   `ALTER TABLE revisions ADD COLUMN op TEXT;`,
 ];
 
+/** The schema version this code writes; a backup with a higher one is from a newer Server. */
+export const SCHEMA_VERSION = migrations.length;
+
 export function openDb(path: string): DatabaseSync {
   const db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');

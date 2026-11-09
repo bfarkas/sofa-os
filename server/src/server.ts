@@ -18,6 +18,7 @@ import { createPhotos, type Photos } from './photos.ts';
 import { photoRoute } from './photos-http.ts';
 import { createPin } from './pin.ts';
 import { approveCode, checkDeviceToken, claimToken, createCode } from './tv.ts';
+import { createSystem, type System } from './system.ts';
 import { createWidgets, type WidgetAdapter } from './widgets.ts';
 
 const MAX_BODY = 4096;
@@ -71,6 +72,7 @@ export function startServer(
   allowance: Allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance }),
   adapters?: WidgetAdapter[],
   photos: Photos = createPhotos({ immich: config.immich ? createImmich(config.immich) : null, mediaDir: config.mediaDir, layout: () => currentSnapshot(db).layout }),
+  system: System = createSystem(!config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on'),
 ): Server {
   adapters ??= createCatalogue({ db, photos, ha: config.ha && createHaClient(config.ha), calendar: config.ha ? createCalendarReader(config.ha) : undefined, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
   const companionRoot = resolve(config.companionDir);
@@ -197,6 +199,7 @@ export function startServer(
         log.info('tv code approved');
         return send(res, 200, {});
       }
+      if (key === 'GET /api/system') return send(res, 200, system.status());
       if (key === 'GET /api/widget-types') return send(res, 200, widgets.types());
       if (key === 'POST /api/drafts') return send(res, 201, createDraft(db));
       const m = /^\/api\/drafts\/(\d+)(\/publish)?$/.exec(pathname);

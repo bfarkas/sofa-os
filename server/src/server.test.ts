@@ -79,6 +79,9 @@ test('login, session, websocket and logout', async () => {
   assert.equal(session.status, 200);
   assert.equal((await session.json()).signedIn, true);
 
+  assert.equal((await fetch(base + '/api/system')).status, 401);
+  assert.deepEqual(await (await fetch(base + '/api/system', { headers: { cookie } })).json(), { homeAssistant: 'off', haReachable: null, haSince: null, backup: { lastAt: null, lastError: null } });
+
   const ws = new WebSocket(base.replace('http', 'ws') + '/ws', { headers: { cookie } });
   const [hello] = await once(ws, 'message');
   assert.equal(JSON.parse(String(hello)).type, 'hello');

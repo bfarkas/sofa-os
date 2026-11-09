@@ -10,6 +10,7 @@
     "test": "node --test \"*/src/**/*.test.ts\"",
     "start": "node server/src/main.ts",
     "publish-layout": "node server/src/publish-layout.ts",
+    "restore": "node server/src/restore.ts",
     "kids-mode": "node server/src/kids-mode.ts"
   },
   "devDependencies": {

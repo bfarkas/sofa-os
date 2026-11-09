@@ -14,6 +14,14 @@ export interface SessionInfo {
   expiresAt: string; // ISO time
 }
 
+/** GET /api/system, for Companion's status banner. */
+export interface SystemStatus {
+  homeAssistant: 'on' | 'dry run' | 'off'; // off: no token configured, not an outage
+  haReachable: boolean | null; // null: not known yet, or off
+  haSince: string | null; // ISO time the reachability last changed
+  backup: { lastAt: string | null; lastError: string | null };
+}
+
 export interface ApiError {
   error: string;
   errors?: string[]; // validation problems, from a refused publish

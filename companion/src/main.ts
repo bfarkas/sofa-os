@@ -2,6 +2,7 @@ import type { ApiError, Draft, KidsPinRequest, KidsStatus, Layout, LoginRequest,
 import { KIDS_TOPUP_PATH, PIN_PATTERN } from '@sofa/shared';
 import { startEditor } from './editor.ts';
 import { statusText, topupView } from './kids-view.ts';
+import { startBanner } from './system-banner.ts';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const form = $<HTMLFormElement>('login');
@@ -40,6 +41,7 @@ function show(signedIn: boolean): void {
   document.querySelector('main')!.classList.toggle('wide', onEditPage);
   home.hidden = !signedIn || onTvPage || onKidsPage || onTopupPage || onEditPage;
   if (!signedIn) return password.focus();
+  if (!home.hidden) poll = startBanner($('ha-outage'), $('backup-status'), () => call('GET', '/api/system'));
   if (onKidsPage || onTopupPage) {
     void refresh();
     poll = setInterval(refresh, 5000); // the remaining time moves while the page is open
