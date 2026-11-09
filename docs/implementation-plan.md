@@ -465,6 +465,11 @@ Manifest, icons and a minimal service worker for Companion so it installs on iPh
 
 **Why this rating:** standard, mechanical work.
 
+**Built (2026-11-09).** `companion/manifest.webmanifest` (standalone, background `#f6f1e7` and theme `#2f5d46` from `COLORS`), icons in `companion/icons/` (180 apple-touch, 192, 512, maskable 512; copied from `assets/brand/v1`), `companion/sw.js` (a fetch listener that never answers, so nothing is cached and no offline mode), registered in `companion/src/main.ts`, iOS meta tags in `companion/index.html`. The build copies them into `dist/`. Server: `sw.js` is served `no-cache`; the CSP is unchanged. Test: `server/src/pwa.test.ts`.
+
+- **Checked.** `npm run check`, `npm test` and `npm run build` pass. On a throwaway local Server (not the live one), `/kids/topup` and `/` return the Companion page, sign-in sets the cookie and the session is accepted on `/kids/topup`, and the manifest, worker and icons are served with the right types.
+- **Not checked.** A real iPhone home screen install and a desktop Chrome install prompt. The Server must be deployed at `https://sofa.familie-farkas.de` first; then try "Add to Home Screen" on an iPhone.
+
 ### 20 · Title handoff and favorites library
 
 **Difficulty 4 · Sonnet · high · TV**
