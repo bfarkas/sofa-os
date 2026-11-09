@@ -6,7 +6,7 @@
 // on top and Back closes them first.
 // Kids Mode is a screen of its own over the same shell: large tiles for the approved apps only, or the Done Screen. Back never
 // leaves it; only the PIN does (main.ts asks the Server). The Server decides which screen shows (kids.ts `screenFor`).
-import type { Layout, Profile, WidgetSize } from '@sofa/shared';
+import type { Layout, PhotoAlbum, Profile, WidgetSize } from '@sofa/shared';
 import { createFocus } from './focus.ts';
 import type { RemoteEvent } from './keys.ts';
 import type { Screen } from './kids.ts';
@@ -24,8 +24,8 @@ const ROW_UNITS = 6; // a Widgets-tab row holds six units, matching SIZES.widget
 const APP_COLUMNS = 7;
 
 export interface Tile {
-  id: string; // focus id: app:<app id>, widget:<widget id> or allapps
-  kind: 'app' | 'widget' | 'allapps' | 'kids';
+  id: string; // focus id: app:<app id>, widget:<widget id>, album:<album id> (Kids Mode) or allapps
+  kind: 'app' | 'widget' | 'allapps' | 'kids' | 'album';
   label: string;
   detail: string; // may hold a line break
   size?: WidgetSize;
@@ -50,6 +50,7 @@ export type Activation =
   | { type: 'kids-enter' }
   | { type: 'kids-unavailable' }
   | { type: 'pin' } // the Adults button: open the PIN pad
+  | { type: 'album'; id: string; name: string } // OK on an approved album in Kids Mode: its slideshow
   | { type: 'widget'; id: string; title: string }; // OK on a widget: its full-screen view (title until the Server names it)
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -57,11 +58,13 @@ const BAR = TABS.map((t) => 'tab:' + t.id).concat('settings');
 
 const KIDS_COLUMNS = 5;
 
-/** Kids Mode: the approved apps, in the approved order, five large tiles to a row. Nothing else, whatever the layout holds. */
-export function kidsSections(layout: Layout): Section[] {
+/** Kids Mode: the approved apps, in the approved order, then the approved albums the Server listed, five large tiles to a row. Nothing else. */
+export function kidsSections(layout: Layout, albums: PhotoAlbum[] = []): Section[] {
   const byId: Record<string, string> = {};
   for (const a of layout.apps) byId[a.id] = a.name;
   const tiles: Tile[] = layout.kidsMode.apps.filter((id) => byId[id] !== undefined).map((id) => ({ id: 'app:' + id, kind: 'app' as const, label: byId[id], detail: '' }));
+  const approved = layout.kidsMode.albums || [];
+  for (const a of albums) if (approved.indexOf(a.id) >= 0) tiles.push({ id: 'album:' + a.id, kind: 'album', label: a.name, detail: a.count + (a.count === 1 ? ' photo' : ' photos') }); // the Server lists only approved ones; this checks again
   const out: Section[] = [];
   for (let i = 0; i < tiles.length; i += KIDS_COLUMNS) out.push({ title: '', tiles: tiles.slice(i, i + KIDS_COLUMNS) });
   return out;
@@ -134,12 +137,13 @@ export function createShell(hooks: ShellHooks) {
   let signedIn = false; // false: the sign-in screen
   let screen: Screen = 'household';
   let kidsTile = true;
+  let albums: PhotoAlbum[] = [];
   let unavailable = new Set<string>();
 
   const mode = (): View['mode'] => (!signedIn ? 'signin' : screen === 'household' ? 'home' : screen);
   const sections = () => {
     if (!layout || !signedIn) return [];
-    if (screen === 'kids') return kidsSections(layout);
+    if (screen === 'kids') return kidsSections(layout, albums);
     return screen === 'household' ? sectionsFor(layout, tab, unavailable, PROFILE, kidsTile) : [];
   };
   const focus = createFocus((id) => {
@@ -193,6 +197,10 @@ export function createShell(hooks: ShellHooks) {
       const first = layout && layout.apps[0];
       showTab('apps', first ? 'app:' + first.id : undefined);
     } else if (id.indexOf('app:') === 0) return { type: 'launch', appId: id.slice(4) };
+    else if (id.indexOf('album:') === 0) {
+      const a = albums.filter((x) => 'album:' + x.id === id)[0];
+      return a ? { type: 'album', id: a.id, name: a.name } : null;
+    }
     else if (id.indexOf('widget:') === 0) {
       const w = layout && layout.widgets.filter((x) => 'widget:' + x.id === id)[0];
       return { type: 'widget', id: id.slice(7), title: w ? cap(w.type) : '' };
@@ -227,6 +235,12 @@ export function createShell(hooks: ShellHooks) {
     setKidsTile(available: boolean): void {
       if (available === kidsTile) return;
       kidsTile = available;
+      rebuild();
+    },
+    /** The albums Kids Mode may open, as the Server listed them. */
+    setAlbums(list: PhotoAlbum[]): void {
+      if (JSON.stringify(list) === JSON.stringify(albums)) return;
+      albums = list;
       rebuild();
     },
     setLayout(l: Layout | null): void {

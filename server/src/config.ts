@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { KIDS_TOPUP_PATH } from '@sofa/shared';
+import type { ImmichConfig } from './immich.ts';
 
 export interface HaConfig {
   url: string;
@@ -25,6 +26,7 @@ export interface Config {
   passwordHash: string;
   secureCookies: boolean;
   ha: HaConfig | null; // null until a Home Assistant token is configured
+  immich?: ImmichConfig | null; // null or absent until an Immich API key is configured: photo widgets then say Immich is not set up
   allowance: AllowanceConfig;
 }
 
@@ -60,6 +62,7 @@ function publicUrl(value: string): string {
 
 export function loadConfig(env: Env = process.env): Config {
   const token = secret(env, 'SOFA_HA_TOKEN');
+  const immichKey = secret(env, 'SOFA_IMMICH_API_KEY');
   return {
     port: Number(env.SOFA_PORT ?? 8090),
     dbPath: env.SOFA_DB_PATH ?? 'sofa.db',
@@ -77,6 +80,8 @@ export function loadConfig(env: Env = process.env): Config {
           dryRun: env.SOFA_HA_DRY_RUN === '1',
         }
       : null,
+    // Immich is reached over the docker network it shares with the Server (deploy/compose.yaml); the key needs album.read, asset.read, asset.view.
+    immich: immichKey ? { url: (env.SOFA_IMMICH_URL ?? 'http://immich_server:2283').replace(/\/+$/, ''), apiKey: immichKey } : null,
     // Household policy (plan, Decisions): reset at 04:00 Berlin time, switch off at once. The daily minutes are in the layout.
     allowance: {
       timeZone: env.SOFA_TIME_ZONE ?? 'Europe/Berlin',

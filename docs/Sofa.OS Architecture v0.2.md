@@ -149,7 +149,17 @@ Event titles appear as written, so they can be German in the English interface. 
 
 ### Immich as the first photo provider
 
-Show a small photo widget, a fullscreen album slideshow and an ambient view within Sofa Home. Let adults select family albums and separately approve child-visible albums. The Server reads album and asset data, resizes or converts images when needed and delivers bounded TV-friendly thumbnails. The Server filters albums by active profile. Confirm the installed Immich version, key permissions and supported image formats before implementation. [Immich API](https://api.immich.app/)
+Show a small photo widget, a fullscreen album slideshow and an ambient view within Sofa Home. Let adults select family albums and separately approve child-visible albums. The Server reads album and asset data, resizes or converts images when needed and delivers bounded TV-friendly thumbnails. The Server filters albums by active profile. [Immich API](https://api.immich.app/)
+
+**Installed Immich (Session 14).** The household server runs Immich v3.3.6 (container `immich_server`, Docker network `homeserver_immich`, port 2283 bound to loopback only). The Server calls it with an API key in the `x-api-key` header; the key needs exactly `album.read`, `asset.read` and `asset.view`, and sits in `~/.config/sofa-os/secrets/immich_api_key` on the Server host, like the Home Assistant token. The Server reads `GET /albums`, `GET /albums/{id}` and `POST /search/metadata` (images of one album, up to 1000), and fetches `GET /assets/{id}/thumbnail?size=preview`. Immich makes that preview itself (1440 px on the long edge by default, JPEG by default), so the Server does not resize anything and adds no image library. Only JPEG is accepted: if Immich's Image settings set the preview format to WebP, the Server refuses the file and the TV shows nothing, so keep it on JPEG. Originals (HEIC, RAW, video) never reach the TV. Not yet confirmed against the live server for lack of an API key: the exact `search/metadata` response and the preview format setting.
+
+**Thumbnail budget (provisional until measured on the TV).**
+- One picture: at most 1.5 MB on disk and over the LAN (a 1440 px JPEG is typically 150 to 400 KB); the Server refuses larger files and anything that does not start with the JPEG signature.
+- Cache: at most 400 MB in the media volume, least recently used files removed down to 90%. A picture is fetched from Immich once, however many TVs or profiles ask.
+- A slideshow lists at most 200 pictures in random order. Each album listing is kept 10 minutes in memory and on disk, so a slideshow keeps running while Immich is down.
+- TV memory: at most two pictures decoded at once (two stacked image layers; the one that faded out is emptied). While the slideshow or ambient view is open the Dashboard background releases its layers, and every timer stops when the app goes to the background.
+- Timing: 8 s per picture in the album slideshow, 15 s in the ambient view, 60 s for a slideshow background, with a 1 s opacity fade and no scaling or panning.
+- Load time per picture on the TV and the number of pictures that stay smooth are still to be measured on the TV; the figures above change then.
 
 ### Parked: iCloud Photos
 

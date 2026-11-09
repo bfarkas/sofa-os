@@ -350,6 +350,8 @@ export function startEditor(call: Call): void {
         return wrapField(select(f.options.map((o) => [o.value, o.label] as [string, string]), typeof v === 'string' ? v : f.default, (s) => set(f.key, s)));
       case 'boolean':
         return h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: typeof v === 'boolean' ? v : f.default, onchange: (e: Event) => set(f.key, (e.target as HTMLInputElement).checked) }), f.label, help);
+      case 'album': // shortcut: a typed Immich album id; upgrade to a picker over GET /api/photos/albums
+        return wrapField(text(v, 'album id', (s) => set(f.key, s.trim() === '' ? undefined : s.trim())), h('span', { class: 'hint' }, 'The Immich album id (from the album page address).'));
       case 'entity':
         return wrapField(text(v, f.domains[0] + '.name', (s) => set(f.key, s.trim() === '' ? undefined : s.trim())), h('span', { class: 'hint' }, 'A Home Assistant entity id (' + f.domains.join(', ') + ').'));
       case 'entities': {
