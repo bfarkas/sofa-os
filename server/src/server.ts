@@ -17,6 +17,7 @@ import { log } from './log.ts';
 import { createPhotos, type Photos } from './photos.ts';
 import { photoRoute } from './photos-http.ts';
 import { createPin } from './pin.ts';
+import { createPhoneRemote } from './remote.ts';
 import { approveCode, checkDeviceToken, claimToken, createCode } from './tv.ts';
 import { createWidgets, type WidgetAdapter } from './widgets.ts';
 
@@ -87,6 +88,7 @@ export function startServer(
   };
   const canRead = (req: IncomingMessage) => sessionOf(req) !== null || isTv(req);
   const pin = createPin(db);
+  const phone = createPhoneRemote({ ha: config.ha && createHaClient(config.ha), kidsActive: () => allowance.status().active });
   const kidsStatus = (): KidsStatus => ({ ...allowance.status(), pinSet: pin.isSet() });
   // Widget data, read per instance on its freshness policy; a failing adapter only affects its own card (widgets.ts).
   const widgets = createWidgets({ adapters, layout: () => currentSnapshot(db).layout, onChange: () => broadcast({ type: 'widgets' }) });
@@ -196,6 +198,10 @@ export function startServer(
         if (typeof body?.code !== 'string' || !approveCode(db, body.code)) return send(res, 404, { error: 'unknown or expired code' } satisfies ApiError);
         log.info('tv code approved');
         return send(res, 200, {});
+      }
+      if (key === 'POST /api/remote') {
+        const r = await phone.press(session.token ?? '', await readJson(req));
+        return send(res, r.status, r.body, r.headers);
       }
       if (key === 'GET /api/widget-types') return send(res, 200, widgets.types());
       if (key === 'POST /api/drafts') return send(res, 201, createDraft(db));
@@ -307,6 +313,7 @@ export function startServer(
     wss.handleUpgrade(req, socket, head, (ws) => {
       if (tv) {
         tvSockets.add(ws);
+        phone.track(ws);
         ws.on('close', () => tvSockets.delete(ws));
       }
       wss.emit('connection', ws);
