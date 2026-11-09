@@ -144,6 +144,11 @@ export function createAllowance(o: AllowanceOptions) {
     s.used = Math.min(s.used + secs, Math.max(s.used, allowance() + o.graceSeconds)); // the clock stops at zero (plus grace)
   }
 
+  /** The Done Screen minute of a TV that is on at zero. It starts when the TV is proven on, or when Sofa Home shows the Done Screen on it. */
+  function startMinute(now: number): void {
+    if (s.kids && s.zeroed && remaining() <= 0 && !s.doneAt) s.doneAt = now;
+  }
+
   function commit(): void {
     const rem = remaining();
     if (rem > WARN_SECONDS) s.warned = false; // time was added: warn again on the way down
@@ -205,6 +210,7 @@ export function createAllowance(o: AllowanceOptions) {
           }
         } else accrue(now);
         if (s.tv !== was) log.info('tv', { state: s.tv });
+        if (s.tv === 'on' && was !== 'on') startMinute(now);
       }),
 
     /** The TV itself showed it is on (a request from Sofa Home). Confirms a pending on at once. */
@@ -213,6 +219,7 @@ export function createAllowance(o: AllowanceOptions) {
         s.provenAt = now;
         if (s.tv !== 'pending') return;
         Object.assign(s, { tv: 'on', since: now });
+        startMinute(now);
         log.info('tv', { state: 'on', proof: 'sofa home' });
       }),
 
@@ -243,7 +250,7 @@ export function createAllowance(o: AllowanceOptions) {
     doneShown: () =>
       change((now) => {
         s.donePending = false;
-        if (s.kids && s.zeroed && remaining() <= 0 && !s.doneAt) s.doneAt = now;
+        if (s.tv === 'on') startMinute(now); // a Done Screen shown while the TV is off (standby is slow) must not start the minute
       }),
 
     /** Sends the warning and switches the TV off when due. Called after each observation. */

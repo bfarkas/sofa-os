@@ -515,3 +515,19 @@ test('the loop reads the TV state, and Top-ups arrive as notification actions ov
     wss.close();
   }
 });
+
+test('a Done Screen shown while the TV is still going to standby does not start the minute of the next power-on', async () => {
+  const k = setup({ minutes: 1 });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60); // zero: switched off
+  await k.watch(10, 'off');
+  k.engine.doneShown(); // Sofa Home, still up in the seconds before standby, shows it again after the off
+  await k.watch(300, 'off'); // off for a long time
+  k.engine.tvSeen();
+  await k.watch(5, 'on');
+  await k.watch(50);
+  assert.equal(k.turnOffs().length, 1, 'the minute counts from the power-on, not from the old Done Screen');
+  await k.watch(10);
+  assert.equal(k.turnOffs().length, 2);
+});
