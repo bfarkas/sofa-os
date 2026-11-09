@@ -46,6 +46,8 @@ const migrations: string[] = [
      id INTEGER PRIMARY KEY CHECK (id = 1),
      hash TEXT NOT NULL
    ) STRICT;`,
+  // A revision Sofa Home made records its operation (shared/src/ops.ts, ADR 0004); a Companion publish leaves it NULL.
+  `ALTER TABLE revisions ADD COLUMN op TEXT;`,
 ];
 
 export function openDb(path: string): DatabaseSync {

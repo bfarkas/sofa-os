@@ -1,12 +1,12 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { textOn, tokensCss, TV_PROTOCOL_PREFIX, UUID } from '@sofa/shared';
+import { applyOp, textOn, tokensCss, TV_PROTOCOL_PREFIX, UUID, type LayoutOp } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { createKids, createPad, forestFor, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
 import { drawQr } from './qr.ts';
-import { createShell, type Tab } from './shell.ts';
+import { createShell, type Activation, type Tab } from './shell.ts';
 import { dashed, normalizeServer, SERVER_KEY, startSignIn, TOKEN_KEY, type SignInState } from './signin.ts';
 import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
 import { initView, redrawCards, render, renderPad, setFocus, updateClock } from './view.ts';
@@ -185,7 +185,9 @@ let screen: Screen = store.get(SCREEN_KEY) === 'kids' ? 'kids' : store.get(SCREE
 let syncKids = screen !== 'household'; // which view of the layout the sync fetches
 let bgColor = ''; // the household layout's background
 let bgPhoto: { path: string } | { album: string } | null = null; // or a photo / album slideshow from Immich
-let overlay: 'settings' | 'pin' | 'full' | 'photos' | null = null;
+let overlay: 'settings' | 'pin' | 'full' | 'photos' | 'menu' | null = null;
+let menuWidget = ''; // the widget the context menu is for
+let liftBase = 0; // the revision a lifted widget was lifted on
 let kidsTileOk = false; // the Kids Mode request has been answered
 
 const settingsEl = $('settings'), pinEl = $('pin'), codeEl = $('code'), signinNote = $('signin-note'), toastEl = $('toast');
@@ -437,6 +439,7 @@ function syncOverlays(): void {
   settingsEl.hidden = overlay !== 'settings';
   pinEl.hidden = overlay !== 'pin';
   $('full').hidden = overlay !== 'full';
+  $('menu').hidden = overlay !== 'menu';
   if (overlay !== 'photos') photoView.close(); // the view hides itself; the background gets its pictures' place back
 }
 
@@ -520,6 +523,50 @@ function endTyping(): void {
   focusStage();
 }
 
+// ---- Arranging widgets (Session 16, ADR 0004): the context menu, and operations the Server commits as revisions ----
+function openMenu(m: Extract<Activation, { type: 'menu' }>): void {
+  menuWidget = m.widget;
+  $('menu-title').textContent = viewFor(m.widget, m.title).title || m.title;
+  for (const item of ['move', 'remove', 'add']) $('menu:' + item).hidden = m.items.indexOf(item as 'move') < 0;
+  overlay = 'menu';
+  shell.focus.push(m.items.map((i) => ['menu:' + i]), { wrap: true });
+  syncOverlays();
+}
+
+function menuChoice(item: string): void {
+  shell.focus.pop();
+  overlay = null;
+  syncOverlays();
+  const snap = lastSync && lastSync.snapshot;
+  if (!snap) return;
+  if (item === 'move') {
+    liftBase = snap.revision;
+    shell.lift(menuWidget);
+  } else sendOp({ op: item === 'add' ? 'add' : 'remove', widget: menuWidget }, snap.revision);
+}
+
+// Shown at once; the Server's revision follows over the socket. Without the Server nothing changes (the spec's rule).
+function sendOp(op: LayoutOp, base: number): void {
+  const snap = lastSync && lastSync.snapshot;
+  if (!snap || !token) return;
+  const next = applyOp(snap.layout, op);
+  if (next) shell.setLayout(next);
+  add('op ' + op.op + ' ' + op.widget + ' on ' + base);
+  const fail = (text: string) => {
+    toast(text);
+    const s = lastSync && lastSync.snapshot;
+    if (s) shell.setLayout(s.layout);
+  };
+  window.fetch(server + '/api/layout/ops', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ base, op }) })
+    .then((r) => {
+      add('op answered ' + r.status);
+      if (r.status === 401) return tokenRefused();
+      if (r.status === 409) fail('The layout changed meanwhile. Nothing was changed; please try again.');
+      else if (!r.ok) fail('That did not work (' + r.status + '). Nothing was changed.');
+    }, () => fail('The Server is not reachable. Nothing was changed.'))
+    .then(() => sync && sync.refresh());
+}
+
 function openPhotos(album: string, profile: 'household' | 'kids', how: 'ambient' | 'slideshow', name = ''): void {
   overlay = 'photos';
   photoView.open(album, profile, how, name);
@@ -550,6 +597,8 @@ function onRemote(e: RemoteEvent): void {
     shell.focus.push([['full:close']]);
     syncOverlays();
   }
+  else if (act.type === 'menu') openMenu(act);
+  else if (act.type === 'op') sendOp(act.op, liftBase);
   else if (act.type === 'settings') openSettings();
   else if (act.type === 'pin') openPin();
   else if (act.type === 'digit') {
@@ -566,6 +615,7 @@ function onRemote(e: RemoteEvent): void {
     overlay = null;
     syncOverlays();
   }
+  else if (act.id.indexOf('menu:') === 0) menuChoice(act.id.slice(5));
   else if (act.id === 'set:server') serverInput.focus(); // the TV's on-screen keyboard opens for a focused text field
   else if (act.id === 'set:again') {
     token = '';

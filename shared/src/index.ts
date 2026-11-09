@@ -1,5 +1,6 @@
 // Types and constants shared by the Server, Companion and Sofa Home.
 export * from './layout.ts';
+export * from './ops.ts';
 export * from './photos.ts';
 export * from './tokens.ts';
 export * from './widgets.ts';
@@ -20,7 +21,7 @@ export interface ApiError {
   retryAfterSeconds?: number; // a locked-out PIN: when to try again
 }
 
-/** A Companion draft. `base` is the revision it was started from; publishing is refused unless it is still current. */
+/** A Companion draft. `base` is the revision it builds on (moved forward by Sofa Home's operations); publishing is refused unless it is still current. */
 export interface Draft {
   id: number;
   base: number;
@@ -28,7 +29,10 @@ export interface Draft {
   errors: string[]; // validateLayout(layout)
 }
 
-/** Body of PUT /api/drafts/:id. `base` must match the draft's, so an edit never overwrites a rebased draft. */
+/**
+ * Body of PUT /api/drafts/:id. `base` is the draft's, or an earlier revision followed only by Sofa Home's operations, which the
+ * Server replays onto `layout` (ADR 0004); the answer is the merged draft. Any other base is refused with 409.
+ */
 export interface DraftUpdate {
   base: number;
   layout: unknown;

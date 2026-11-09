@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { checkWidgets, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, isLayoutOp, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LayoutOpRequest, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
@@ -12,7 +12,7 @@ import { createCatalogue } from './catalogue.ts';
 import { createImmich } from './immich.ts';
 import type { Config } from './config.ts';
 import { createHaClient, subscribeEvents } from './ha.ts';
-import { createDraft, currentSnapshot, deleteDraft, getDraft, kidsView, publishDraft, saveDraft } from './layout.ts';
+import { commitOp, createDraft, currentSnapshot, deleteDraft, getDraft, kidsView, publishDraft, saveDraft } from './layout.ts';
 import { log } from './log.ts';
 import { createPhotos, type Photos } from './photos.ts';
 import { photoRoute } from './photos-http.ts';
@@ -170,6 +170,22 @@ export function startServer(
     }
 
     if (pathname === '/api/kids' || pathname.startsWith('/api/kids/')) return kidsRoute(req, res, key);
+
+    // Sofa Home's layout changes (ADR 0004): the TV's token or a Companion session, never while Kids Mode is on.
+    if (key === 'POST /api/layout/ops') {
+      if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      if (allowance.status().active) return send(res, 403, { error: 'the layout cannot be changed in Kids Mode' } satisfies ApiError);
+      const body = (await readJson(req)) as Partial<LayoutOpRequest>;
+      if (typeof body?.base !== 'number' || !isLayoutOp(body.op)) throw new HttpError(400, 'expected { base, op } with op move, remove or add');
+      const result = commitOp(db, body.base, body.op);
+      if (!result.ok) {
+        log.warn('layout op refused', { op: body.op.op, base: body.base, error: result.error });
+        return send(res, result.status, { error: result.error, errors: result.errors } satisfies ApiError);
+      }
+      log.info('layout op', { op: body.op.op, revision: result.snapshot.revision });
+      broadcast({ type: 'revision', revision: result.snapshot.revision });
+      return send(res, 200, result.snapshot);
+    }
 
     if (pathname.startsWith('/api/')) {
       const session = sessionOf(req);

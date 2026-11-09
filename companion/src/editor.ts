@@ -102,7 +102,7 @@ export function startEditor(call: Call): void {
   const isConflict = (err: unknown) => (err as { status?: number })?.status === 409;
   function lostBase(): void {
     conflict = true;
-    message = 'The published layout changed since you started (another publish, or the TV). Reload to start again from the new one.';
+    message = 'The layout was published from somewhere else since you started. Reload to start again from the new one.';
   }
 
   function save(): Promise<void> {
@@ -113,16 +113,26 @@ export function startEditor(call: Call): void {
       try {
         if (draftId === null) {
           const draft = await call<Draft>('POST', '/api/drafts');
-          if (draft.base !== base) {
-            await call('DELETE', '/api/drafts/' + draft.id).catch(() => {});
-            return lostBase();
-          }
           draftId = draft.id;
           store.set(String(draft.id));
         }
-        await call('PUT', '/api/drafts/' + draftId, { base, layout: sent });
-        if (layout === sent) dirty = false;
+        // Our base may be older than the draft's when the TV changed the layout since: the Server merges those changes into
+        // what we send and answers with the merged draft (ADR 0004). Another publish since is a 409.
+        const saved = await call<Draft>('PUT', '/api/drafts/' + draftId, { base, layout: sent });
         message = '';
+        if (layout === sent) {
+          dirty = false;
+          // Layout and base are adopted together, or not at all: an edit made meanwhile keeps the old base, so the next save merges again.
+          if (saved.base !== base) {
+            const snap = await call<Snapshot>('GET', '/api/snapshot');
+            layout = saved.layout as Layout;
+            base = saved.base;
+            published = snap.layout;
+            publishedAt = snap.publishedAt;
+            message = 'Changes made on the TV were added to your draft.';
+            paintAll();
+          }
+        }
       } catch (err) {
         if (isConflict(err)) lostBase();
         else message = 'Could not save the draft: ' + (err instanceof Error ? err.message : 'the Server is not reachable.');

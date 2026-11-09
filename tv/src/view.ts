@@ -24,7 +24,7 @@ export function initView(): void {
     $('tabs').appendChild(el);
     fixed['tab:' + t.id] = el;
   }
-  ['set:server', 'set:again', 'set:close', 'kids:exit', 'done:adults', 'full:close'].forEach((id) => (fixed[id] = $(id)));
+  ['set:server', 'set:again', 'set:close', 'kids:exit', 'done:adults', 'full:close', 'menu:move', 'menu:remove', 'menu:add'].forEach((id) => (fixed[id] = $(id)));
   // The PIN pad: three keys to a row, the ids are the focus grid (kids.ts PAD_ROWS).
   for (const ids of PAD_ROWS) {
     const row = $('pin-keys').appendChild(h('div', 'pin-row'));
@@ -47,7 +47,7 @@ export function renderPad(count: number, note: string): void {
 const find = (id: string): HTMLElement | undefined => (id === 'settings' ? $(mode === 'home' ? 'bar-settings' : 'signin-settings') : tiles[id] || fixed[id]);
 
 function tileEl(t: Tile): HTMLElement {
-  const el = h('div', 'tile ' + t.kind + (t.size ? ' ' + t.size : '') + (t.unavailable ? ' unavailable' : ''));
+  const el = h('div', 'tile ' + t.kind + (t.size ? ' ' + t.size : '') + (t.unavailable ? ' unavailable' : '') + (t.lifted ? ' lifted' : ''));
   if (t.kind === 'kids') {
     // Composed here, not a picture: a lavender panel, the forest fading in on the right, the unicorn, live text.
     const uni = h('img', 'uni');
@@ -107,6 +107,7 @@ export function render(v: View): void {
       host.appendChild(m);
     }
   }
+  $('lift-hint').hidden = !v.sections.some((s) => s.tiles.some((t) => !!t.lifted));
   content.scrollTop = v.tab === tab ? keepScroll : 0;
   tab = v.tab;
   setFocus(focusId);

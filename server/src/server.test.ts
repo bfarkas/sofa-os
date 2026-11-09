@@ -49,7 +49,7 @@ test('migrations run once and reopen cleanly', () => {
   const path = join(dir, 'migrate.db');
   openDb(path).close();
   const db = openDb(path);
-  assert.deepEqual({ ...(db.prepare('PRAGMA user_version').get() as object) }, { user_version: 5 });
+  assert.deepEqual({ ...(db.prepare('PRAGMA user_version').get() as object) }, { user_version: 6 });
   db.close();
 });
 
