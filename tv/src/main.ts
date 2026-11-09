@@ -206,6 +206,7 @@ const launcher = tizenLauncher(typeof tizen === 'undefined' ? undefined : tizen)
 const photoView = createPhotoView({
   server: () => server,
   images: (album, profile) => fetchImages(authedGet(window.fetch.bind(window), server, token), album, profile),
+  log: add,
 });
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;

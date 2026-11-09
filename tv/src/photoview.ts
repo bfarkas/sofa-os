@@ -17,7 +17,7 @@ interface Layer {
 }
 
 /** Two stacked images: load the next one in the hidden layer, fade it in, then empty the one that faded out. */
-function createLayers(a: HTMLImageElement, b: HTMLImageElement) {
+function createLayers(a: HTMLImageElement, b: HTMLImageElement, note: (text: string) => void) {
   let front: Layer = { el: a }, back: Layer = { el: b };
   const empty = (l: Layer) => {
     clearTimeout(l.release);
@@ -28,8 +28,13 @@ function createLayers(a: HTMLImageElement, b: HTMLImageElement) {
   return {
     load(url: string): Promise<void> {
       clearTimeout(back.release);
+      const t0 = Date.now();
       return new Promise((resolve, reject) => {
-        back.el.onload = () => resolve();
+        back.el.onload = () => {
+          const heap = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory; // Chromium only; the TV log shows whether memory stays flat
+          note('photo loaded in ' + (Date.now() - t0) + ' ms, ' + back.el.naturalWidth + 'x' + back.el.naturalHeight + (heap ? ', js heap ' + Math.round(heap.usedJSHeapSize / 1e5) / 10 + ' MB' : ''));
+          resolve();
+        };
         back.el.onerror = () => reject(new Error('picture failed to load'));
         back.el.src = url;
       });
@@ -54,12 +59,14 @@ export type Getter = (album: string, profile: Profile) => Promise<AlbumImages>;
 export interface PhotoViewDeps {
   server(): string;
   images: Getter; // GET /api/photos/albums/<id>/images
+  log?(text: string): void; // a line for the TV log: how long each picture took to load
 }
 
 export function createPhotoView(deps: PhotoViewDeps) {
   const overlay = $('photos');
-  const layers = createLayers($('pl-a') as HTMLImageElement, $('pl-b') as HTMLImageElement);
-  const bgLayers = createLayers($('bg-a') as HTMLImageElement, $('bg-b') as HTMLImageElement);
+  const note = (t: string) => deps.log?.(t);
+  const layers = createLayers($('pl-a') as HTMLImageElement, $('pl-b') as HTMLImageElement, (t) => note('show ' + t));
+  const bgLayers = createLayers($('bg-a') as HTMLImageElement, $('bg-b') as HTMLImageElement, (t) => note('bg ' + t));
   let show: ReturnType<typeof createSlideshow> | null = null;
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   let opened = 0; // ticket: an answer for a view that has been closed is ignored

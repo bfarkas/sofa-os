@@ -454,13 +454,14 @@ Follow the spec's [Family calendar](Sofa.OS%20Architecture%20v0.2.md#family-cale
 
 **Done when:** the slideshow runs smoothly on the TV, Kids Mode shows only approved albums, and the thumbnail budget is in the spec.
 
-**Built (Server and Sofa Home, checked in a browser at 1920x1080 with a fake Immich; not yet on the TV).**
+**Built and proven on the TV (2026-11-09, rei3 at 2432cfd, Sofa Home reinstalled from main).**
 - Server: Immich client (`server/src/immich.ts`), album and thumbnail cache with profile filtering (`photos.ts`, `photos-http.ts`), the `photo` widget type, `SOFA_IMMICH_API_KEY[_FILE]` and `SOFA_IMMICH_URL`, and the compose wiring. Decisions are in ADR 0003 (Photos); the budget and Immich facts are in the spec.
 - Sofa Home: ambient view from a photo tile, Kids Mode album tiles with a slideshow, and the photo or slideshow Dashboard background (`tv/src/slideshow.ts`, `photos.ts`, `photoview.ts`, `app/photos.css`).
 - **Photostream.** Immich has no albums yet, so a photo widget, the slideshow, the ambient view and the background can use the photostream instead: the newest 300 images of the library, a random pick (spec, Immich section; ADR 0003). Household only, never Kids Mode. Companion's widget form has a source choice and Appearance a button for the photostream background.
 - **Not built.** An album picker in Companion (a typed album id remains), household album tiles, an idle-triggered ambient view, and a kids photo widget (it shows "Nothing to show" unless the layout allows the album for kids).
-- **Still open.** An Immich API key (`album.read`, `asset.read`, `asset.view`) in `~/.config/sofa-os/secrets/immich_api_key` before the Server is redeployed; the live Immich response shapes; and the TV measurement of load time, smoothness and memory, after which the budget in the spec is final.
-
+- **TV pass (camera and HA remote keys).** The live layout got a `Photostream` photo widget (large, household only, in its own Dashboard row) and showed a real photo from the library. OK on it opens the ambient view (clock, picture contained, portrait pictures with side bars). Right and Left step, OK pauses ("Paused", no advance for over 20 s) and resumes, the picture advances itself every 15 s, Back closes it. A temporary photostream slideshow background (60 s per picture, scrim, tiles legible) paused while the ambient view was open and resumed after Back; the household colour background was restored. Load time 74 to 270 ms per picture, JS heap flat at 10 MB over about 8 minutes (Sofa Home now logs `photo loaded in ... ms, ..., js heap ...` per picture). The cache holds 20 pictures, 8.3 MB, largest 800 KB (spec, budget). Kids Mode was not touched; the kids guarantee is tested on the Server.
+- **Found.** A Dashboard row holds six size units (small 1, medium 2, large 3); a widget past that is clipped without a hint (a large photo widget added to the full Today row did not show). Companion should warn about it (Session 15's editor).
+- **Unproven.** The live Companion preview of the photo widget (Companion needs the password; checked on a local stack and through `/api/widgets`), Kids Mode album tiles with a real album (no albums exist), the album slideshow (8 s) on the TV, a hidden app stopping the timers, and runs of hours.
 ### 15 · Companion editor
 
 **Difficulty 4 · Sonnet · high**
