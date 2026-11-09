@@ -125,7 +125,7 @@ The Server may write to Home Assistant in exactly three ways:
 - Send the Watch Allowance notification to the adults' phones.
 - Forward Phone Remote keys to this TV.
 
-One call goes to the TV itself instead: before each switch-off at zero, and when the TV is on at zero without Sofa Home in front, the Server brings Sofa Home to the front with the TV's REST API (`POST http://<tv>:8001/api/v2/applications/sofahome01.SofaHome`, a fixed URL), because the TV powers on into the last app it showed. Home Assistant's `play_media` app launch is ignored for a sideloaded app on this TV.
+One call goes to the TV itself instead: before each switch-off at zero, and when the TV is on at zero without Sofa Home in front, the Server brings Sofa Home to the front with the TV's REST API (`POST http://<tv>:8001/api/v2/applications/sofahome01.SofaHome`, a fixed URL), because the TV powers on into the last app it showed. Home Assistant's `play_media` app launch is ignored for a sideloaded app on this TV. Decided by the household on 2026-11-09: this direct call is allowed (fixed URL, no data, LAN only); any other call to the TV needs a new decision.
 
 Any other scene or device action needs an explicit allowlist and a new decision. [Home Assistant REST API](https://developers.home-assistant.io/docs/api/rest/) · [Home Assistant WebSocket API](https://developers.home-assistant.io/docs/api/websocket/)
 
