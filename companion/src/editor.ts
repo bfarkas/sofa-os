@@ -1,7 +1,7 @@
 // Companion's Home Screen editor (/edit): Dashboard, Apps, Widgets and Settings over one working copy of the layout, with a
 // 16:9 preview made by Sofa Home's own drawing code (preview.ts). The working copy is saved to a Server draft as you go and
 // published through the Session 05 API. Every change goes through edit.ts; this file is forms and plumbing.
-import { checkWidgets, FRESHNESS, validateLayout, widgetProblems, type ConfigField, type Draft, type KidsStatus, type Layout, type Snapshot, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, fieldApplies, FRESHNESS, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type KidsStatus, type Layout, type Snapshot, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
 import * as E from './edit.ts';
 import type { PreviewApi } from './preview.ts';
 
@@ -330,7 +330,7 @@ export function startEditor(call: Call): void {
         btn('Remove', () => edit(E.removeWidget(layout, w.id)), 'small ghost danger', { 'aria-label': 'Remove widget' }),
       ),
       !type && h('p', { class: 'hint error' }, 'This Server does not know the widget type “' + w.type + '”. It shows as unavailable on the TV; you can still move or remove it.'),
-      ...(type ? type.fields.map((f) => fieldInput(f, w, set)) : []),
+      ...(type ? type.fields.filter((f) => fieldApplies(f, type.fields, w.config)).map((f) => fieldInput(f, w, set)) : []),
       type && h('div', { class: 'line two' },
         h('label', null, 'Size', select(type.sizes.map((s) => [s, s[0].toUpperCase() + s.slice(1)] as [string, string]), w.size, (s) => edit(E.updateWidget(layout, w.id, { size: s as WidgetInstance['size'] })))),
         h('label', null, 'Refresh', select(FRESHNESS.map((f) => [f, { live: 'Live (every 30 s)', hourly: 'Hourly', daily: 'Daily' }[f]] as [string, string]), w.freshness, (f) => edit(E.updateWidget(layout, w.id, { freshness: f as WidgetInstance['freshness'] })))),
@@ -357,7 +357,7 @@ export function startEditor(call: Call): void {
       case 'number':
         return wrapField(h('input', { type: 'number', value: typeof v === 'number' ? String(v) : '', placeholder: f.default === undefined ? '' : String(f.default), min: String(f.min), max: String(f.max), step: f.integer ? '1' : 'any', inputmode: f.integer ? 'numeric' : 'decimal', oninput: (e: Event) => { const s = (e.target as HTMLInputElement).value; set(f.key, s === '' ? undefined : Number(s)); } }), h('span', { class: 'hint' }, f.min + ' to ' + f.max));
       case 'choice':
-        return wrapField(select(f.options.map((o) => [o.value, o.label] as [string, string]), typeof v === 'string' ? v : f.default, (s) => set(f.key, s)));
+        return wrapField(select(f.options.map((o) => [o.value, o.label] as [string, string]), typeof v === 'string' ? v : f.default, (s) => set(f.key, s, true))); // rerender: a choice may show or hide other fields
       case 'boolean':
         return h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: typeof v === 'boolean' ? v : f.default, onchange: (e: Event) => set(f.key, (e.target as HTMLInputElement).checked) }), f.label, help);
       case 'album': // shortcut: a typed Immich album id; upgrade to a picker over GET /api/photos/albums
@@ -397,7 +397,9 @@ export function startEditor(call: Call): void {
           ...SWATCHES.map((c) => h('button', { type: 'button', class: 'swatch' + (c === color ? ' on' : ''), 'aria-label': 'Background ' + c, style: 'background:' + c, onclick: () => edit(E.setBackgroundColor(layout, c)) })),
           h('input', { type: 'color', value: color, 'aria-label': 'Background colour', onchange: (e: Event) => edit(E.setBackgroundColor(layout, (e.target as HTMLInputElement).value)) }),
         ),
-        h('p', { class: 'hint' }, 'The Dashboard background on the TV. Text outside the tiles follows it. Photo backgrounds come with the photo albums.'),
+        h('p', { class: 'hint' }, 'The Dashboard background on the TV. Text outside the tiles follows it.'),
+        h('div', { class: 'line' }, btn('Slideshow of the newest photos', () => edit(E.setBackgroundStream(layout)), 'small ghost', { disabled: bg.kind === 'slideshow' && bg.album === STREAM })),
+        h('p', { class: 'hint' }, 'Needs Immich. The household Dashboard only; Kids Mode keeps its own background.'),
       ),
       h('div', { class: 'card' },
         h('h3', null, 'TV'),

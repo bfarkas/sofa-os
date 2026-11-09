@@ -13,12 +13,15 @@ export interface ImmichApi {
   albums(signal?: AbortSignal): Promise<ImmichAlbum[]>;
   /** An album's name and the ids of its images (not videos), newest first, at most IMAGES_PER_ALBUM of them. */
   album(id: string, signal?: AbortSignal): Promise<{ name: string; assetIds: string[] }>;
+  /** The newest images of the whole library (the key's user), newest first, at most STREAM_NEWEST of them. */
+  stream(signal?: AbortSignal): Promise<string[]>;
   /** Immich's own "preview" rendition of an asset: the web-friendly picture it makes for every photo, HEIC and RAW included. */
   preview(assetId: string, signal?: AbortSignal): Promise<Uint8Array>;
 }
 
 /** shortcut: one page of 1000 (Immich's maximum page size); older photos of a bigger album are not shown, page when one is. */
 export const IMAGES_PER_ALBUM = 1000;
+export const STREAM_NEWEST = 300; // the photostream is a random pick from this many of the newest images
 const TIMEOUT_MS = 15_000;
 
 export interface ImmichConfig {
@@ -62,6 +65,12 @@ export function createImmich(cfg: ImmichConfig, fetchFn: typeof fetch = fetch): 
       const items = found.assets?.items;
       if (typeof info.albumName !== 'string' || !Array.isArray(items)) throw new Error('Immich: unexpected album');
       return { name: info.albumName, assetIds: items.flatMap((a) => (typeof a.id === 'string' && UUID.test(a.id) ? [a.id] : [])) };
+    },
+    async stream(signal) {
+      const found = (await (await call('/search/metadata', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'IMAGE', order: 'desc', size: STREAM_NEWEST }) }, signal)).json()) as { assets?: { items?: Json[] } };
+      const items = found.assets?.items;
+      if (!Array.isArray(items)) throw new Error('Immich: unexpected photo list');
+      return items.flatMap((a) => (typeof a.id === 'string' && UUID.test(a.id) ? [a.id] : []));
     },
     async preview(assetId, signal) {
       checkId(assetId);

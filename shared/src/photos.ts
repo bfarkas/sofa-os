@@ -1,13 +1,17 @@
 // Photos (Session 14): the Server path of an image, and the answers the photo endpoints give Sofa Home and Companion.
 // Images come from Immich through the Server's media cache. The TV cannot send headers with an <img>, so a path is the whole
-// address: /api/media/<profile>/<album>/<asset>.jpg. The Server serves it only if the profile may see that album and the
+// address: /api/media/<profile>/<album or photostream>/<asset>.jpg. The Server serves it only if the profile may see that source and the
 // asset is in it (ADR 0003, Photos). This file also runs on the TV (Chromium 56), so it uses no runtime API newer than ES2017.
 import type { Profile } from './layout.ts';
 
 /** Immich ids are UUIDs. Anything else is refused before it can reach an Immich URL or a file name. */
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-const MEDIA = /^\/api\/media\/(household|kids)\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.jpg$/;
+/** The photostream: the Immich library's newest photos, used where an album id goes. Household only, never Kids Mode (ADR 0003, Photos). */
+export const STREAM = 'photostream';
+export const isSource = (id: string): boolean => id === STREAM || UUID.test(id);
+
+const MEDIA = /^\/api\/media\/(household|kids)\/([0-9a-f-]{36}|photostream)\/([0-9a-f-]{36})\.jpg$/;
 
 /** The path of one image. Ids are lower-cased so a path is the same however the id was written. */
 export function mediaPath(profile: Profile, album: string, asset: string): string {
@@ -17,7 +21,7 @@ export function mediaPath(profile: Profile, album: string, asset: string): strin
 /** Reads a path made by mediaPath; null for anything else. Sofa Home uses it to find the album behind a photo card. */
 export function parseMediaPath(path: string): { profile: Profile; album: string; asset: string } | null {
   const m = MEDIA.exec(path);
-  return m && UUID.test(m[2]) && UUID.test(m[3]) ? { profile: m[1] as Profile, album: m[2], asset: m[3] } : null;
+  return m && isSource(m[2]) && UUID.test(m[3]) ? { profile: m[1] as Profile, album: m[2], asset: m[3] } : null;
 }
 
 /** An album as the Server lists it. `kids` is only sent to Companion: whether the album is approved for Kids Mode. */

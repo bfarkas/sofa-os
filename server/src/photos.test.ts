@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { mediaPath, parseMediaPath, readConfig, validateDisplay, validateLayout, type Layout, type PhotoAlbumsResponse, type PhotoImagesResponse, type WidgetsResponse } from '@sofa/shared';
+import { mediaPath, parseMediaPath, readConfig, STREAM, validateDisplay, validateLayout, type Layout, type PhotoAlbumsResponse, type PhotoImagesResponse, type WidgetsResponse } from '@sofa/shared';
 import { photoAdapter } from './adapters/photo.ts';
 import { createAllowance, fromDb } from './allowance.ts';
 import { hashSecret } from './auth.ts';
@@ -33,7 +33,7 @@ const layoutWith = (more: Partial<Layout> = {}): Layout => ({
 });
 
 function fakeImmich(over: Partial<ImmichApi> = {}) {
-  const calls = { album: 0, preview: 0 };
+  const calls = { album: 0, preview: 0, stream: 0 };
   const albums: Record<string, { name: string; assetIds: string[] }> = {
     [A]: { name: 'Kids', assetIds: [asset(1), asset(2)] },
     [B]: { name: 'Family', assetIds: [asset(3), asset(4), asset(5)] },
@@ -45,6 +45,10 @@ function fakeImmich(over: Partial<ImmichApi> = {}) {
       calls.album++;
       if (!albums[id]) throw new Error('Immich answered 404');
       return albums[id];
+    },
+    stream: async () => {
+      calls.stream++;
+      return [asset(12), asset(11), asset(10)]; // newest first
     },
     preview: async () => {
       calls.preview++;
@@ -148,7 +152,7 @@ test('the photo widget picks a cached photo, hides itself from kids unless appro
   const { photos } = make({}, layoutWith({ widgets: [{ id: 'w1', type: 'photo', size: 'medium', config: { album: B }, profiles: ['household', 'kids'], freshness: 'hourly' }, { id: 'w2', type: 'photo', size: 'small', config: { album: A }, profiles: ['kids'], freshness: 'hourly' }] }));
   const a = photoAdapter({ photos });
   const ctx = { now: 0, signal: new AbortController().signal };
-  assert.deepEqual(readConfig(a.fields, { album: B, junk: 1 }), { config: { album: B }, errors: [] });
+  assert.deepEqual(readConfig(a.fields, { album: B, junk: 1 }), { config: { source: 'album', album: B }, errors: [] });
   assert.deepEqual(readConfig(a.fields, { album: 'x' }).errors, ['album: must be an Immich album id']);
 
   const family = await a.read({ album: B }, ctx);
@@ -223,7 +227,7 @@ test('HTTP: kids get only approved albums and their pictures; the media path che
     allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.test/kids/topup' },
   };
   const db = openDb(config.dbPath);
-  const layout = layoutWith();
+  const layout = layoutWith({ widgets: [...layoutWith().widgets, { id: 'w3', type: 'photo', size: 'small', config: { source: 'photostream' }, profiles: ['household', 'kids'], freshness: 'hourly' }] });
   db.prepare('INSERT INTO revisions (number, base, layout, created_at) VALUES (2, 1, ?, ?)').run(JSON.stringify(layout), Date.now());
   const allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance });
   const f = fakeImmich();
@@ -262,10 +266,61 @@ test('HTTP: kids get only approved albums and their pictures; the media path che
     // The widget: the photo widget is on the household layout and the kids profile only gets an approved album.
     await new Promise((r) => setTimeout(r, 100));
     const widgets = (await (await get('/api/widgets')).json()) as WidgetsResponse;
-    assert.deepEqual(widgets.widgets.map((w) => [w.id, w.status]), [['w1', 'ok']]);
+    assert.deepEqual(widgets.widgets.map((w) => [w.id, w.status]), [['w1', 'ok'], ['w3', 'ok']]);
     const kidsWidgets = (await (await get('/api/widgets?profile=kids')).json()) as WidgetsResponse;
-    assert.deepEqual(kidsWidgets.widgets.map((w) => [w.id, w.status]), [['w1', 'empty']]); // album B is not approved
+    assert.deepEqual(kidsWidgets.widgets.map((w) => [w.id, w.status]), [['w1', 'empty'], ['w3', 'empty']]); // album B is not approved, and the photostream never is
+
+    // The photostream: the household gets it (asset must be in the newest listing), kids never, by listing or by picture path.
+    const stream = (await (await get(`/api/photos/albums/${STREAM}/images?profile=household`)).json()) as PhotoImagesResponse;
+    assert.deepEqual(stream.images.map((p) => parseMediaPath(p)?.album), [STREAM, STREAM, STREAM]);
+    assert.equal((await fetch(base + stream.images[0])).status, 200);
+    assert.equal((await fetch(base + mediaPath('household', STREAM, asset(3)))).status, 404); // an album photo, not in the newest listing
+    assert.equal((await get(`/api/photos/albums/${STREAM}/images?profile=kids`)).status, 403);
+    assert.equal((await fetch(base + mediaPath('kids', STREAM, asset(10)))).status, 403);
+    assert.equal((await fetch(base + `/api/media/kids/photostream/${asset(10)}.jpg`)).status, 403);
   } finally {
     server.close();
   }
+});
+
+test('the photostream is the household\'s newest photos, used only where the layout asks, and never Kids Mode\'s', async () => {
+  const stream = layoutWith({ widgets: [{ id: 'w1', type: 'photo', size: 'medium', config: { source: 'photostream' }, profiles: ['household', 'kids'], freshness: 'hourly' }] });
+  const { photos, calls } = make({}, stream);
+  assert.equal(photos.allowed('household', STREAM), true);
+  assert.equal(photos.allowed('kids', STREAM), false);
+  assert.equal(make().photos.allowed('household', STREAM), false); // no widget or background uses it
+  assert.equal(make({}, layoutWith({ background: { kind: 'slideshow', album: STREAM } })).photos.allowed('household', STREAM), true);
+  assert.equal(make({}, layoutWith({ background: { kind: 'image', image: STREAM + '/' + asset(10) } })).photos.allowed('household', STREAM), true);
+  // A hand-edited layout that lists it for kids is refused at publish, and the check here holds even if it got through.
+  const sneaky = { ...stream, kidsMode: { apps: [], dailyMinutes: 40, albums: [STREAM, A] } } as Layout;
+  assert.ok(validateLayout(sneaky).some((e) => /photostream/.test(e)));
+  assert.equal(make({}, sneaky).photos.allowed('kids', STREAM), false);
+  await assert.rejects(make({}, sneaky).photos.images('kids', STREAM), (e) => e instanceof PhotoError && e.status === 403);
+
+  const imgs = await photos.images('household', STREAM);
+  assert.deepEqual(imgs.images.map((p) => parseMediaPath(p)?.asset).sort(), [asset(10), asset(11), asset(12)]);
+  await photos.file('household', STREAM, asset(11));
+  await assert.rejects(photos.file('household', STREAM, asset(3)), (e) => e instanceof PhotoError && e.status === 404); // not in the stream listing
+  await assert.rejects(photos.file('kids', STREAM, asset(11)), (e) => e instanceof PhotoError && e.status === 403);
+  assert.equal(calls.stream, 1); // one listing serves the images, the file checks and the picks
+
+  // The widget: source decides; no album needed for the stream, one needed for an album; kids see nothing.
+  const a = photoAdapter({ photos });
+  assert.deepEqual(readConfig(a.fields, { source: 'photostream' }), { config: { source: 'photostream' }, errors: [] });
+  assert.deepEqual(readConfig(a.fields, { source: 'album' }).errors, ['album: is required']);
+  assert.deepEqual(readConfig(a.fields, {}).errors, ['album: is required']); // an older widget without a source is an album widget
+  assert.deepEqual(readConfig(a.fields, { source: 'everything' }).errors, ['source: must be one of album, photostream']);
+  const r = await a.read({ source: 'photostream', album: B }, { now: 0, signal: new AbortController().signal });
+  assert.ok('card' in r && parseMediaPath((r.card as { image: string }).image)?.album === STREAM);
+  assert.deepEqual(a.forKids!(r), { empty: 'Nothing to show' });
+});
+
+test('the Immich client asks for the newest images of the whole library', async () => {
+  let body = '';
+  const client = createImmich({ url: 'http://immich.test', apiKey: 'sekrit' }, (async (_url: string, init: RequestInit) => {
+    body = String(init.body);
+    return new Response(JSON.stringify({ assets: { items: [{ id: asset(1) }, { id: 'nope' }] } }), { headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch);
+  assert.deepEqual(await client.stream(), [asset(1)]);
+  assert.deepEqual(JSON.parse(body), { type: 'IMAGE', order: 'desc', size: 300 });
 });

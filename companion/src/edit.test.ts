@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkWidgets, validateLayout, type Layout, type WidgetType, type WidgetsResponse } from '@sofa/shared';
-import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, setBackgroundColor, setConfig, showOnDashboard, updateWidget } from './edit.ts';
+import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, setBackgroundColor, setBackgroundStream, setConfig, showOnDashboard, updateWidget } from './edit.ts';
 
 const type: WidgetType = {
   type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['small', 'medium'], defaultSize: 'medium', defaultFreshness: 'live',
@@ -98,4 +98,10 @@ test('the preview shows live data for an unchanged widget and honest placeholder
   assert.deepEqual(previewWidgets(published, published, [], null).widgets.map((w) => [w.status, w.message]), [['unavailable', 'This widget type is not available']]);
   const kidsOnly = { ...published, widgets: [{ ...published.widgets[0], profiles: ['kids' as const] }] };
   assert.deepEqual(previewWidgets(kidsOnly, published, [type], live).widgets, []);
+});
+
+test('the photostream background is a slideshow of the stream; a colour replaces it', () => {
+  const l = setBackgroundStream(base());
+  assert.deepEqual(l.background, { kind: 'slideshow', album: 'photostream' });
+  assert.deepEqual(setBackgroundColor(l, '#112233').background, { kind: 'color', color: '#112233' });
 });

@@ -1,5 +1,6 @@
 // The layout schema: what the Server publishes as numbered revisions and Sofa Home renders.
 // This file also runs on the TV (Chromium 56), so it uses no runtime API newer than ES2017.
+import { STREAM } from './photos.ts';
 
 /** Bump only with a matching Sofa Home release: the TV rejects any other schema and keeps its last snapshot. */
 export const LAYOUT_SCHEMA = 1;
@@ -40,8 +41,8 @@ export interface Row {
 
 export type Background =
   | { kind: 'color'; color: string } // #rrggbb
-  | { kind: 'image'; image: string } // "<album id>/<asset id>": one Immich photo, from an album (Session 14)
-  | { kind: 'slideshow'; album: string }; // an Immich album id: its photos fade through behind the Dashboard (Session 14)
+  | { kind: 'image'; image: string } // "<album id or photostream>/<asset id>": one Immich photo (Session 14)
+  | { kind: 'slideshow'; album: string }; // an Immich album id or "photostream": its photos fade through behind the Dashboard (Session 14)
 
 export interface KidsModeSettings {
   apps: string[]; // approved app ids, in tile order
@@ -165,6 +166,7 @@ export function validateLayout(value: unknown): string[] {
       const albums = new Set<unknown>();
       list(kids.albums, 'kidsMode.albums', 100).forEach((id, i) => {
         str(id, 'kidsMode.albums[' + i + ']', 64);
+        if (id === STREAM) err('kidsMode.albums[' + i + ']', 'the photostream cannot be approved for Kids Mode');
         unique(albums, id, 'kidsMode.albums[' + i + ']');
       });
     }

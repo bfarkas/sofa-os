@@ -108,6 +108,7 @@ interface FieldBase {
   key: string;
   label: string;
   help?: string;
+  when?: { key: string; value: string }; // the field applies only while that other field (declared before it) has this value
 }
 export type ConfigField = FieldBase &
   (
@@ -136,6 +137,14 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isEntity = (v: unknown, domains: string[]) => typeof v === 'string' && ENTITY_ID.test(v) && domains.indexOf(v.split('.')[0]) >= 0;
 
+/** Whether a field applies to a config: a field with `when` only while the field it names has that value (its default if unset). */
+export function fieldApplies(f: ConfigField, fields: ConfigField[], cfg: Record<string, unknown>): boolean {
+  if (!f.when) return true;
+  const k = f.when.key;
+  const other = fields.filter((x) => x.key === k)[0];
+  return (cfg[k] ?? (other && 'default' in other ? other.default : undefined)) === f.when.value;
+}
+
 /** Checks an instance's config against its type's fields and fills in defaults. Keys the type does not declare are dropped. */
 export function readConfig(fields: ConfigField[], raw: unknown): { config: Obj; errors: string[] } {
   const config: Obj = {};
@@ -143,6 +152,7 @@ export function readConfig(fields: ConfigField[], raw: unknown): { config: Obj; 
   const src = isObj(raw) ? raw : {};
   if (!isObj(raw)) errors.push('config: must be an object');
   for (const f of fields) {
+    if (!fieldApplies(f, fields, config)) continue;
     const v = src[f.key];
     const missing = v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
     const err = (msg: string) => errors.push(f.key + ': ' + msg);

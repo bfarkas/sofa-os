@@ -1,6 +1,6 @@
 // Editing operations on a layout, pure and immutable: each takes a layout and returns the next one (an equal layout when
 // nothing changes). The editor (editor.ts) only calls these, so every rule about rows, apps and widgets is tested here.
-import { readConfig, widgetProblems, type AppTile, type Layout, type RowItem, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
+import { readConfig, STREAM, widgetProblems, type AppTile, type Layout, type RowItem, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
 
 export type Item = RowItem;
 const same = (a: Item, b: Item) => a.kind === b.kind && a.id === b.id;
@@ -113,6 +113,7 @@ export function setConfig(l: Layout, id: string, key: string, value: unknown): L
 
 // ---- Appearance ----
 
+export const setBackgroundStream = (l: Layout): Layout => ({ ...l, background: { kind: 'slideshow', album: STREAM } });
 export const setBackgroundColor = (l: Layout, color: string): Layout => ({ ...l, background: { kind: 'color', color } });
 
 // ---- What the preview shows for widgets ----
