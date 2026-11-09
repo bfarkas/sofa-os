@@ -303,13 +303,23 @@ Run the Phase 1 exit condition end to end with a short allowance: power-on, TV S
 
 **Done when:** the full evening works once without intervention and the spec's roadmap marks Phase 1 done.
 
-**Run 2026-11-09 (live TV, live Server, real writes) — not yet accepted.**
+**Run 1, 2026-11-09 (live TV, live Server, real writes) — not accepted; defect 10b found.**
 
 - **Passed.** Kids Mode from the household Dashboard (TV already signed in; sign-out and QR sign-in not repeated, proven in Session 06), KiKA launched from the Kids tile, the real warning at 5 minutes left (Server log; both phones were sent it, who saw it is unconfirmed: the user missed it), a Companion Top-up (`kids-mode topup`) lifting the time above 5 minutes and a second warning firing 5 minutes before the new zero (09:49:44Z), and the real TV switched off at zero twice (09:54:42Z and 10:05:09Z). One `top-up` of 5 minutes arrived with source `notification` at 09:44:27Z (the +5 min action button was tapped by someone; the Server event path is proven, the phone and tap were not observed). The 10:02:51Z Top-up came from Companion.
 - **Not proven.** Tap on the notification body opening Companion Top-up, +10 min, Custom with its text field, Ioanna's iPhone (no PushNotification tool in this run, so no tap requests could be sent), and the Done Screen on return (below).
 - **Defect found (new session 10b).** The TV powered back on in KiKA, not in Sofa Home: power-on uses Smart Hub's Start Last App, and the last app at zero was KiKA. Sofa Home never ran, so no Done Screen, and the Server only learned the TV was on from Home Assistant after the 4-minute hold, which then counted as used time. A child can therefore keep watching the provider app after zero until the re-off. The Done Screen itself was proven in Session 09 with Sofa Home in front at zero.
 - **Power-on from the Mac is unreliable.** A KEY_POWER right after the zero switch-off worked once (about 4 minutes to on). Later Wake-on-LAN plus KEY_POWER attempts, minutes after standby, did not wake the TV (the Server saw `pending` and `off` flap). The TV was left off; a person must press the remote.
 - **State left.** Kids Mode exited, 40 minutes, TV off, no log receiver running.
+
+**Run 2, 2026-11-09 evening (after 10b, rei3 on 2432cfd) — accepted.** Kids Mode entered with a 15-minute day (about 6 minutes left), Netflix opened from the Kids tile, then, with the user at the phone:
+- Warning 21:40:15Z; the user tapped the notification body, which opened Companion's Top-up page (by the user's word), and added 5 minutes there (21:40:43Z, source `companion`).
+- Second warning 21:45:17Z; **+10 min** tapped: `top-up` 10, source `notification`, 21:45:25Z.
+- Third warning 21:46:18Z; **Custom** with the text field, typed 3: `top-up` 3, source `notification`, 21:47:43Z.
+- A fourth warning fired at 21:49:14Z after the allowance was lowered; each warning came again after a Top-up lifted the time above 5 minutes.
+- Zero, switch-off and the Done Screen on return were proven in run 1 (two switch-offs at zero) and in Session 10b (both power-ons showed the Done Screen and the re-off), so this run did not repeat them. Sign-in and power-on to Sofa Home: Session 06 and 10b.
+- Ioanna's iPhone: waived by the user (one phone is enough for testing); not tested.
+- Restored: Kids Mode off, 40 minutes, TV on the household Dashboard.
+Phase 1 is marked done in the spec roadmap.
 
 ### 10b · Return to Sofa Home after zero
 

@@ -259,7 +259,7 @@ Store the PIN as a salted hash. Keep provider, Home Assistant and Immich credent
 | Phase | Exit condition |
 | --- | --- |
 | **0  Hardware feasibility** | Build a Sofa Home package from the CleanFrame skeleton. Confirm power-on auto-launch. Test HTTPS with the Let's Encrypt certificate, WebSocket, remote keys, suspend and resume. Test Home Assistant turn-off, reliable TV on/off state and remote keys. Run the provider experiments in [Tizen and streaming providers](#tizen-and-streaming-providers). |
-| **1  Kids Mode evening** | Sofa Home opens at power-on and TV Sign-in connects it. App tiles launch providers and Kids Mode starts the Watch Allowance. The notification and Top-up work. The TV switches off at zero and the Done Screen appears on return. |
+| **1  Kids Mode evening (done 2026-11-09)** | Sofa Home opens at power-on and TV Sign-in connects it. App tiles launch providers and Kids Mode starts the Watch Allowance. The notification and Top-up work. The TV switches off at zero and the Done Screen appears on return. |
 | **2  Household features** | Add layout and widget editing, Home Assistant read-only cards, weather, calendar and energy. Ship the Immich slideshow and approved albums. |
 | **3  Convenience** | Add the Phone Remote and installable PWA. Add validated title handoff and the favorites library if the experiments support them. Finish the Plex episode spike. |
 
