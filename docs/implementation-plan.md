@@ -319,7 +319,7 @@ At zero the TV may be inside a provider app, and the next power-on resumes it. M
 
 **Done when:** a zero inside a provider app is followed by a power-on that shows the Done Screen, and Phase 1 can be marked done.
 
-**Built and deployed (2026-11-09, rei3 at 2432cfd). Not done: the proof fix below is unit-tested but not yet run live. The zero cycle and a person's power-on after it are still to run (see Next run).**
+**Done (2026-11-09, rei3 at 2432cfd): proven live in the 21:22 run. A zero inside KiKA, then a person's power-on, shows the Done Screen and is switched off again a minute later. The false on is held as `pending`, with no re-off loop. Still open: D on a real power-on into a provider app (see Not proven yet).**
 
 - **Evidence that shaped it.**
   - Home Assistant's `media_player.samung_tv` (core `samsungtv`, `supported_features` 24381) supports `PLAY_MEDIA` and `SELECT_SOURCE` but not `TURN_ON`. Its `source_list` has the store apps but not Sofa Home. While the TV is on, its attributes carry only volume and mute, with no `source` or `app_id` (24 hours of history checked), so the Server cannot see which app is in front through Home Assistant.
@@ -344,12 +344,16 @@ At zero the TV may be inside a provider app, and the next power-on resumes it. M
   - Re-off at 14:24:46.5Z launched Sofa Home, which woke the TV onto the Done Screen (camera 14:24:51Z), then switched it off at 14:24:57.6Z after the 10 s wait. That is the loop: a dark TV is woken for about 10 s every 2 minutes.
   - Stopped with `exit` at 14:25:24Z, and `minutes 40` restored.
   - No `sofa home` `visible` line was logged.
+- **21:22 run (2432cfd, real writes, camera, user at the remote).** Enter, KiKA from the Kids tile, `minutes 40` then `minutes 6`.
+  - Zero: launch 21:21:59.8Z, off 21:22:05.9Z, Home Assistant off 21:22:10Z.
+  - No loop: the TV restarted Sofa Home in standby again (`sofa home` `visible: true` at 21:22:36.6Z), but the REST API said `visible: false`. The false on was logged `pending` from 21:22:46Z until Home Assistant said off at 21:25:19Z. There was no launch and no re-off until the first press (21:28:44Z), and the screen stayed dark on camera.
+  - Press 1 (late, about 6.5 minutes after the off): logged `pending` at 21:28:44.8Z, then `on` with `proof: sofa home in front` at 21:28:46.4Z. The Done Screen ("All done for now") was on camera. Re-off: launch 21:29:46.7Z, off 21:29:47.8Z (switched off as soon as the REST API said Sofa Home was in front). It was `pending` rather than `on` straight away because the hold counts from the last off reading, which here was the end of the false on.
+  - Press 2 (inside the hold, as in the 14:20 run): Home Assistant's on at 21:30:42.9Z was logged `pending`. It may be the false on or the press, which cannot be told apart. The screen was still dark on camera at 21:30:52Z. The REST API said `visible: true` at 21:31:03Z, and the same second the Server logged `on` `proof: sofa home in front`. The Done Screen was on camera, and the re-off came at 21:32:03.4Z (launch) and 21:32:04.4Z (off).
+  - Restored: `exit` at 21:32:12.6Z, `minutes 40`. A REST launch at 21:32:13Z, 9 s after that off, woke the TV onto the household Dashboard.
 - **Not proven yet.**
-  - That a person's power-on after the zero lands on the Done Screen. The Done Screen does show whenever Sofa Home is woken, and Sofa Home was the last app after A.
-  - D on a real power-on into a provider app.
-  - A false on logged as `pending`. Every one so far was logged `on`.
+  - D on a real power-on into a provider app (the 4-minute hold, then a launch over KiKA and the re-off). Both presses landed on Sofa Home, since A had made it the last app. This path is unit-tested only.
 - **15:09 run (2432cfd, aborted: the household needed the TV).** Enter, KiKA from the Kids tile, `minutes 6`. Launch 15:09:30.1Z, Sofa Home in front by REST 15:09:30.2Z, off 15:09:36.2Z, Home Assistant off 15:09:41Z. In standby the TV restarted Sofa Home again (`sofa home` `visible: true` at 15:10:19.6Z, dark screen). Home Assistant's false on at 15:10:31Z was logged `pending` (the REST API said `visible: false`), and nothing was launched. Kids Mode was exited at 15:10:38Z, so only 7 s of the pending on were watched: no-loop over 5 minutes, and the person's presses, are still to run. `minutes 40` restored.
-- **Next run (needs a person at the remote).** Power the TV on with the remote. Then: `enter`, KiKA from the Kids tile, `minutes 6` to hit zero (check the counters first: the drop must go from above 5 minutes straight to zero or below, so no warning is sent). Check the log for launch then off. A person presses power about a minute later. Watch the camera from the off until 2 minutes after it: the user's press in the 14:20 run came about 53 s after the off, the same delay as Home Assistant's false on, and may have landed on a dark screen. The Done Screen should show, with `tv` `on` `proof: sofa home in front` in the log, then the re-off a minute later. A press into KiKA should stay `pending` for 4 minutes, then launch and re-off. Also check that the false on after each off is logged as `pending`, not `on`, with no launch for at least 5 minutes. State at 15:05Z: the TV is in standby since 14:34:28Z, waiting for the user to switch it on; Kids Mode off, allowance 40 min. If the TV still powers on into KiKA, switch Start Last App off on the TV (Settings > General > Smart Features) and record it. Restore with `exit` and `minutes 40`.
+- **Next run (only for D).** Needs a power-on into a provider app at zero, for example a zero reached while the TV is off with KiKA as the last app. Expect `pending` for 4 minutes, then `sofa home brought to the front` `on at zero`, the Done Screen, and the re-off a minute later. Restore with `exit` and `minutes 40`.
 
 ---
 
