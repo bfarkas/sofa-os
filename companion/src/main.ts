@@ -15,6 +15,9 @@ const kidsPage = $('kids');
 const topupPage = $('topup');
 const editPage = $('edit');
 
+// Makes Companion installable; sw.js caches nothing (see the file).
+if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
+
 // The QR code on the TV opens /tv-signin?code=... and the warning notification opens /kids/topup. Login happens on the
 // same page, so the code and the tap target both survive it.
 const path = location.pathname.replace(/\/+$/, '') || '/';
