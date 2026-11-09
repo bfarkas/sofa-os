@@ -22,6 +22,7 @@ services:
     volumes:
       - sofa-data:/data # SQLite database, back this up
       - sofa-media:/media # media cache (photos/ and albums/), safe to lose
+      - sofa-backups:/backups # daily SQLite snapshots, 7 daily + 4 weekly (docs/restore.md); copy them off rei3 too
     networks:
       - default
       - immich
@@ -38,6 +39,7 @@ networks:
 volumes:
   sofa-data:
   sofa-media:
+  sofa-backups:
 
 secrets:
   # Secret files live outside the repository, owned by the deploying user (uid 1000, as the container's node user).
