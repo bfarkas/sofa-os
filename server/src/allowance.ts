@@ -15,6 +15,9 @@ export const HOLD_MS = 240_000; // Home Assistant's false "on" after a remote st
 export const WARN_SECONDS = 300;
 export const MAX_TOPUP_MINUTES = 240;
 export const DONE_SCREEN_MS = 60_000; // how long the Done Screen may stay up on a TV that is on again at zero
+// A Sofa Home request lets an on skip the hold only this close to it. In standby the TV keeps a hidden Sofa Home running,
+// which still answers the Server right after a switch-off; Home Assistant's false on followed 50 s after each off (live).
+export const PROOF_FRESH_MS = 20_000;
 export const LAUNCH_WAIT_MS = 10_000; // at most this long between bringing Sofa Home to the front and the switch-off
 export const WARNING_TAG = 'sofa-kids-warning'; // a new warning replaces the old one on the phone
 
@@ -202,7 +205,7 @@ export function createAllowance(o: AllowanceOptions) {
           }
         } else if (s.tv === 'off') {
           // Right after an off, Home Assistant reports a false on for about 3 minutes, unless the TV has spoken since.
-          Object.assign(s, { onAt: now, since: now, tv: now - s.offAt < HOLD_MS && s.provenAt < s.offAt ? 'pending' : 'on' });
+          Object.assign(s, { onAt: now, since: now, tv: now - s.offAt < HOLD_MS && now - s.provenAt > PROOF_FRESH_MS ? 'pending' : 'on' });
         } else if (now - prev > GAP_MS) {
           Object.assign(s, { tv: 'pending', onAt: now, since: now }); // lost sight of the TV: the on must prove itself again
         } else if (s.tv === 'pending') {
@@ -284,7 +287,7 @@ export function createAllowance(o: AllowanceOptions) {
           return false;
         }
       };
-      if (s.zeroed && rem <= 0 && !s.launchAt && s.provenAt < s.offAt) await launch('on at zero');
+      if (s.zeroed && rem <= 0 && !s.launchAt && s.provenAt < s.onAt - PROOF_FRESH_MS) await launch('on at zero'); // Sofa Home silent since this on
       const reOff = s.zeroed && s.doneAt && rem <= 0 && clock() - s.doneAt >= DONE_SCREEN_MS;
       if (reOff || (!s.zeroed && rem <= -o.graceSeconds)) {
         // Switch off once Sofa Home has answered from the front, or LAUNCH_WAIT_MS after the launch, or at once if it failed.

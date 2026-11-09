@@ -615,3 +615,21 @@ test('a failed launch at power-on leaves the re-off a minute later as the backst
   await k.watch(5);
   assert.deepEqual(k.writes(), ['off', 'off']);
 });
+
+test('a hidden Sofa Home answering right after the switch-off does not make the false on count, so there is no re-off loop', async () => {
+  const k = setup({ minutes: 1 });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60); // zero: launch, off
+  await k.watch(5, 'off');
+  k.engine.tvSeen(); // Sofa Home, hidden in standby, answers the kids signal
+  await k.watch(45, 'off');
+  await k.watch(120); // Home Assistant's false on, 50 s after the off
+  assert.equal(k.engine.status().tv, 'pending');
+  assert.deepEqual(k.writes(), ['launch', 'off'], 'no launch and no re-off at a dark TV');
+  await k.watch(10, 'off');
+  k.engine.tvSeen(); // a real power-on into Sofa Home, shortly before Home Assistant sees it
+  await k.watch(5);
+  assert.equal(k.engine.status().tv, 'on', 'a fresh request still skips the hold');
+  assert.deepEqual(k.writes(), ['launch', 'off'], 'Sofa Home spoke: not launched again');
+});
