@@ -1,7 +1,7 @@
 // Makes the TV preview page from Sofa Home's own page, so the markup and the stylesheet cannot drift from the TV:
 //   dist/preview.html     tv/app/index.html with its <style> moved to a file (Companion's CSP allows no inline style) and preview.js for main.js
 //   dist/preview-tv.css   that <style>
-//   dist/cards.css, dist/img/   copied from tv/app (the widget cards and the Kids Mode art)
+//   dist/cards.css, dist/photos.css, dist/img/   copied from tv/app (the widget cards, the photo views and the Kids Mode art)
 // Run by `npm run build -w companion` after esbuild has made dist/preview.js. Node runs it as TypeScript.
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
@@ -19,4 +19,5 @@ if (!html.includes(scripts)) throw new Error('tv/app/index.html no longer ends w
 html = html.replace(scripts, '<script src="preview.js"></script>').replace('<title>Sofa Home</title>', '<title>Sofa Home preview</title>');
 writeFileSync(new URL('preview.html', dist), html);
 cpSync(new URL('cards.css', tv), new URL('cards.css', dist));
+cpSync(new URL('photos.css', tv), new URL('photos.css', dist));
 cpSync(new URL('img/', tv), new URL('img/', dist), { recursive: true });

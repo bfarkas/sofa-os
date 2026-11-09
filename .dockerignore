@@ -1,7 +1,11 @@
 .git
 **/node_modules
 companion/dist
-tv/app
+tv/app/main.js
+tv/app/env.js
+tv/app/author-signature.xml
+tv/app/signature1.xml
+tv/app/.manifest.tmp
 tv/out
 docs
 *.db
