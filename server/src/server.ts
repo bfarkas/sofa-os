@@ -2,15 +2,17 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest } from '@sofa/shared';
+import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
+import { createCatalogue } from './catalogue.ts';
 import type { Config } from './config.ts';
 import { createDraft, currentSnapshot, deleteDraft, getDraft, kidsView, publishDraft, saveDraft } from './layout.ts';
 import { log } from './log.ts';
 import { createPin } from './pin.ts';
 import { approveCode, checkDeviceToken, claimToken, createCode } from './tv.ts';
+import { createWidgets, type WidgetAdapter } from './widgets.ts';
 
 const MAX_BODY = 4096;
 const MAX_LAYOUT = 256 * 1024;
@@ -56,7 +58,13 @@ async function readJson(req: IncomingMessage, limit = MAX_BODY): Promise<unknown
 }
 
 // Without an allowance (tests), a clock without Home Assistant, which never runs: it only answers the Kids Mode API.
-export function startServer(config: Config, db: DatabaseSync, allowance: Allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance })): Server {
+// `adapters` is the widget catalogue; tests pass their own.
+export function startServer(
+  config: Config,
+  db: DatabaseSync,
+  allowance: Allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance }),
+  adapters: WidgetAdapter[] = createCatalogue({ db, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone }),
+): Server {
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {
     const token = readCookie(req.headers.cookie, SESSION_COOKIE);
@@ -72,6 +80,8 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
   const canRead = (req: IncomingMessage) => sessionOf(req) !== null || isTv(req);
   const pin = createPin(db);
   const kidsStatus = (): KidsStatus => ({ ...allowance.status(), pinSet: pin.isSet() });
+  // Widget data, read per instance on its freshness policy; a failing adapter only affects its own card (widgets.ts).
+  const widgets = createWidgets({ adapters, layout: () => currentSnapshot(db).layout, onChange: () => broadcast({ type: 'widgets' }) });
   const info = (expiresAt: number): SessionInfo => ({ signedIn: true, expiresAt: new Date(expiresAt).toISOString() });
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<void> {
@@ -139,6 +149,13 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
       return send(res, 200, profile === 'kids' ? kidsView(currentSnapshot(db)) : currentSnapshot(db));
     }
 
+    if (key === 'GET /api/widgets') {
+      if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      const profile = new URL(req.url ?? '/', 'http://localhost').searchParams.get('profile') ?? 'household';
+      if (profile !== 'household' && profile !== 'kids') throw new HttpError(400, 'profile must be household or kids');
+      return send(res, 200, { serverTime: new Date().toISOString(), widgets: widgets.data(profile) } satisfies WidgetsResponse);
+    }
+
     if (pathname === '/api/kids' || pathname.startsWith('/api/kids/')) return kidsRoute(req, res, key);
 
     if (pathname.startsWith('/api/')) {
@@ -151,6 +168,7 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
         log.info('tv code approved');
         return send(res, 200, {});
       }
+      if (key === 'GET /api/widget-types') return send(res, 200, widgets.types());
       if (key === 'POST /api/drafts') return send(res, 201, createDraft(db));
       const m = /^\/api\/drafts\/(\d+)(\/publish)?$/.exec(pathname);
       if (m) return draftRoute(req, res, Number(m[1]), req.method + (m[2] ?? ''));
@@ -219,6 +237,7 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
       if (result.ok) {
         log.info('published', { revision: result.snapshot.revision, draft: id });
         broadcast({ type: 'revision', revision: result.snapshot.revision });
+        void widgets.tick(); // read new or changed widgets now, not at the next tick
         return send(res, 200, result.snapshot);
       }
       if (result.reason === 'missing') return missing();
@@ -285,8 +304,10 @@ export function startServer(config: Config, db: DatabaseSync, allowance: Allowan
       ws.ping();
     }
   }, HEARTBEAT_MS);
+  const stopWidgets = widgets.start();
   server.on('close', () => {
     clearInterval(heartbeat);
+    stopWidgets();
     for (const ws of wss.clients) ws.terminate();
   });
 
