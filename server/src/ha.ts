@@ -13,6 +13,14 @@ export interface ServiceCall {
 }
 
 export class WriteRefused extends Error {}
+/** A Home Assistant answer that was not OK; the status lets a reader tell a missing entity (404) from an outage. */
+export class HaHttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 const KEY = /^KEY_[A-Z0-9_]+$/;
 const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
@@ -46,7 +54,7 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
       headers: { Authorization: `Bearer ${ha.token}`, 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) throw new Error(`Home Assistant ${init?.method ?? 'GET'} ${path}: HTTP ${res.status}`);
+    if (!res.ok) throw new HaHttpError(`Home Assistant ${init?.method ?? 'GET'} ${path}: HTTP ${res.status}`, res.status);
     return res.json();
   }
 

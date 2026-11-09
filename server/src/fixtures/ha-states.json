@@ -1,0 +1,11 @@
+{
+  "_note": "Real Home Assistant states read on 2026-11-09 (REST /api/states shape). Context ids and timestamps removed; nothing personal in these entities.",
+  "weather.home": {"entity_id":"weather.home","state":"cloudy","attributes":{"temperature":5.8,"temperature_unit":"°C","pressure_unit":"hPa","wind_bearing":114,"wind_speed":6.3,"wind_speed_unit":"km/h","visibility_unit":"km","precipitation_unit":"mm","friendly_name":"Home","supported_features":3}},
+  "weather.tomorrow_io_home_daily": {"entity_id":"weather.tomorrow_io_home_daily","state":"sunny","attributes":{"temperature":5.8,"temperature_unit":"°C","humidity":93,"pressure":1021.66,"pressure_unit":"hPa","wind_bearing":149,"wind_speed":4.32,"wind_speed_unit":"km/h","visibility":13.6,"visibility_unit":"km","precipitation_unit":"mm","attribution":"Powered by Tomorrow.io","friendly_name":"Tomorrow.io Daily","supported_features":3}},
+  "sensor.energy_production_today": {"entity_id":"sensor.energy_production_today","state":"1.668","attributes":{"unit_of_measurement":"kWh","device_class":"energy","friendly_name":"Solar production forecast Estimated energy production - today"}},
+  "sensor.power_production_now": {"entity_id":"sensor.power_production_now","state":"295","attributes":{"state_class":"measurement","unit_of_measurement":"W","device_class":"power","friendly_name":"Solar production forecast Estimated power production - now"}},
+  "sensor.powerfox_aktuell": {"entity_id":"sensor.powerfox_aktuell","state":"98","attributes":{"state_class":"measurement","unit_of_measurement":"W","device_class":"power","friendly_name":"powerfox_aktuell"}},
+  "sensor.bezug_powerfox": {"entity_id":"sensor.bezug_powerfox","state":"23212.387","attributes":{"state_class":"total_increasing","unit_of_measurement":"kWh","device_class":"energy","friendly_name":"bezug_powerfox"}},
+  "sensor.average_outdoor_temperature": {"entity_id":"sensor.average_outdoor_temperature","state":"8.339","attributes":{"unit_of_measurement":"°C","device_class":"temperature","friendly_name":"Average Outdoor Temperature"}},
+  "sensor.average_indoor_temperature": {"entity_id":"sensor.average_indoor_temperature","state":"24.1","attributes":{"unit_of_measurement":"°C","device_class":"temperature","friendly_name":"Average Indoor Temperature"}}
+}
