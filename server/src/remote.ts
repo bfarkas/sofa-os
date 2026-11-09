@@ -11,29 +11,37 @@ export const RATE_WINDOW_MS = 1000;
 export interface PhoneRemote {
   /** Follows a Sofa Home socket: its `visible` messages say whether Sofa Home is in front, which Menu needs. */
   track(ws: WebSocket): void;
+  /** Every Sofa Home socket says Sofa Home is hidden. A hidden Sofa Home still answers signals (the TV keeps it running in
+   *  standby, seen live 2026-11-09), so its requests then prove nothing about the screen. False while nothing is known. */
+  hidden(): boolean;
   press(session: string, body: unknown): Promise<{ status: number; body: object; headers?: Record<string, string> }>;
 }
 
 export function createPhoneRemote(o: { ha: HaClient | null; kidsActive(): boolean; now?(): number }): PhoneRemote {
   const now = o.now ?? Date.now;
-  const tvs = new Map<WebSocket, boolean>(); // socket -> Sofa Home is in front
+  const tvs = new Map<WebSocket, boolean | undefined>(); // socket -> Sofa Home is in front (undefined: not said yet)
   const recent = new Map<string, number[]>(); // session -> press times in the window
   let queue: Promise<unknown> = Promise.resolve(); // keys reach the TV in the order they were pressed
   const fail = (status: number, error: string, headers?: Record<string, string>) => ({ status, body: { error } satisfies ApiError, headers });
 
   return {
     track(ws) {
-      tvs.set(ws, false); // unknown until Sofa Home says so
+      tvs.set(ws, undefined); // unknown until Sofa Home says so
       ws.on('close', () => tvs.delete(ws));
       ws.on('message', (raw) => {
         try {
           const msg = JSON.parse(String(raw)) as Partial<TvMessage>;
-          if (msg.type === 'visible' && typeof msg.visible === 'boolean') tvs.set(ws, msg.visible);
+          if (msg.type === 'visible' && typeof msg.visible === 'boolean' && tvs.get(ws) !== msg.visible) {
+            tvs.set(ws, msg.visible);
+            log.info('sofa home', { visible: msg.visible });
+          }
         } catch {
           /* ignored: the socket only signals */
         }
       });
     },
+
+    hidden: () => tvs.size > 0 && [...tvs.values()].every((v) => v === false),
 
     async press(session, body) {
       const key = (body as { key?: unknown } | null)?.key;
@@ -49,7 +57,7 @@ export function createPhoneRemote(o: { ha: HaClient | null; kidsActive(): boolea
       if (o.kidsActive() && (key === 'home' || key === 'menu')) return fail(403, 'Home and Menu are off in Kids Mode');
 
       if (key === 'menu') {
-        const front = [...tvs].filter(([, visible]) => visible);
+        const front = [...tvs].filter(([, visible]) => visible === true);
         if (!front.length) return fail(409, 'Sofa Home is not on screen');
         const msg = JSON.stringify({ type: 'menu' } satisfies ServerMessage);
         for (const [ws] of front) ws.send(msg);

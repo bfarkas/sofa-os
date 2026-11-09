@@ -223,7 +223,7 @@ export function startServer(
     const companion = sessionOf(req) !== null;
     const tv = isTv(req);
     if (!companion && !tv) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
-    if (tv) allowance.tvSeen(); // Sofa Home is talking, so the TV is on
+    if (tv && !phone.hidden()) allowance.tvSeen(); // Sofa Home is talking from the screen, so the TV is on
     if (key === 'GET /api/kids') return send(res, 200, kidsStatus());
     if (req.method !== 'POST' && req.method !== 'PUT') throw new HttpError(405, 'method not allowed');
     const body = (await readJson(req)) as Partial<TopUpRequest & KidsExitRequest & KidsPinRequest>;

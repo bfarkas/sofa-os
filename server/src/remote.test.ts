@@ -115,6 +115,22 @@ test('Menu goes to Sofa Home only while it is in front, and sends no TV key', as
   assert.deepEqual(keys, []);
 });
 
+test('hidden: only when every Sofa Home socket has said it is hidden (a hidden Sofa Home proves nothing about the screen)', () => {
+  const phone = createPhoneRemote({ ha: null, kidsActive: () => false });
+  assert.equal(phone.hidden(), false, 'no socket: nothing known');
+  const a = tvSocket(phone);
+  assert.equal(phone.hidden(), false, 'not said yet, as on a cold start');
+  a.emit('message', JSON.stringify({ type: 'visible', visible: false }));
+  assert.equal(phone.hidden(), true);
+  const b = tvSocket(phone); // the socket of a power-on, next to a stale one from before standby
+  b.emit('message', JSON.stringify({ type: 'visible', visible: true }));
+  assert.equal(phone.hidden(), false);
+  b.emit('close');
+  assert.equal(phone.hidden(), true);
+  a.emit('close');
+  assert.equal(phone.hidden(), false);
+});
+
 // Over HTTP and a real WebSocket, with Home Assistant in dry run.
 const dir = mkdtempSync(join(tmpdir(), 'sofa-remote-'));
 let base = '';
