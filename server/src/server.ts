@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
@@ -101,7 +101,7 @@ export function startServer(
     res.writeHead(200, {
       'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
       'Cache-Control': extname(file) === '.html' ? 'no-cache' : 'public, max-age=300',
-      'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'self'; frame-ancestors 'self'",
     });
     res.end(req.method === 'HEAD' ? undefined : body);
   }
@@ -236,7 +236,7 @@ export function startServer(
     }
     if (action === 'DELETE') return deleteDraft(db, id) ? send(res, 200, {}) : missing();
     if (action === 'POST/publish') {
-      const result = publishDraft(db, id);
+      const result = publishDraft(db, id, Date.now(), (layout) => checkWidgets(layout, widgets.types())); // a bad widget config is refused here, not just shown on the card
       if (result.ok) {
         log.info('published', { revision: result.snapshot.revision, draft: id });
         broadcast({ type: 'revision', revision: result.snapshot.revision });

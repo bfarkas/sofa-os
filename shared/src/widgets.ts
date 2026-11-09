@@ -167,6 +167,25 @@ export function readConfig(fields: ConfigField[], raw: unknown): { config: Obj; 
   return { config, errors };
 }
 
+// ---- Publish-time checks: the Server refuses a layout whose widgets cannot work; Companion shows the same problems while editing ----
+
+/** What is wrong with one widget instance against its type. A type the catalogue does not know is no problem here (ADR 0003: it shows as unavailable). */
+export function widgetProblems(w: { size: string; config: unknown }, type: WidgetType | undefined): string[] {
+  if (!type) return [];
+  const problems = readConfig(type.fields, w.config).errors;
+  if ((type.sizes as string[]).indexOf(w.size) < 0) problems.unshift('size: ' + type.title + ' comes in ' + type.sizes.join(', ') + ', not ' + w.size);
+  return problems;
+}
+
+/** Problems of every widget in a layout, as `widgets[i] (id): problem`. Empty when all instances of known types are fine. */
+export function checkWidgets(layout: { widgets: { id: string; type: string; size: string; config: unknown }[] }, types: WidgetType[]): string[] {
+  const out: string[] = [];
+  layout.widgets.forEach((w, i) => {
+    for (const p of widgetProblems(w, types.filter((t) => t.type === w.type)[0])) out.push('widgets[' + i + '] (' + w.id + '): ' + p);
+  });
+  return out;
+}
+
 // ---- Checking display models: the Server checks every adapter result, Sofa Home every widget it receives ----
 
 const SHORT = 40; // labels, readings, units, times

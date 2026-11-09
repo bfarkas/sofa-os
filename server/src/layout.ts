@@ -79,12 +79,13 @@ export function deleteDraft(db: DatabaseSync, id: number): boolean {
 
 export type PublishResult = { ok: true; snapshot: Snapshot } | { ok: false; reason: 'missing' | 'stale' | 'invalid'; errors: string[] };
 
-/** Commits a valid draft as the next revision and deletes the draft, atomically. */
-export function publishDraft(db: DatabaseSync, id: number, now = Date.now()): PublishResult {
+/** Commits a valid draft as the next revision and deletes the draft, atomically. `check` adds problems the schema cannot see (widget config against the catalogue). */
+export function publishDraft(db: DatabaseSync, id: number, now = Date.now(), check?: (layout: Layout) => string[]): PublishResult {
   const row = draftRow(db, id);
   if (!row) return { ok: false, reason: 'missing', errors: [] };
   const draft = toDraft(row);
-  if (draft.errors.length) return { ok: false, reason: 'invalid', errors: draft.errors };
+  const errors = draft.errors.length ? draft.errors : (check?.(draft.layout as Layout) ?? []);
+  if (errors.length) return { ok: false, reason: 'invalid', errors };
   db.exec('BEGIN IMMEDIATE');
   try {
     const current = currentRow(db).number;

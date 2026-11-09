@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ENTITY_DOMAINS, readConfig, validateDisplay, validateWidgetData, type ConfigField } from './widgets.ts';
+import { checkWidgets, ENTITY_DOMAINS, readConfig, validateDisplay, validateWidgetData, type ConfigField, type WidgetType } from './widgets.ts';
 
 test('readConfig checks each field kind, fills defaults and drops undeclared keys', () => {
   const fields: ConfigField[] = [
@@ -50,4 +50,15 @@ test('validateWidgetData checks what Sofa Home receives', () => {
   assert.deepEqual(validateWidgetData({ ...ok, status: 'unavailable', card: undefined, updatedAt: null, message: 'Not available right now' }), []);
   assert.deepEqual(validateWidgetData({ ...ok, card: undefined }), ['card: must be an object']);
   assert.deepEqual(validateWidgetData({ ...ok, updatedAt: 'soon', staleAfterSeconds: 0 }), ['updatedAt: must be an ISO time or null', 'staleAfterSeconds: must be a positive number']);
+});
+
+test('checkWidgets names the widget, the field and a size its type does not offer; unknown types pass', () => {
+  const type: WidgetType = { type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['medium', 'large'], defaultSize: 'medium', defaultFreshness: 'live', fields: [{ key: 'entities', label: 'Entities', kind: 'entities', domains: ['sensor'], max: 2, required: true }] };
+  const w = (id: string, over: object) => ({ id, type: 'home', size: 'medium', config: { entities: ['sensor.a'] }, ...over });
+  assert.deepEqual(checkWidgets({ widgets: [w('ok', {}), w('weather', { type: 'weather', size: 'small', config: {} })] }, [type]), []);
+  assert.deepEqual(checkWidgets({ widgets: [w('a', { config: {} }), w('b', { size: 'small' }), w('c', { config: { entities: ['sensor.a', 'sensor.b', 'sensor.c'] } })] }, [type]), [
+    'widgets[0] (a): entities: is required',
+    'widgets[1] (b): size: Home comes in medium, large, not small',
+    'widgets[2] (c): entities: must be at most 2 different entities of sensor',
+  ]);
 });
