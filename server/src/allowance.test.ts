@@ -616,20 +616,41 @@ test('a failed launch at power-on leaves the re-off a minute later as the backst
   assert.deepEqual(k.writes(), ['off', 'off']);
 });
 
-test('a hidden Sofa Home answering right after the switch-off does not make the false on count, so there is no re-off loop', async () => {
+test('after a zero, the false on stays pending with no launch and no re-off; a real power-on into Sofa Home counts even when Home Assistant sees it late', async () => {
   const k = setup({ minutes: 1 });
   k.engine.observe('on');
   k.engine.enter();
   await k.watch(60); // zero: launch, off
-  await k.watch(5, 'off');
-  k.engine.tvSeen(); // Sofa Home, hidden in standby, answers the kids signal
-  await k.watch(45, 'off');
-  await k.watch(120); // Home Assistant's false on, 50 s after the off
+  await k.watch(50, 'off'); // the hidden Sofa Home proves nothing (remote.ts visible()), so the engine hears nothing
+  await k.watch(150); // Home Assistant's false on, 50 s after the off, for about 2.5 minutes
   assert.equal(k.engine.status().tv, 'pending');
+  await k.watch(100, 'off');
   assert.deepEqual(k.writes(), ['launch', 'off'], 'no launch and no re-off at a dark TV');
-  await k.watch(10, 'off');
-  k.engine.tvSeen(); // a real power-on into Sofa Home, shortly before Home Assistant sees it
+  k.engine.tvSeen(); // a person powers on into Sofa Home, which reports itself in front
+  await k.watch(30, 'off'); // Home Assistant is slow to see it
   await k.watch(5);
-  assert.equal(k.engine.status().tv, 'on', 'a fresh request still skips the hold');
-  assert.deepEqual(k.writes(), ['launch', 'off'], 'Sofa Home spoke: not launched again');
+  assert.equal(k.engine.status().tv, 'on', 'Sofa Home was in front since the off: no hold');
+  assert.deepEqual(k.writes(), ['launch', 'off'], 'Sofa Home is in front: not launched again');
+  await k.watch(55);
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+  await k.watch(5);
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch', 'off'], 'the re-off a minute after the on');
+});
+
+test('a power-on at zero into a provider app inside the hold stays pending, then is launched over and switched off after the hold', async () => {
+  const k = setup({ minutes: 1, home: 'silent' });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(70); // zero: launch, no answer, off after the wait
+  await k.watch(60, 'off');
+  await k.watch(240); // a person powers on into KiKA (Start Last App): Home Assistant's on looks like its false on
+  assert.equal(k.engine.status().tv, 'pending');
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+  await k.watch(5); // outlasted the hold, so it is real
+  assert.equal(k.engine.status().tv, 'on');
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch']);
+  await k.watch(55);
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch']);
+  await k.watch(5);
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch', 'off']);
 });

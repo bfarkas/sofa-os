@@ -11,15 +11,15 @@ export const RATE_WINDOW_MS = 1000;
 export interface PhoneRemote {
   /** Follows a Sofa Home socket: its `visible` messages say whether Sofa Home is in front, which Menu needs. */
   track(ws: WebSocket): void;
-  /** Every Sofa Home socket says Sofa Home is hidden. A hidden Sofa Home still answers signals (the TV keeps it running in
-   *  standby, seen live 2026-11-09), so its requests then prove nothing about the screen. False while nothing is known. */
-  hidden(): boolean;
+  /** The newest Sofa Home socket said Sofa Home is in front. Only then do its requests prove the screen is on: in standby
+   *  the TV keeps a hidden Sofa Home running that still makes requests (seen live 2026-11-09). False while nothing is known. */
+  visible(): boolean;
   press(session: string, body: unknown): Promise<{ status: number; body: object; headers?: Record<string, string> }>;
 }
 
-export function createPhoneRemote(o: { ha: HaClient | null; kidsActive(): boolean; now?(): number }): PhoneRemote {
+export function createPhoneRemote(o: { ha: HaClient | null; kidsActive(): boolean; onVisible?(): void; now?(): number }): PhoneRemote {
   const now = o.now ?? Date.now;
-  const tvs = new Map<WebSocket, boolean | undefined>(); // socket -> Sofa Home is in front (undefined: not said yet)
+  const tvs = new Map<WebSocket, boolean | undefined>(); // socket -> Sofa Home is in front (undefined: not said yet), oldest first
   const recent = new Map<string, number[]>(); // session -> press times in the window
   let queue: Promise<unknown> = Promise.resolve(); // keys reach the TV in the order they were pressed
   const fail = (status: number, error: string, headers?: Record<string, string>) => ({ status, body: { error } satisfies ApiError, headers });
@@ -34,6 +34,7 @@ export function createPhoneRemote(o: { ha: HaClient | null; kidsActive(): boolea
           if (msg.type === 'visible' && typeof msg.visible === 'boolean' && tvs.get(ws) !== msg.visible) {
             tvs.set(ws, msg.visible);
             log.info('sofa home', { visible: msg.visible });
+            if (msg.visible) o.onVisible?.();
           }
         } catch {
           /* ignored: the socket only signals */
@@ -41,7 +42,7 @@ export function createPhoneRemote(o: { ha: HaClient | null; kidsActive(): boolea
       });
     },
 
-    hidden: () => tvs.size > 0 && [...tvs.values()].every((v) => v === false),
+    visible: () => [...tvs.values()].pop() === true, // a stale socket from before standby may still say true until the heartbeat ends it
 
     async press(session, body) {
       const key = (body as { key?: unknown } | null)?.key;

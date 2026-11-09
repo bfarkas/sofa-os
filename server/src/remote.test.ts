@@ -115,20 +115,26 @@ test('Menu goes to Sofa Home only while it is in front, and sends no TV key', as
   assert.deepEqual(keys, []);
 });
 
-test('hidden: only when every Sofa Home socket has said it is hidden (a hidden Sofa Home proves nothing about the screen)', () => {
-  const phone = createPhoneRemote({ ha: null, kidsActive: () => false });
-  assert.equal(phone.hidden(), false, 'no socket: nothing known');
+test('visible: only when the newest Sofa Home socket said it is in front, and that report is proof the TV is on', () => {
+  let proofs = 0;
+  const phone = createPhoneRemote({ ha: null, kidsActive: () => false, onVisible: () => proofs++ });
+  assert.equal(phone.visible(), false, 'no socket: nothing known');
   const a = tvSocket(phone);
-  assert.equal(phone.hidden(), false, 'not said yet, as on a cold start');
-  a.emit('message', JSON.stringify({ type: 'visible', visible: false }));
-  assert.equal(phone.hidden(), true);
-  const b = tvSocket(phone); // the socket of a power-on, next to a stale one from before standby
-  b.emit('message', JSON.stringify({ type: 'visible', visible: true }));
-  assert.equal(phone.hidden(), false);
+  assert.equal(phone.visible(), false, 'not said yet: a request from a cold start or from standby proves nothing');
+  a.emit('message', JSON.stringify({ type: 'visible', visible: true }));
+  assert.equal(phone.visible(), true);
+  assert.equal(proofs, 1);
+  a.emit('message', JSON.stringify({ type: 'visible', visible: true }));
+  assert.equal(proofs, 1, 'only a change is proof');
+  const b = tvSocket(phone); // the socket a hidden Sofa Home opens when the network wakes in standby, next to the stale one
+  assert.equal(phone.visible(), false);
+  b.emit('message', JSON.stringify({ type: 'visible', visible: false }));
+  assert.equal(phone.visible(), false);
+  assert.equal(proofs, 1);
   b.emit('close');
-  assert.equal(phone.hidden(), true);
+  assert.equal(phone.visible(), true, 'the older socket is all that is left');
   a.emit('close');
-  assert.equal(phone.hidden(), false);
+  assert.equal(phone.visible(), false);
 });
 
 // Over HTTP and a real WebSocket, with Home Assistant in dry run.

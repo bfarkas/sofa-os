@@ -15,9 +15,6 @@ export const HOLD_MS = 240_000; // Home Assistant's false "on" after a remote st
 export const WARN_SECONDS = 300;
 export const MAX_TOPUP_MINUTES = 240;
 export const DONE_SCREEN_MS = 60_000; // how long the Done Screen may stay up on a TV that is on again at zero
-// A Sofa Home request lets an on skip the hold only this close to it. In standby the TV keeps a hidden Sofa Home running,
-// which still answers the Server right after a switch-off; Home Assistant's false on followed 50 s after each off (live).
-export const PROOF_FRESH_MS = 20_000;
 export const LAUNCH_WAIT_MS = 10_000; // at most this long between bringing Sofa Home to the front and the switch-off
 export const WARNING_TAG = 'sofa-kids-warning'; // a new warning replaces the old one on the phone
 
@@ -82,7 +79,7 @@ interface State {
   onAt: number; // ms; when the current pending on began
   offAt: number; // ms; when Home Assistant last reported off
   seenAt: number; // ms; the last observation of the TV's state
-  provenAt: number; // ms; the last time the TV itself showed it is on (a Sofa Home request)
+  provenAt: number; // ms; the last time the TV itself showed it is on (Sofa Home in front, see remote.ts visible())
   warned: boolean; // the 5-minute warning for the current approach to zero is sent
   zeroed: boolean; // the TV was switched off for the current zero
   donePending: boolean; // show the Done Screen at the next power-on
@@ -204,8 +201,8 @@ export function createAllowance(o: AllowanceOptions) {
             if (s.kids && s.zeroed) s.donePending = true; // off before the minute was up: the next power-on shows the Done Screen again
           }
         } else if (s.tv === 'off') {
-          // Right after an off, Home Assistant reports a false on for about 3 minutes, unless the TV has spoken since.
-          Object.assign(s, { onAt: now, since: now, tv: now - s.offAt < HOLD_MS && now - s.provenAt > PROOF_FRESH_MS ? 'pending' : 'on' });
+          // About 50 s after an off, Home Assistant reports a false on for about 2.5 minutes. Pending, unless Sofa Home was in front since the off.
+          Object.assign(s, { onAt: now, since: now, tv: now - s.offAt < HOLD_MS && s.provenAt <= s.offAt ? 'pending' : 'on' });
         } else if (now - prev > GAP_MS) {
           Object.assign(s, { tv: 'pending', onAt: now, since: now }); // lost sight of the TV: the on must prove itself again
         } else if (s.tv === 'pending') {
@@ -218,7 +215,7 @@ export function createAllowance(o: AllowanceOptions) {
         if (s.tv === 'on' && was !== 'on') startMinute(now);
       }),
 
-    /** The TV itself showed it is on (a request from Sofa Home). Confirms a pending on at once. */
+    /** The TV itself showed it is on (Sofa Home reported itself in front, or made a request while in front). Confirms a pending on at once. */
     tvSeen: () =>
       change((now) => {
         s.provenAt = now;
@@ -275,7 +272,7 @@ export function createAllowance(o: AllowanceOptions) {
       }
       // The TV powers on into the last app (Smart Hub's Start Last App). Sofa Home must be that app, so it is brought to
       // the front before every switch-off, and when the TV is on at zero without Sofa Home having spoken since the off
-      // (a provider app in front). Home Assistant does not say which app is in front, so a Sofa Home request is the proof.
+      // (a provider app in front). Home Assistant does not say which app is in front, so Sofa Home's own report is the proof.
       const launch = async (why: string): Promise<boolean> => {
         s.launchAt = clock(); // once per on at zero: no retry, the switch-off is the backstop
         try {
@@ -287,7 +284,8 @@ export function createAllowance(o: AllowanceOptions) {
           return false;
         }
       };
-      if (s.zeroed && rem <= 0 && !s.launchAt && s.provenAt < s.onAt - PROOF_FRESH_MS) await launch('on at zero'); // Sofa Home silent since this on
+      // Only for an on that is counted: a launch during a false on wakes the dark TV (live, 14:24 run), and a pending on never gets here.
+      if (s.zeroed && rem <= 0 && !s.launchAt && s.provenAt <= s.offAt) await launch('on at zero'); // Sofa Home not in front since the off
       const reOff = s.zeroed && s.doneAt && rem <= 0 && clock() - s.doneAt >= DONE_SCREEN_MS;
       if (reOff || (!s.zeroed && rem <= -o.graceSeconds)) {
         // Switch off once Sofa Home has answered from the front, or LAUNCH_WAIT_MS after the launch, or at once if it failed.
