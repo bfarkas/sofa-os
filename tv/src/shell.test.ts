@@ -294,3 +294,64 @@ test('Kids Mode adds an album tile only for an album the layout approves, and OK
   shell.setAlbums([]);
   assert.deepEqual(shell.view().sections[0].tiles.map((t) => t.id), ['app:a.One']);
 });
+
+// Session 16: arranging widgets with a long press.
+const long = (shell: ReturnType<typeof setup>['shell']) => shell.key({ key: 'ok', long: true });
+const arranged = () => layout({
+  widgets: layout().widgets.concat({ id: 'w4', type: 'energy', size: 'small', config: {}, profiles: ['household'], freshness: 'live' }),
+  rows: [layout().rows[0], { id: 'r2', title: 'Today', items: [{ kind: 'widget', id: 'w1' }, { kind: 'widget', id: 'w3' }, { kind: 'widget', id: 'w2' }] }], // w3 is kids-only: hidden here
+});
+const today = (shell: ReturnType<typeof setup>['shell']) => shell.view().sections.filter((s) => s.title === 'Today')[0].tiles;
+
+test('a long press on a Dashboard widget opens Move and Remove; on an app it is a select, as a short press on a widget is', () => {
+  const { shell } = setup(arranged());
+  assert.ok(shell.focus.focus('widget:w1'));
+  assert.deepEqual(long(shell), { type: 'menu', widget: 'w1', title: 'Weather', items: ['move', 'remove'] });
+  assert.deepEqual(shell.key({ key: 'ok', long: false }), { type: 'widget', id: 'w1', title: 'Weather' });
+  assert.ok(shell.focus.focus('app:a.One'));
+  assert.deepEqual(long(shell), { type: 'launch', appId: 'a.One' });
+});
+
+test('in the Widgets tab a long press offers Add to Dashboard only for a widget not there', () => {
+  const { shell, press } = setup(arranged());
+  press('right', 'right', 'down'); // the Widgets tab
+  assert.ok(shell.focus.focus('widget:w4'));
+  assert.deepEqual(long(shell), { type: 'menu', widget: 'w4', title: 'Energy', items: ['add'] });
+  assert.ok(shell.focus.focus('widget:w1'));
+  assert.deepEqual(long(shell), { type: 'widget', id: 'w1', title: 'Weather' }, 'already on the Dashboard: the full view');
+});
+
+test('Move lifts the widget: right passes hidden tiles, OK places it as a move operation', () => {
+  const { shell, press } = setup(arranged());
+  assert.ok(shell.lift('w1'));
+  assert.ok(shell.lifting());
+  assert.deepEqual(today(shell).map((t) => [t.id, !!t.lifted]), [['widget:w1', true], ['widget:w2', false]]);
+  assert.deepEqual(press('right'), [null]);
+  assert.deepEqual(today(shell).map((t) => t.id), ['widget:w2', 'widget:w1']);
+  assert.equal(shell.focus.current(), 'widget:w1', 'focus moves with it');
+  press('right', 'up', 'down'); // the end of the row; up and down do nothing while lifted
+  assert.equal(shell.focus.current(), 'widget:w1');
+  assert.deepEqual(press('ok'), [{ type: 'op', op: { op: 'move', widget: 'w1', index: 2 } }]); // after w3 and w2 in the row
+  assert.equal(shell.lifting(), false);
+  assert.deepEqual(today(shell).map((t) => [t.id, !!t.lifted]), [['widget:w2', false], ['widget:w1', false]]);
+});
+
+test('Back cancels a move, and OK where it started sends nothing', () => {
+  const { shell, press } = setup(arranged());
+  shell.lift('w2');
+  press('left', 'back');
+  assert.equal(shell.lifting(), false);
+  assert.deepEqual(today(shell).map((t) => t.id), ['widget:w1', 'widget:w2']);
+  assert.equal(shell.focus.current(), 'widget:w2');
+  shell.lift('w2');
+  assert.deepEqual(press('left', 'right', 'ok'), [null, null, null]);
+});
+
+test('no menus in Kids Mode, and a screen change drops a lifted widget', () => {
+  const { shell } = setup(arranged());
+  shell.lift('w1');
+  shell.setScreen('kids');
+  assert.equal(shell.lifting(), false);
+  assert.deepEqual(long(shell), shell.key({ key: 'ok', long: false }), 'a long press is just OK');
+  assert.equal(shell.lift('w1'), false);
+});

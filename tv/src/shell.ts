@@ -6,7 +6,10 @@
 // on top and Back closes them first.
 // Kids Mode is a screen of its own over the same shell: large tiles for the approved apps only, or the Done Screen. Back never
 // leaves it; only the PIN does (main.ts asks the Server). The Server decides which screen shows (kids.ts `screenFor`).
-import type { Layout, PhotoAlbum, Profile, WidgetSize } from '@sofa/shared';
+// Arranging widgets (Session 16): a long press on a widget asks for its context menu (Move, Remove from Dashboard on the
+// Dashboard; Add to Dashboard in the Widgets tab for one not there). Move lifts it: left and right reorder it in its row, OK
+// places it as a `move` operation for the Server, Back cancels. A long press anywhere else is a select, as before.
+import { applyOp, type Layout, type LayoutOp, type PhotoAlbum, type Profile, type WidgetSize } from '@sofa/shared';
 import { createFocus } from './focus.ts';
 import type { RemoteEvent } from './keys.ts';
 import type { Screen } from './kids.ts';
@@ -30,6 +33,7 @@ export interface Tile {
   detail: string; // may hold a line break
   size?: WidgetSize;
   unavailable?: boolean;
+  lifted?: boolean; // the widget being moved
 }
 export interface Section {
   title: string;
@@ -51,7 +55,11 @@ export type Activation =
   | { type: 'kids-unavailable' }
   | { type: 'pin' } // the Adults button: open the PIN pad
   | { type: 'album'; id: string; name: string } // OK on an approved album in Kids Mode: its slideshow
-  | { type: 'widget'; id: string; title: string }; // OK on a widget: its full-screen view (title until the Server names it)
+  | { type: 'widget'; id: string; title: string } // OK on a widget: its full-screen view (title until the Server names it)
+  | { type: 'menu'; widget: string; title: string; items: MenuItem[] } // a long press on a widget: its context menu
+  | { type: 'op'; op: LayoutOp }; // OK on a lifted widget that moved: send this to the Server
+
+export type MenuItem = 'move' | 'remove' | 'add';
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const BAR = TABS.map((t) => 'tab:' + t.id).concat('settings');
@@ -139,13 +147,69 @@ export function createShell(hooks: ShellHooks) {
   let kidsTile = true;
   let albums: PhotoAlbum[] = [];
   let unavailable = new Set<string>();
+  let lift: { widget: string; layout: Layout; from: string } | null = null; // the widget being moved, the layout as it shows now, and its row's tiles at the start
 
   const mode = (): View['mode'] => (!signedIn ? 'signin' : screen === 'household' ? 'home' : screen);
   const sections = () => {
     if (!layout || !signedIn) return [];
     if (screen === 'kids') return kidsSections(layout, albums);
-    return screen === 'household' ? sectionsFor(layout, tab, unavailable, PROFILE, kidsTile) : [];
+    if (screen !== 'household') return [];
+    const out = sectionsFor(lift ? lift.layout : layout, tab, unavailable, PROFILE, kidsTile);
+    if (lift) for (const s of out) for (const t of s.tiles) if (t.id === 'widget:' + lift.widget) t.lifted = true;
+    return out;
   };
+  const rowOf = (l: Layout, widget: string) => l.rows.filter((r) => r.items.some((i) => i.kind === 'widget' && i.id === widget))[0];
+  const indexIn = (l: Layout, widget: string) => {
+    const r = rowOf(l, widget);
+    return r ? r.items.map((i) => i.kind + ':' + i.id).indexOf('widget:' + widget) : -1;
+  };
+  const shows = (l: Layout) => (i: { kind: string; id: string }) => (i.kind === 'app' ? l.apps.some((a) => a.id === i.id) : l.widgets.some((w) => w.id === i.id && w.profiles.indexOf(PROFILE) >= 0));
+  const tilesOf = (l: Layout, widget: string) => rowOf(l, widget).items.filter(shows(l)).map((i) => i.kind + ':' + i.id).join();
+
+  // One step left or right past the next tile that shows (an app, or a widget of this profile), so hidden ones never block it.
+  function shift(dir: 'left' | 'right'): void {
+    if (!lift) return;
+    const l = lift.layout, row = rowOf(l, lift.widget);
+    if (!row) return;
+    const at = indexIn(l, lift.widget);
+    let j = at;
+    do j += dir === 'left' ? -1 : 1;
+    while (j >= 0 && j < row.items.length && !shows(l)(row.items[j]));
+    if (j < 0 || j >= row.items.length) return;
+    const next = applyOp(l, { op: 'move', widget: lift.widget, index: j });
+    if (next) lift.layout = next;
+    rebuild();
+  }
+
+  /** The context menu a long press on the focused tile opens, or null where a long press is a select. */
+  function menu(): Activation | null {
+    const id = focus.current();
+    if (!layout || mode() !== 'home' || focus.depth() > 1 || !id || id.indexOf('widget:') !== 0) return null;
+    const widget = id.slice(7);
+    const w = layout.widgets.filter((x) => x.id === widget)[0];
+    const placed = !!rowOf(layout, widget);
+    const title = w ? cap(w.type) : '';
+    if (tab === 'dashboard' && placed) return { type: 'menu', widget, title, items: ['move', 'remove'] };
+    if (tab === 'widgets' && !placed) return { type: 'menu', widget, title, items: ['add'] };
+    return null;
+  }
+
+  /** While a widget is lifted the remote moves it: left and right reorder, OK places, Back cancels. */
+  function liftKey(e: RemoteEvent): Activation | null {
+    if (!lift) return null;
+    if (e.key === 'left' || e.key === 'right') shift(e.key);
+    else if (e.key === 'ok' || e.key === 'back') {
+      const done = lift;
+      lift = null;
+      if (e.key === 'ok' && tilesOf(done.layout, done.widget) !== done.from) {
+        layout = done.layout; // shown at once; main.ts sends it and puts the Server's answer in its place
+        rebuild();
+        return { type: 'op', op: { op: 'move', widget: done.widget, index: indexIn(done.layout, done.widget) } };
+      }
+      rebuild();
+    }
+    return null;
+  }
   const focus = createFocus((id) => {
     if (id && id.indexOf('tab:') === 0 && focus.depth() === 1 && id.slice(4) !== tab) {
       tab = id.slice(4) as Tab;
@@ -228,6 +292,7 @@ export function createShell(hooks: ShellHooks) {
     setScreen(next: Screen): void {
       if (next === screen) return;
       screen = next;
+      lift = null;
       rebuild();
       focus.focus(firstId());
     },
@@ -243,10 +308,21 @@ export function createShell(hooks: ShellHooks) {
       albums = list;
       rebuild();
     },
+    /** The layout from the Server. A widget being moved keeps moving on the layout it was lifted from; the Server refuses the move if that is stale. */
     setLayout(l: Layout | null): void {
       layout = l;
+      if (!l) lift = null;
       rebuild();
     },
+    /** Move from the context menu: lifts the widget on the Dashboard. False if it is not there. */
+    lift(widget: string): boolean {
+      if (!layout || mode() !== 'home' || tab !== 'dashboard' || indexIn(layout, widget) < 0) return false;
+      lift = { widget, layout, from: tilesOf(layout, widget) };
+      rebuild();
+      focus.focus('widget:' + widget);
+      return true;
+    },
+    lifting: () => lift !== null,
     /** An app that failed to launch shows as unavailable; one that launched shows as normal again. */
     setUnavailable(appId: string, value: boolean): void {
       if (unavailable.has(appId) === value) return;
@@ -256,9 +332,10 @@ export function createShell(hooks: ShellHooks) {
       rebuild();
     },
     view,
-    /** Arrows move, Back goes back, OK (short or long, until Session 16 claims the long press) activates. */
+    /** Arrows move, Back goes back, OK activates. A long OK on a widget asks for its menu; a lifted widget takes the keys. */
     key(e: RemoteEvent): Activation | null {
-      if (e.key === 'ok') return activate();
+      if (lift) return liftKey(e);
+      if (e.key === 'ok') return (e.long && menu()) || activate();
       if (e.key === 'digit') return focus.depth() > 1 && e.digit !== undefined ? { type: 'digit', digit: e.digit } : null;
       if (e.key === 'back') back();
       else focus.move(e.key);
