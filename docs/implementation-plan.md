@@ -369,6 +369,12 @@ Follow the spec's [Family calendar](Sofa.OS%20Architecture%20v0.2.md#family-cale
 
 **Done when:** the slideshow runs smoothly on the TV, Kids Mode shows only approved albums, and the thumbnail budget is in the spec.
 
+**Built (Server and Sofa Home, checked in a browser at 1920x1080 with a fake Immich; not yet on the TV).**
+- Server: Immich client (`server/src/immich.ts`), album and thumbnail cache with profile filtering (`photos.ts`, `photos-http.ts`), the `photo` widget type, `SOFA_IMMICH_API_KEY[_FILE]` and `SOFA_IMMICH_URL`, and the compose wiring. Decisions are in ADR 0003 (Photos); the budget and Immich facts are in the spec.
+- Sofa Home: ambient view from a photo tile, Kids Mode album tiles with a slideshow, and the photo or slideshow Dashboard background (`tv/src/slideshow.ts`, `photos.ts`, `photoview.ts`, `app/photos.css`).
+- **Not built.** Album pickers in Companion (Session 15), household album tiles, an idle-triggered ambient view, and a kids photo widget (it shows "Nothing to show" unless the layout allows the album for kids).
+- **Still open.** An Immich API key (`album.read`, `asset.read`, `asset.view`) in `~/.config/sofa-os/secrets/immich_api_key` before the Server is redeployed; the live Immich response shapes; and the TV measurement of load time, smoothness and memory, after which the budget in the spec is final.
+
 ### 15 · Companion editor
 
 **Difficulty 4 · Sonnet · high**
