@@ -617,6 +617,15 @@ The one provider experiment the spec lists that has not run: the IFrame player i
 
 **Done when:** Known results records the outcome. No product code unless the result is positive and the user asks for it.
 
+**Result (2026-11-09, real TV, firmware T-KTM2DEUC 1400.2, throwaway signed probe app `ytprobe001.YtProbe`, uninstalled afterwards; no product code). Outcome class: playback started, but only through a Server-hosted relay page; the direct form fails.**
+
+- **Direct IFrame player inside the packaged page (`file:///index.html`): unavailable.** The API script loads and `onReady` fires, then `onError` 153 (embedder identification missing) comes every time, with and without the `origin` parameter.
+- **Relay page on an `http://` origin, embedded as an `<iframe>` of the packaged page: playback started.** The relay loaded the IFrame API with `origin=location.origin` (a LAN HTTP page, empty `document.referrer`) and the video (muted, `autoplay=1`, `playVideo()` in `onReady`) played at once with no remote gesture: state 1, `currentTime` advancing in real time (a 22 minute public video, camera showed the picture). Sofa Home would need the Server to serve that page (the real HTTPS Server origin was not tried; only a Mac LAN HTTP server).
+- **Remote gesture and control:** while the parent page keeps focus (`activeElement` BODY) every remote key reaches the parent. Parent `postMessage` to the relay drove the player: OK paused (state 2) and played, Up seeked +30 s, Right unmuted (`isMuted()` false). Unmute was set after a remote key; `setVolume(0)` came back as volume 5, so the unmuted state was briefly audible at low volume, then the app was closed.
+- **Remote focus:** once the iframe is focused (`iframe.focus()`), arrows, OK and Back (10009) go only to the iframe's document; the parent gets nothing and Back does not leave the app. The relay page must forward keys with `postMessage` (or the parent must never focus the iframe).
+- **Not proven:** unmuted autoplay without a gesture (kept silent); an embed-restricted video (error 101/150 path; the invalid-ID error 100 and the restricted case were not exercised); the HTTPS Server origin and a signed-out versus signed-in difference; Kids Mode filtering of what may be played; sustained playback beyond about 2 minutes. A fresh install while the probe was running once killed the app back to Smart Hub (probe tooling, not the player).
+- **Decision:** no product code. If the user wants YouTube in Sofa Home, build a Server-served relay page with `postMessage` key forwarding and a curated video list, and first re-test over HTTPS from the Server.
+
 ### 22 · Plex episode allowance spike
 
 **Difficulty 4 · Opus · high · HA, TV**
