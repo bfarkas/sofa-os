@@ -6,6 +6,7 @@ import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitReque
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
+import { createCalendarReader } from './adapters/calendar.ts';
 import { createCatalogue } from './catalogue.ts';
 import type { Config } from './config.ts';
 import { createDraft, currentSnapshot, deleteDraft, getDraft, kidsView, publishDraft, saveDraft } from './layout.ts';
@@ -63,7 +64,7 @@ export function startServer(
   config: Config,
   db: DatabaseSync,
   allowance: Allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance }),
-  adapters: WidgetAdapter[] = createCatalogue({ db, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone }),
+  adapters: WidgetAdapter[] = createCatalogue({ db, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone, calendar: config.ha ? createCalendarReader(config.ha) : undefined }),
 ): Server {
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {

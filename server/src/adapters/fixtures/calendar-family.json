@@ -1,0 +1,23 @@
+{
+  "_about": "calendar.get_events response shape for calendar.family, recorded 2026-11-09 through the Home Assistant MCP (events as Home Assistant returned them, unsorted). Names, places and descriptions are replaced with neutral text; uid and recurrence_id shapes, date-only versus datetime values and the order are kept. The 2026-11-19 'Choir practice' occurrence is moved (start differs from recurrence_id) by hand, as the spec says moved occurrences arrive that way.",
+  "service_response": {
+    "calendar.family": {
+      "events": [
+        {"start": "2026-11-12T16:15:00+01:00", "end": "2026-11-12T17:00:00+01:00", "summary": "Choir practice", "description": null, "location": "Room 1", "uid": "5CC03476-DDAE-40FE-BA58-958588DE9DDF", "recurrence_id": "2026-11-12 16:15:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-19T17:00:00+01:00", "end": "2026-11-19T17:45:00+01:00", "summary": "Choir practice", "description": null, "location": "Room 1", "uid": "5CC03476-DDAE-40FE-BA58-958588DE9DDF", "recurrence_id": "2026-11-19 16:15:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-26T16:15:00+01:00", "end": "2026-11-26T17:00:00+01:00", "summary": "Choir practice", "description": null, "location": "Room 1", "uid": "5CC03476-DDAE-40FE-BA58-958588DE9DDF", "recurrence_id": "2026-11-26 16:15:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-12T15:30:00+01:00", "end": "2026-11-12T16:15:00+01:00", "summary": "Dance class", "description": null, "location": null, "uid": "BD019BF2-12B4-46A8-BC55-36AB2DEEDE4A", "recurrence_id": "2026-11-12 15:30:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-19T15:30:00+01:00", "end": "2026-11-19T16:15:00+01:00", "summary": "Dance class", "description": null, "location": null, "uid": "BD019BF2-12B4-46A8-BC55-36AB2DEEDE4A", "recurrence_id": "2026-11-19 15:30:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-16T16:45:00+01:00", "end": "2026-11-16T17:30:00+01:00", "summary": "Music class", "description": null, "location": null, "uid": "450970D7-AD08-480F-B1DC-A91BD08D775C", "recurrence_id": "2026-11-16 16:45:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-23T16:45:00+01:00", "end": "2026-11-23T17:30:00+01:00", "summary": "Music class", "description": null, "location": null, "uid": "450970D7-AD08-480F-B1DC-A91BD08D775C", "recurrence_id": "2026-11-23 16:45:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-11T07:45:00+01:00", "end": "2026-11-11T10:45:00+01:00", "summary": "Cleaner", "description": null, "location": null, "uid": "AD03E507-26A2-484B-958A-BCB9FB8D817F", "recurrence_id": "2026-11-11 07:45:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-18T07:45:00+01:00", "end": "2026-11-18T10:45:00+01:00", "summary": "Cleaner", "description": null, "location": null, "uid": "AD03E507-26A2-484B-958A-BCB9FB8D817F", "recurrence_id": "2026-11-18 07:45:00+01:00", "rrule": null, "status": null},
+        {"start": "2026-11-14T11:45:00+01:00", "end": "2026-11-14T12:45:00+01:00", "summary": "Haircut", "description": "Tel: +49 000 0000000 \n\n Powered by booking.example.test", "location": "Sample Street 1, 00000 Sampletown", "uid": "booking-00000000@example.test", "recurrence_id": null, "rrule": null, "status": "confirmed"},
+        {"start": "2026-11-14T14:00:00+01:00", "end": "2026-11-14T17:00:00+01:00", "summary": "Open day", "description": null, "location": "Community centre\nSample Street 2, 00000 Sampletown, Germany", "uid": "64BF1232-5C33-4B00-8C57-401EF0738517", "recurrence_id": null, "rrule": null, "status": null},
+        {"start": "2026-11-17", "end": "2026-11-20", "summary": "Trip away", "description": null, "location": null, "uid": "5E5D807F-8F3C-4869-BDCD-91514C3423AD", "recurrence_id": null, "rrule": null, "status": null},
+        {"start": "2026-11-20", "end": "2026-11-21", "summary": "School closed", "description": null, "location": null, "uid": "7E6041F4-DC75-409A-85FE-D8DFBBE4E813", "recurrence_id": null, "rrule": null, "status": null},
+        {"start": "2026-11-19T08:30:00+01:00", "end": "2026-11-19T09:30:00+01:00", "summary": "Dentist", "description": null, "location": null, "uid": "50AB5C99-B973-4A8F-AC32-D738D9D93531", "recurrence_id": null, "rrule": null, "status": null}
+      ]
+    }
+  }
+}
