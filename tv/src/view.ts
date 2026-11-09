@@ -1,4 +1,5 @@
 // Draws the shell (shell.ts) into tv/app/index.html and shows which id has focus. No decisions are made here.
+import { drawCard } from './cards.ts';
 import { PAD_ROWS } from './kids.ts';
 import { clockText, dateText, TABS, type Tile, type View } from './shell.ts';
 
@@ -12,6 +13,7 @@ function h(tag: string, cls: string, text?: string): HTMLElement {
 
 const fixed: Record<string, HTMLElement> = {}; // the bar, the sign-in button and the Settings rows: always in the page
 let tiles: Record<string, HTMLElement> = {}; // the tiles of the current tab, redrawn with it
+let cards: Record<string, Tile> = {}; // its widget tiles, redrawn on their own when widget data changes
 let mode: View['mode'] = 'signin';
 let tab = '';
 let focusId: string | null = null;
@@ -22,7 +24,7 @@ export function initView(): void {
     $('tabs').appendChild(el);
     fixed['tab:' + t.id] = el;
   }
-  ['set:server', 'set:again', 'set:close', 'kids:exit', 'done:adults'].forEach((id) => (fixed[id] = $(id)));
+  ['set:server', 'set:again', 'set:close', 'kids:exit', 'done:adults', 'full:close'].forEach((id) => (fixed[id] = $(id)));
   // The PIN pad: three keys to a row, the ids are the focus grid (kids.ts PAD_ROWS).
   for (const ids of PAD_ROWS) {
     const row = $('pin-keys').appendChild(h('div', 'pin-row'));
@@ -59,11 +61,11 @@ function tileEl(t: Tile): HTMLElement {
     return el;
   }
   if (t.kind === 'widget') {
-    el.appendChild(h('div', 'label', t.label));
-  } else {
-    el.appendChild(h('div', 'badge', t.kind === 'allapps' ? '+' : t.label.charAt(0).toUpperCase()));
-    el.appendChild(h('div', 'label', t.label));
+    drawCard(el, t.id.slice(7), t.label, t.size || 'medium', t.detail);
+    return el;
   }
+  el.appendChild(h('div', 'badge', t.kind === 'allapps' ? '+' : t.label.charAt(0).toUpperCase()));
+  el.appendChild(h('div', 'label', t.label));
   if (t.detail) el.appendChild(h('div', 'detail', t.detail));
   return el;
 }
@@ -84,6 +86,7 @@ export function render(v: View): void {
   const keepScroll = content.scrollTop;
   content.innerHTML = '';
   tiles = {};
+  cards = {};
   if (v.mode === 'home' || kids) {
     if (v.mode === 'home' && v.tab === 'dashboard') updateClock(new Date());
     // On the Dashboard and in Kids Mode the rows sit at the bottom, with the wallpaper or the forest showing above them.
@@ -92,7 +95,10 @@ export function render(v: View): void {
     for (const s of v.sections) {
       const sec = h('div', 'section');
       const row = sec.appendChild(h('div', 'row'));
-      for (const t of s.tiles) row.appendChild((tiles[t.id] = tileEl(t)));
+      for (const t of s.tiles) {
+        row.appendChild((tiles[t.id] = tileEl(t)));
+        if (t.kind === 'widget') cards[t.id] = t;
+      }
       host.appendChild(sec);
     }
     if (v.message) {
@@ -104,6 +110,11 @@ export function render(v: View): void {
   content.scrollTop = v.tab === tab ? keepScroll : 0;
   tab = v.tab;
   setFocus(focusId);
+}
+
+/** Draws the widget cards again in place (new data, or time made one stale); focus and scroll stay. */
+export function redrawCards(): void {
+  for (const id in cards) drawCard(tiles[id], id.slice(7), cards[id].label, cards[id].size || 'medium', cards[id].detail);
 }
 
 export function updateClock(d: Date): void {

@@ -1,6 +1,7 @@
 // Types and constants shared by the Server, Companion and Sofa Home.
 export * from './layout.ts';
 export * from './tokens.ts';
+export * from './widgets.ts';
 
 export interface LoginRequest {
   password: string;
@@ -36,7 +37,8 @@ export interface DraftUpdate {
 export type ServerMessage =
   | { type: 'hello'; serverTime: string }
   | { type: 'revision'; revision: number } // a new revision is published: fetch GET /api/snapshot
-  | { type: 'kids' }; // Kids Mode or the Watch Allowance changed (enter, exit, Top-up, zero, reset): fetch GET /api/kids
+  | { type: 'kids' } // Kids Mode or the Watch Allowance changed (enter, exit, Top-up, zero, reset): fetch GET /api/kids
+  | { type: 'widgets' }; // widget data changed: fetch GET /api/widgets
 
 /** The Watch Allowance as GET /api/kids returns it. All times are whole seconds. */
 export interface KidsStatus {

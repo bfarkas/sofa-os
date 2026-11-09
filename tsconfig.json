@@ -14,5 +14,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["shared/src", "server/src", "companion/src", "tv/src"]
+  "include": ["shared/src", "server/src", "companion/src", "tv/src", "tv/harness"]
 }
