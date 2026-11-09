@@ -541,7 +541,7 @@ Manifest, icons and a minimal service worker for Companion so it installs on iPh
 - **Checked.** `npm run check`, `npm test` and `npm run build` pass. On a throwaway local Server (not the live one), `/kids/topup` and `/` return the Companion page, sign-in sets the cookie and the session is accepted on `/kids/topup`, and the manifest, worker and icons are served with the right types.
 - **Not checked.** A real iPhone home screen install and a desktop Chrome install prompt. The Server must be deployed at `https://sofa.familie-farkas.de` first; then try "Add to Home Screen" on an iPhone.
 
-### 20 · Title handoff and favorites library
+### 20 · Title handoff and favorites library (dropped 2026-11-09: the household does not want it)
 
 **Difficulty 4 · Sonnet · high · TV**
 
