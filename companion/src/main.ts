@@ -1,5 +1,6 @@
 import type { ApiError, Draft, KidsPinRequest, KidsStatus, Layout, LoginRequest, Snapshot, TopUpRequest, TvApproveRequest } from '@sofa/shared';
 import { KIDS_TOPUP_PATH, PIN_PATTERN } from '@sofa/shared';
+import { startEditor } from './editor.ts';
 import { statusText, topupView } from './kids-view.ts';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -12,6 +13,7 @@ const approve = $<HTMLButtonElement>('approve');
 const tvResult = $('tv-result');
 const kidsPage = $('kids');
 const topupPage = $('topup');
+const editPage = $('edit');
 
 // The QR code on the TV opens /tv-signin?code=... and the warning notification opens /kids/topup. Login happens on the
 // same page, so the code and the tap target both survive it.
@@ -19,6 +21,7 @@ const path = location.pathname.replace(/\/+$/, '') || '/';
 const onTvPage = path === '/tv-signin';
 const onKidsPage = path === '/kids';
 const onTopupPage = path === KIDS_TOPUP_PATH;
+const onEditPage = path === '/edit';
 const tvCode = onTvPage ? /^code=([A-Z0-9]{8})$/.exec(location.search.slice(1))?.[1] : undefined;
 const dashed = (code: string) => code.slice(0, 4) + '-' + code.slice(4);
 
@@ -30,13 +33,16 @@ function show(signedIn: boolean): void {
   tv.hidden = !signedIn || !onTvPage;
   kidsPage.hidden = !signedIn || !onKidsPage;
   topupPage.hidden = !signedIn || !onTopupPage;
-  home.hidden = !signedIn || onTvPage || onKidsPage || onTopupPage;
+  editPage.hidden = !signedIn || !onEditPage;
+  document.querySelector('main')!.classList.toggle('wide', onEditPage);
+  home.hidden = !signedIn || onTvPage || onKidsPage || onTopupPage || onEditPage;
   if (!signedIn) return password.focus();
   if (onKidsPage || onTopupPage) {
     void refresh();
     poll = setInterval(refresh, 5000); // the remaining time moves while the page is open
   }
   if (onKidsPage) void loadApps();
+  if (onEditPage) startEditor(call);
 }
 
 // A call to the Server. A 401 means the session ended: back to the login form, which keeps this URL.
@@ -47,7 +53,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
     show(false);
     throw new Error('Signed out. Sign in again.');
   }
-  if (!res.ok) throw new Error([json.error ?? 'HTTP ' + res.status].concat(json.errors ?? []).join(': '));
+  if (!res.ok) throw Object.assign(new Error((json.error ?? 'HTTP ' + res.status) + (json.errors?.length ? ': ' + json.errors.join('; ') : '')), { status: res.status });
   return json;
 }
 const message = (err: unknown) => (err instanceof Error ? err.message : 'The Server is not reachable.');

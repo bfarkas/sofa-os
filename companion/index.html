@@ -23,8 +23,24 @@
   </section>
   <section id="home" hidden>
     <p>Signed in.</p>
+    <p><a class="button" href="/edit">Edit Home Screen</a></p>
     <p><a class="button" href="/kids">Kids Mode</a></p>
     <button id="logout" type="button">Sign out</button>
+  </section>
+  <section id="edit" hidden>
+    <div class="ed-top"><h2>Home Screen</h2><a href="/">Back</a></div>
+    <div class="ed-cols">
+      <div class="ed-side">
+        <div class="preview-wrap" id="preview-wrap"><iframe id="preview" src="/preview.html" title="Preview of the TV" width="1920" height="1080" tabindex="-1"></iframe></div>
+      </div>
+      <div class="ed-main">
+        <label class="check"><input type="checkbox" id="preview-kids">Preview Kids Mode</label>
+        <nav id="ed-tabs" class="tabs"></nav>
+        <div id="ed-notice"></div>
+        <div id="ed-pane"></div>
+      </div>
+    </div>
+    <div class="ed-bar" id="ed-bar"></div>
   </section>
   <section id="kids" hidden>
     <h2>Kids Mode</h2>
