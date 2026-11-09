@@ -303,6 +303,22 @@ Run the Phase 1 exit condition end to end with a short allowance: power-on, TV S
 
 **Done when:** the full evening works once without intervention and the spec's roadmap marks Phase 1 done.
 
+**Run 2026-11-09 (live TV, live Server, real writes) — not yet accepted.**
+
+- **Passed.** Kids Mode from the household Dashboard (TV already signed in; sign-out and QR sign-in not repeated, proven in Session 06), KiKA launched from the Kids tile, the real warning at 5 minutes left (Server log; both phones were sent it, who saw it is unconfirmed: the user missed it), a Companion Top-up (`kids-mode topup`) lifting the time above 5 minutes and a second warning firing 5 minutes before the new zero (09:49:44Z), and the real TV switched off at zero twice (09:54:42Z and 10:05:09Z). One `top-up` of 5 minutes arrived with source `notification` at 09:44:27Z (the +5 min action button was tapped by someone; the Server event path is proven, the phone and tap were not observed). The 10:02:51Z Top-up came from Companion.
+- **Not proven.** Tap on the notification body opening Companion Top-up, +10 min, Custom with its text field, Ioanna's iPhone (no PushNotification tool in this run, so no tap requests could be sent), and the Done Screen on return (below).
+- **Defect found (new session 10b).** The TV powered back on in KiKA, not in Sofa Home: power-on uses Smart Hub's Start Last App, and the last app at zero was KiKA. Sofa Home never ran, so no Done Screen, and the Server only learned the TV was on from Home Assistant after the 4-minute hold, which then counted as used time. A child can therefore keep watching the provider app after zero until the re-off. The Done Screen itself was proven in Session 09 with Sofa Home in front at zero.
+- **Power-on from the Mac is unreliable.** A KEY_POWER right after the zero switch-off worked once (about 4 minutes to on). Later Wake-on-LAN plus KEY_POWER attempts, minutes after standby, did not wake the TV (the Server saw `pending` and `off` flap). The TV was left off; a person must press the remote.
+- **State left.** Kids Mode exited, 40 minutes, TV off, no log receiver running.
+
+### 10b · Return to Sofa Home after zero
+
+**Difficulty 3 · Opus · high · TV, Server**
+
+At zero the TV may be inside a provider app, and the next power-on resumes it. Make the next power-on land on Sofa Home (for example bring Sofa Home to the front before `turn_off` at zero through the write guard, or switch Start Last App off if Sofa Home still launches at power-on), keep the 60-second re-off as a backstop, then repeat Session 10's evening with the power-on from a person's remote.
+
+**Done when:** a zero inside a provider app is followed by a power-on that shows the Done Screen, and Phase 1 can be marked done.
+
 ---
 
 ## Phase 2: Household features
