@@ -18,7 +18,8 @@ const memoryStore = (): Store => {
 };
 
 // A fake clock and a fake Home Assistant behind the real client, so every write goes through the write guard.
-// By default Sofa Home answers a launch at once (its resume request), as it does from the front; `home` changes that.
+// By default a launch brings Sofa Home to the front at once (the TV's REST API then says so); `home` changes that.
+// `front` is what that API says: whether Sofa Home is in front.
 function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?: number; failTurnOff?: number; home?: 'answers' | 'silent' | 'fails' } = {}) {
   const clock = { t: Date.parse(o.at ?? '2026-11-09T17:00:00+01:00') };
   const calls: { path: string; body: Record<string, any> }[] = [];
@@ -27,9 +28,11 @@ function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?
     const path = new URL(url).pathname;
     if (path.endsWith('/turn_off') && failTurnOff-- > 0) return new Response('', { status: 502 });
     const launch = path === '/api/v2/applications/sofahome01.SofaHome';
+    if (launch && init.method !== 'POST') return Response.json({ id: 'sofahome01.SofaHome', running: true, visible: t.front });
     if (launch && o.home === 'fails') return new Response('', { status: 500 });
     calls.push({ path, body: launch ? {} : JSON.parse(String(init.body)) });
-    if (launch && (o.home ?? 'answers') === 'answers') engine.tvSeen();
+    if (launch && (o.home ?? 'answers') === 'answers') t.front = true;
+    if (path.endsWith('/turn_off')) t.front = false;
     return new Response('[]');
   }) as unknown as typeof fetch;
   const store = memoryStore();
@@ -48,6 +51,7 @@ function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?
   const t = {
     clock,
     calls,
+    front: false,
     get engine() {
       return engine;
     },
@@ -133,24 +137,23 @@ test('a real on right after an off counts in full once it outlasts a false on', 
   assert.equal(k.used(), 355, 'confirmed after 4 minutes and counted from its start');
 });
 
-test('the TV itself (a Sofa Home request) confirms an on at once, the second signal', async () => {
+test('the TV itself (its REST API says Sofa Home is in front) confirms a pending on at its first reading, the second signal', async () => {
   const k = setup();
   k.engine.observe('on');
   k.engine.enter();
   await k.watch(60);
   await k.watch(10, 'off');
   await k.watch(15, 'on');
-  assert.equal(k.engine.status().tv, 'pending');
-  k.engine.tvSeen();
+  assert.equal(k.engine.status().tv, 'pending', 'Sofa Home is not in front');
+  k.front = true; // a person powers on into Sofa Home
+  await k.watch(5);
   assert.equal(k.engine.status().tv, 'on');
-  await k.watch(60);
-  assert.equal(k.used(), 120, 'counted from the proof');
-  // Home Assistant reports a power-on about 11 seconds after Sofa Home starts, so a proof can come first.
+  await k.watch(55);
+  assert.equal(k.used(), 115, 'counted from the proof');
   await k.watch(10, 'off');
-  k.engine.tvSeen();
   await k.watch(30, 'on');
   assert.equal(k.engine.status().tv, 'on');
-  assert.equal(k.used(), 145);
+  assert.equal(k.used(), 140, 'proven at the first on reading');
 });
 
 test('Home Assistant unreachable: the clock waits, and after a long gap the on must prove itself again', async () => {
@@ -616,25 +619,26 @@ test('a failed launch at power-on leaves the re-off a minute later as the backst
   assert.deepEqual(k.writes(), ['off', 'off']);
 });
 
-test('after a zero, the false on stays pending with no launch and no re-off; a real power-on into Sofa Home counts even when Home Assistant sees it late', async () => {
+test('after a zero, the false on stays pending with no launch and no re-off; a real power-on into Sofa Home is caught at once', async () => {
   const k = setup({ minutes: 1 });
   k.engine.observe('on');
   k.engine.enter();
   await k.watch(60); // zero: launch, off
-  await k.watch(50, 'off'); // the hidden Sofa Home proves nothing (remote.ts visible()), so the engine hears nothing
-  await k.watch(150); // Home Assistant's false on, 50 s after the off, for about 2.5 minutes
+  await k.watch(50, 'off');
+  await k.watch(150); // Home Assistant's false on, 50 s after the off, for about 2.5 minutes; the TV says Sofa Home is not in front
   assert.equal(k.engine.status().tv, 'pending');
   await k.watch(100, 'off');
   assert.deepEqual(k.writes(), ['launch', 'off'], 'no launch and no re-off at a dark TV');
-  k.engine.tvSeen(); // a person powers on into Sofa Home, which reports itself in front
-  await k.watch(30, 'off'); // Home Assistant is slow to see it
+  await k.watch(30); // a person powers on inside the hold, into Sofa Home (the last app)
+  assert.equal(k.engine.status().tv, 'pending');
+  k.front = true; // Sofa Home comes to the front
   await k.watch(5);
-  assert.equal(k.engine.status().tv, 'on', 'Sofa Home was in front since the off: no hold');
+  assert.equal(k.engine.status().tv, 'on');
   assert.deepEqual(k.writes(), ['launch', 'off'], 'Sofa Home is in front: not launched again');
   await k.watch(55);
   assert.deepEqual(k.writes(), ['launch', 'off']);
   await k.watch(5);
-  assert.deepEqual(k.writes(), ['launch', 'off', 'launch', 'off'], 'the re-off a minute after the on');
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch', 'off'], 'the re-off a minute after the proof, at once since Sofa Home is in front');
 });
 
 test('a power-on at zero into a provider app inside the hold stays pending, then is launched over and switched off after the hold', async () => {

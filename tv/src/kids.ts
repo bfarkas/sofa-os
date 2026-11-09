@@ -1,7 +1,7 @@
 // Kids Mode on the TV without the DOM: what the Server says, what to show, the PIN pad and the calls. Fetch is injected.
 // The Server is the source of truth: Sofa Home shows Kids Mode whenever it is active, the Done Screen whenever it is active
-// with nothing left, and the household Dashboard otherwise. GET /api/kids on start and on resume is also the Server's proof
-// that the TV is on (Watch Allowance, plan Session 08), so main.ts calls refresh() there and nowhere on a timer.
+// with nothing left, and the household Dashboard otherwise. main.ts calls refresh() on start and on resume, never on a timer.
+// It proves nothing about the screen: in standby the TV restarts Sofa Home with document.hidden false (plan Session 10b).
 import type { KidsStatus } from '@sofa/shared';
 
 export const PIN_LENGTH = 4;

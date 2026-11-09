@@ -41,6 +41,20 @@ test("Sofa Home is brought to the front through the TV's own REST API, a fixed U
   await assert.rejects(fakeHa({ ...ha, tvHost: undefined }).client.launchSofaHome(), /no TV host/);
 });
 
+test("whether Sofa Home is in front is read from the TV's REST API with a GET on the same URL; no answer means no", async () => {
+  const seen: RequestInit[] = [];
+  const tv = (answer: () => Response) => createHaClient(ha, (async (url: string, init: RequestInit) => {
+    assert.equal(url, 'http://192.168.42.54:8001/api/v2/applications/sofahome01.SofaHome');
+    seen.push(init);
+    return answer();
+  }) as unknown as typeof fetch);
+  assert.equal(await tv(() => Response.json({ running: true, visible: true })).sofaHomeVisible(), true);
+  assert.equal(await tv(() => Response.json({ running: true, visible: false })).sofaHomeVisible(), false, 'standby: running hidden');
+  assert.equal(await tv(() => { throw new TypeError('fetch failed'); }).sofaHomeVisible(), false, 'standby: the network is down');
+  assert.ok(seen.every((i) => i.method === undefined && i.body === undefined && i.headers === undefined), 'a plain GET, no token');
+  assert.equal(await createHaClient({ ...ha, tvHost: undefined }).sofaHomeVisible(), false);
+});
+
 test("allowed: notify the adults' phones", async () => {
   const { calls, client } = fakeHa();
   await client.notifyAdults('5 minutes left', { title: 'Kids Mode', data: { actions: [{ action: 'SOFA_TOPUP_5', title: '+5 min' }] } });

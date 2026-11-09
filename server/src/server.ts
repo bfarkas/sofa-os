@@ -90,7 +90,7 @@ export function startServer(
   };
   const canRead = (req: IncomingMessage) => sessionOf(req) !== null || isTv(req);
   const pin = createPin(db);
-  const phone = createPhoneRemote({ ha: config.ha && createHaClient(config.ha), kidsActive: () => allowance.status().active, onVisible: () => allowance.tvSeen() });
+  const phone = createPhoneRemote({ ha: config.ha && createHaClient(config.ha), kidsActive: () => allowance.status().active });
   const kidsStatus = (): KidsStatus => ({ ...allowance.status(), pinSet: pin.isSet() });
   // Widget data, read per instance on its freshness policy; a failing adapter only affects its own card (widgets.ts).
   const widgets = createWidgets({ adapters, layout: () => currentSnapshot(db).layout, onChange: () => broadcast({ type: 'widgets' }) });
@@ -222,7 +222,6 @@ export function startServer(
     const companion = sessionOf(req) !== null;
     const tv = isTv(req);
     if (!companion && !tv) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
-    if (tv && phone.visible()) allowance.tvSeen(); // Sofa Home is talking from the screen, so the TV is on
     if (key === 'GET /api/kids') return send(res, 200, kidsStatus());
     if (req.method !== 'POST' && req.method !== 'PUT') throw new HttpError(405, 'method not allowed');
     const body = (await readJson(req)) as Partial<TopUpRequest & KidsExitRequest & KidsPinRequest>;

@@ -6,7 +6,7 @@ import { log } from './log.ts';
 // Home Assistant client. Every service call passes the write guard, which allows exactly the
 // spec's three writes (Home Assistant and household information) and refuses everything else.
 // A new write needs a spec decision first, then a rule here and a test.
-// One call goes to the TV itself, not to Home Assistant: launchSofaHome, a fixed URL with no data (see there).
+// Two calls go to the TV itself, not to Home Assistant: launchSofaHome and sofaHomeVisible, one fixed URL with no data (see there).
 
 export interface ServiceCall {
   domain: string;
@@ -88,6 +88,19 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
       if (ha.dryRun) return void log.info('tv dry run', { launch: SOFA_HOME_APP_ID });
       const res = await fetchFn(url, { method: 'POST', signal: AbortSignal.timeout(5_000) });
       if (!res.ok) throw new Error(`TV launch ${SOFA_HOME_APP_ID}: HTTP ${res.status}`);
+    },
+    /**
+     * Whether the TV says Sofa Home is in front: a GET on the same fixed URL, which only reads. False when the TV does not
+     * answer. Sofa Home's own page cannot tell: in standby the TV restarts it with document.hidden false (live 2026-11-09).
+     */
+    async sofaHomeVisible(): Promise<boolean> {
+      if (!ha.tvHost) return false;
+      try {
+        const res = await fetchFn(`http://${ha.tvHost}:8001/api/v2/applications/${SOFA_HOME_APP_ID}`, { signal: AbortSignal.timeout(2_000) });
+        return res.ok && ((await res.json()) as { visible?: unknown }).visible === true;
+      } catch {
+        return false; // in standby the TV's network is down
+      }
     },
     notifyAdults: (message: string, extra: { title?: string; data?: Record<string, unknown> } = {}) =>
       Promise.all(ha.notifyServices.map((service) => callService({ domain: 'notify', service, data: { message, ...extra } }))),

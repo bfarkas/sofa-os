@@ -227,9 +227,9 @@ The Server-side clock from the spec's [Watch Allowance](Sofa.OS%20Architecture%2
 | Event | Rule |
 | --- | --- |
 | **HA reports `off`** | The TV is `off` and the clock stops. The time since the last `on` reading (at most one 5-second tick) is not counted. |
-| **HA reports `on` after `off`** | `pending` when it comes within 4 minutes of the `off` and Sofa Home has made no request since; otherwise `on`, counting from now. |
+| **HA reports `on` after `off`** | `pending` when it comes within 4 minutes of the `off`; otherwise `on`, counting from now. |
 | **`pending` for 4 minutes** | `on`, and those 4 minutes are counted after all. A false `on` (about 3 minutes, see Known results) ends in `off` first and is never counted. |
-| **A request from Sofa Home** | Any `/api/kids` request with the device token proves the TV is on. A `pending` on becomes `on` from that moment, and the next `on` after an `off` is not held back. |
+| **The TV says Sofa Home is in front** | While an on is `pending`, the Server asks the TV's REST API every tick (Session 10b). `visible: true` proves the TV is on, and the `pending` on becomes `on` from that moment. Sofa Home's own requests and visibility reports prove nothing: in standby the TV restarts it with `document.hidden` false. |
 | **HA `unavailable`, `unknown` or unreachable** | Proves nothing; the clock waits. |
 | **Enter, exit** | Entering starts counting from now if the TV is on. Exiting stops the clock and clears the Done Screen. |
 | **5 minutes left** | While counting, the notification goes once to each phone with **+5 min**, **+10 min** and **Custom**. It goes again only after a Top-up lifts the time left above 5 minutes. |
@@ -247,7 +247,7 @@ The Server-side clock from the spec's [Watch Allowance](Sofa.OS%20Architecture%2
   - `POST /api/kids/enter`, `/exit` and `/done-shown` take a JSON body, `{}`.
   - `POST /api/kids/topup { minutes }` is for Companion only: the TV gets 403, and anything but 1 to 240 gets 400.
   - `/ws` sends `{ "type": "kids" }`, with no data, when Kids Mode, the Done Screen, the Top-up, the day or the zero changes.
-  - Session 09 adds the PIN in front of exit from the TV. Sofa Home should `GET /api/kids` on start and on resume, because that request is the proof that the TV is on.
+  - Session 09 adds the PIN in front of exit from the TV. Sofa Home should `GET /api/kids` on start and on resume (it was the proof that the TV is on until Session 10b replaced it with the TV's REST API).
 - **Live run** (for the orchestrator and the user; not done in this session). It needs the TV on, and the CLI on a machine on the LAN with `SOFA_URL=https://sofa.familie-farkas.de SOFA_PASSWORD=…`.
   1. Deploy as a dry run: `git pull && SOFA_HA_DRY_RUN=1 docker compose -f deploy/compose.yaml up -d --build`. Then watch `docker logs -f sofa-os`. The log shows the dry-run warning, `home assistant reachable` and `home assistant events subscribed`.
   2. With the TV on, wait until the log shows `tv` `on`. After a restart this can take up to 4 minutes, because a TV that was `on` before the restart must prove itself again.

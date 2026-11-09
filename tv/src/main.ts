@@ -120,7 +120,7 @@ document.addEventListener('visibilitychange', () => {
     shell.focus.refresh(); // the focus model survived; draw it again
     resumeFromLaunch();
     if (token && server) {
-      kidsCtl.refresh(); // the Server counts this request as proof that the TV is on
+      kidsCtl.refresh();
       if (sync) sync.refresh();
       if (widgetsSync) widgetsSync.refresh();
       if (albumsSync) albumsSync.refresh();
