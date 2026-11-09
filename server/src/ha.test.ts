@@ -8,6 +8,7 @@ const ha: HaConfig = {
   token: 'test-token',
   tvEntity: 'media_player.samung_tv',
   remoteEntity: 'remote.samung_tv',
+  tvHost: '192.168.42.54',
   notifyServices: ['mobile_app_hidekis_iphone', 'mobile_app_ioannas_iphone'],
 };
 
@@ -29,11 +30,15 @@ test('allowed: turn this TV off', async () => {
   assert.equal((calls[0].init.headers as Record<string, string>).Authorization, 'Bearer test-token');
 });
 
-test('allowed: bring Sofa Home to the front on this TV (before the switch-off at zero)', async () => {
+test("Sofa Home is brought to the front through the TV's own REST API, a fixed URL with no data", async () => {
   const { calls, client } = fakeHa();
   await client.launchSofaHome();
-  assert.equal(calls[0].url, 'http://ha.test:8123/api/services/media_player/play_media');
-  assert.deepEqual(JSON.parse(String(calls[0].init.body)), { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'http://192.168.42.54:8001/api/v2/applications/sofahome01.SofaHome');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.equal(calls[0].init.body, undefined);
+  assert.equal(calls[0].init.headers, undefined, 'the Home Assistant token never goes to the TV');
+  await assert.rejects(fakeHa({ ...ha, tvHost: undefined }).client.launchSofaHome(), /no TV host/);
 });
 
 test("allowed: notify the adults' phones", async () => {
@@ -73,10 +78,7 @@ const refused: [string, ServiceCall][] = [
   ['turn-off of every player', { domain: 'media_player', service: 'turn_off', data: { entity_id: 'all' } }],
   ['pausing the TV', { domain: 'media_player', service: 'media_pause', data: { entity_id: 'media_player.samung_tv' } }],
   ['notify with an added target', { domain: 'notify', service: 'mobile_app_hidekis_iphone', data: { message: 'hi', target: ['mobile_app_guest'] } }],
-  ['launching another app', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: '111299001912' } }],
-  ['playing a URL on the TV', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.samung_tv', media_content_type: 'url', media_content_id: 'sofahome01.SofaHome' } }],
-  ['launching Sofa Home on another player', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.kitchen', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome' } }],
-  ['a launch with extra data', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome', enqueue: 'play' } }],
+  ['launching an app through Home Assistant', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome' } }],
   ['selecting a source', { domain: 'media_player', service: 'select_source', data: { entity_id: 'media_player.samung_tv', source: 'KiKA' } }],
   ['a persistent notification', { domain: 'persistent_notification', service: 'create', data: { message: 'hi' } }],
 ];

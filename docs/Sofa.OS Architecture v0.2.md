@@ -121,9 +121,11 @@ Start with read-only cards for selected entities, such as temperature, household
 
 The Server may write to Home Assistant in exactly three ways:
 
-- Turn this TV off when the Watch Allowance reaches zero. Before each such switch-off, and when the TV is on at zero without Sofa Home in front, the Server brings Sofa Home to the front (`media_player.play_media` of the Sofa Home app, no other app), because the TV powers on into the last app it showed.
+- Turn this TV off when the Watch Allowance reaches zero.
 - Send the Watch Allowance notification to the adults' phones.
 - Forward Phone Remote keys to this TV.
+
+One call goes to the TV itself instead: before each switch-off at zero, and when the TV is on at zero without Sofa Home in front, the Server brings Sofa Home to the front with the TV's REST API (`POST http://<tv>:8001/api/v2/applications/sofahome01.SofaHome`, a fixed URL), because the TV powers on into the last app it showed. Home Assistant's `play_media` app launch is ignored for a sideloaded app on this TV.
 
 Any other scene or device action needs an explicit allowlist and a new decision. [Home Assistant REST API](https://developers.home-assistant.io/docs/api/rest/) · [Home Assistant WebSocket API](https://developers.home-assistant.io/docs/api/websocket/)
 

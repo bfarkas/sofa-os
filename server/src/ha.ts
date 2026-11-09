@@ -6,6 +6,7 @@ import { log } from './log.ts';
 // Home Assistant client. Every service call passes the write guard, which allows exactly the
 // spec's three writes (Home Assistant and household information) and refuses everything else.
 // A new write needs a spec decision first, then a rule here and a test.
+// One call goes to the TV itself, not to Home Assistant: launchSofaHome, a fixed URL with no data (see there).
 
 export interface ServiceCall {
   domain: string;
@@ -35,10 +36,8 @@ function onlyKeys(data: Record<string, unknown>, allowed: string[]): boolean {
 export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   const { domain, service, data } = call;
   const name = `${domain}.${service}`;
-  // 1. Turn this TV off when the Watch Allowance reaches zero, bringing Sofa Home to the front first (so the TV's
-  //    Start Last App powers on into the Done Screen, not a provider app). Only Sofa Home may be launched.
+  // 1. Turn this TV off when the Watch Allowance reaches zero.
   if (name === 'media_player.turn_off' && onlyKeys(data, ['entity_id']) && data.entity_id === ha.tvEntity) return;
-  if (name === 'media_player.play_media' && onlyKeys(data, ['entity_id', 'media_content_type', 'media_content_id']) && data.entity_id === ha.tvEntity && data.media_content_type === 'app' && data.media_content_id === SOFA_HOME_APP_ID) return;
   // 2. Send the Watch Allowance notification to the adults' phones.
   if (domain === 'notify' && ha.notifyServices.includes(service) && onlyKeys(data, ['message', 'title', 'data']) && typeof data.message === 'string') return;
   // 3. Forward Phone Remote keys to this TV.
@@ -78,7 +77,18 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
       return request(`/api/states/${entityId}`);
     },
     turnOffTv: () => callService({ domain: 'media_player', service: 'turn_off', data: { entity_id: ha.tvEntity } }),
-    launchSofaHome: () => callService({ domain: 'media_player', service: 'play_media', data: { entity_id: ha.tvEntity, media_content_type: 'app', media_content_id: SOFA_HOME_APP_ID } }),
+    /**
+     * Brings Sofa Home to the front, so the TV's Start Last App powers on into it. Through the TV's own REST API (port
+     * 8001, no pairing): Home Assistant's play_media (ed.apps.launch) is accepted but ignored for this sideloaded app
+     * (tried live 2026-11-09). The URL is fixed, so it can launch nothing else.
+     */
+    async launchSofaHome(): Promise<void> {
+      const url = `http://${ha.tvHost}:8001/api/v2/applications/${SOFA_HOME_APP_ID}`;
+      if (!ha.tvHost) throw new Error('no TV host configured (SOFA_TV_HOST)');
+      if (ha.dryRun) return void log.info('tv dry run', { launch: SOFA_HOME_APP_ID });
+      const res = await fetchFn(url, { method: 'POST', signal: AbortSignal.timeout(5_000) });
+      if (!res.ok) throw new Error(`TV launch ${SOFA_HOME_APP_ID}: HTTP ${res.status}`);
+    },
     notifyAdults: (message: string, extra: { title?: string; data?: Record<string, unknown> } = {}) =>
       Promise.all(ha.notifyServices.map((service) => callService({ domain: 'notify', service, data: { message, ...extra } }))),
     sendKey: (key: string) => callService({ domain: 'remote', service: 'send_command', data: { entity_id: ha.remoteEntity, command: key } }),

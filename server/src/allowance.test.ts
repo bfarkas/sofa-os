@@ -11,7 +11,7 @@ import { loadConfig, type HaConfig } from './config.ts';
 import { openDb } from './db.ts';
 import { createHaClient } from './ha.ts';
 
-const HA: HaConfig = { url: 'http://ha.test:8123', token: 't', tvEntity: 'media_player.samung_tv', remoteEntity: 'remote.samung_tv', notifyServices: ['mobile_app_a', 'mobile_app_b'] };
+const HA: HaConfig = { url: 'http://ha.test:8123', token: 't', tvEntity: 'media_player.samung_tv', remoteEntity: 'remote.samung_tv', notifyServices: ['mobile_app_a', 'mobile_app_b'], tvHost: 'tv.test' };
 const memoryStore = (): Store => {
   let v: string | undefined;
   return { load: () => v, save: (json) => void (v = json) };
@@ -26,9 +26,10 @@ function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?
   const fetchFn = (async (url: string, init: RequestInit) => {
     const path = new URL(url).pathname;
     if (path.endsWith('/turn_off') && failTurnOff-- > 0) return new Response('', { status: 502 });
-    if (path.endsWith('/play_media') && o.home === 'fails') return new Response('', { status: 500 });
-    calls.push({ path, body: JSON.parse(String(init.body)) });
-    if (path.endsWith('/play_media') && (o.home ?? 'answers') === 'answers') engine.tvSeen();
+    const launch = path === '/api/v2/applications/sofahome01.SofaHome';
+    if (launch && o.home === 'fails') return new Response('', { status: 500 });
+    calls.push({ path, body: launch ? {} : JSON.parse(String(init.body)) });
+    if (launch && (o.home ?? 'answers') === 'answers') engine.tvSeen();
     return new Response('[]');
   }) as unknown as typeof fetch;
   const store = memoryStore();
@@ -51,9 +52,8 @@ function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?
       return engine;
     },
     turnOffs: () => calls.filter((c) => c.path === '/api/services/media_player/turn_off'),
-    launches: () => calls.filter((c) => c.path === '/api/services/media_player/play_media'),
-    /** The media player writes in order: 'launch' or 'off'. */
-    writes: () => calls.filter((c) => c.path.startsWith('/api/services/media_player/')).map((c) => (c.path.endsWith('/play_media') ? 'launch' : 'off')),
+    /** The TV writes in order: 'launch' (Sofa Home to the front) or 'off'. */
+    writes: () => calls.filter((c) => c.path.startsWith('/api/v2/applications/') || c.path === '/api/services/media_player/turn_off').map((c) => (c.path.endsWith('/turn_off') ? 'off' : 'launch')),
     notifies: () => calls.filter((c) => c.path.startsWith('/api/services/notify/')),
     used: () => engine.status().usedSeconds,
     /** A Server restart: a new engine on the same store, `seconds` later. */
@@ -538,7 +538,7 @@ test('a Done Screen shown while the TV is still going to standby does not start 
   assert.equal(k.turnOffs().length, 2);
 });
 
-test('zero brings Sofa Home to the front through the write guard, then switches the TV off once it has answered', async () => {
+test('zero brings Sofa Home to the front, then switches the TV off once it has answered', async () => {
   const k = setup({ minutes: 1 });
   k.engine.observe('on');
   k.engine.enter();
@@ -546,7 +546,6 @@ test('zero brings Sofa Home to the front through the write guard, then switches 
   assert.deepEqual(k.writes(), []);
   await k.watch(5);
   assert.deepEqual(k.writes(), ['launch', 'off'], 'Sofa Home first, so Start Last App powers on into it');
-  assert.deepEqual(k.launches()[0].body, { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome' });
   assert.equal(k.engine.status().donePending, true);
   await k.watch(30); // Home Assistant has not caught up yet: no second launch, no second switch-off
   assert.deepEqual(k.writes(), ['launch', 'off']);

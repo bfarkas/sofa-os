@@ -7,6 +7,7 @@ export interface HaConfig {
   token: string;
   tvEntity: string; // media_player.* for this TV
   remoteEntity: string; // remote.* for this TV
+  tvHost?: string; // this TV on the LAN, for bringing Sofa Home to the front (its REST API on port 8001)
   notifyServices: string[]; // notify.* services of the adults' phones, without the "notify." prefix
   dryRun?: boolean; // writes pass the guard and are logged, not sent
 }
@@ -78,6 +79,7 @@ export function loadConfig(env: Env = process.env): Config {
           token,
           tvEntity: env.SOFA_HA_TV_ENTITY ?? 'media_player.samung_tv',
           remoteEntity: env.SOFA_HA_REMOTE_ENTITY ?? 'remote.samung_tv',
+          tvHost: env.SOFA_TV_HOST ?? '192.168.42.54',
           notifyServices: (env.SOFA_HA_NOTIFY ?? 'mobile_app_hidekis_iphone,mobile_app_ioannas_iphone').split(',').map((s) => s.trim()).filter(Boolean),
           dryRun: env.SOFA_HA_DRY_RUN === '1',
         }
