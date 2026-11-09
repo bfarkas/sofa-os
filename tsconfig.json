@@ -14,5 +14,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["shared/src", "server/src", "companion/src", "tv/src", "tv/harness"]
+  "include": ["shared/src", "server/src", "companion/src", "companion/build-preview.ts", "tv/src", "tv/harness"]
 }
