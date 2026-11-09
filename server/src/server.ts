@@ -6,8 +6,10 @@ import { TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type KidsExitReque
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
+import { watchHomeAssistant } from './adapters/homeassistant.ts';
 import { createCatalogue } from './catalogue.ts';
 import type { Config } from './config.ts';
+import { createHaClient, subscribeEvents } from './ha.ts';
 import { createDraft, currentSnapshot, deleteDraft, getDraft, kidsView, publishDraft, saveDraft } from './layout.ts';
 import { log } from './log.ts';
 import { createPin } from './pin.ts';
@@ -63,7 +65,7 @@ export function startServer(
   config: Config,
   db: DatabaseSync,
   allowance: Allowance = createAllowance({ ...fromDb(db), ha: null, ...config.allowance }),
-  adapters: WidgetAdapter[] = createCatalogue({ db, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone }),
+  adapters: WidgetAdapter[] = createCatalogue({ db, ha: config.ha && createHaClient(config.ha), allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone }),
 ): Server {
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {
@@ -305,9 +307,14 @@ export function startServer(
     }
   }, HEARTBEAT_MS);
   const stopWidgets = widgets.start();
+  // Home Assistant state changes re-read the cards that show the changed entity (polling covers a dropped connection).
+  const stopLive = config.ha
+    ? watchHomeAssistant((on) => subscribeEvents(config.ha!, 'state_changed', on), adapters, () => currentSnapshot(db).layout, widgets.refreshType)
+    : () => {};
   server.on('close', () => {
     clearInterval(heartbeat);
     stopWidgets();
+    stopLive();
     for (const ws of wss.clients) ws.terminate();
   });
 
