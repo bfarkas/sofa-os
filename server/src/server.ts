@@ -177,10 +177,9 @@ export function startServer(
 
     // Sofa Home's layout changes (ADR 0004): the TV's token or a Companion session, never while Kids Mode is on.
     if (key === 'POST /api/layout/ops') {
-      // Read the body before refusing: replying with it unread can close a keep-alive connection under the client's next request (ECONNRESET, seen in the Docker build).
-      const body = (await readJson(req).catch(() => undefined)) as Partial<LayoutOpRequest> | undefined;
       if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
       if (allowance.status().active) return send(res, 403, { error: 'the layout cannot be changed in Kids Mode' } satisfies ApiError);
+      const body = (await readJson(req)) as Partial<LayoutOpRequest>;
       if (typeof body?.base !== 'number' || !isLayoutOp(body.op)) throw new HttpError(400, 'expected { base, op } with op move, remove or add');
       const result = commitOp(db, body.base, body.op);
       if (!result.ok) {

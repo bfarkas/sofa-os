@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, before, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import type { Draft, Layout, LayoutOp, Snapshot } from '@sofa/shared';
 import { hashSecret } from './auth.ts';
 import type { Config } from './config.ts';
@@ -171,52 +171,55 @@ test('an invalid draft is carried forward untouched where the operation cannot a
 });
 
 // Over HTTP: the TV's token, Kids Mode, validation and the revision signal.
-let base = '';
-let cookie = '';
-let tv: Record<string, string> = {};
-let server: ReturnType<typeof startServer>;
-before(async () => {
-  const config: Config = {
-    port: 0,
-    dbPath: join(dir, 'http.db'),
-    mediaDir: join(dir, 'media'),
-    companionDir: dir,
-    passwordHash: await hashSecret('correct horse'),
-    secureCookies: false,
-    ha: null,
-    allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.test/kids/topup' },
-  };
-  const db = openDb(config.dbPath);
-  server = startServer(config, db, undefined, []);
-  await once(server, 'listening');
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  cookie = (await post('/api/login', { password: 'correct horse' })).headers.get('set-cookie')!.split(';')[0];
-  const d = (await (await post('/api/drafts', {}, { cookie })).json()) as Draft;
-  await fetch(`${base}/api/drafts/${d.id}`, { method: 'PUT', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ base: d.base, layout: layout() }) });
-  assert.equal((await post(`/api/drafts/${d.id}/publish`, {}, { cookie })).status, 200);
-  const code = createCode(db);
-  approveCode(db, code.code);
-  const claimed = claimToken(db, code.code, code.secret);
-  tv = { Authorization: 'Bearer ' + (claimed as { token: string }).token };
-});
-after(() => server.close());
-const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
-  fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+// A suite of its own: a top-level before() would open the connection before the slow tests above, and the server (keepAliveTimeout 5 s) closes it while the client still pools it (ECONNRESET on slow hosts).
+describe('over HTTP', () => {
+  let base = '';
+  let cookie = '';
+  let tv: Record<string, string> = {};
+  let server: ReturnType<typeof startServer>;
+  before(async () => {
+    const config: Config = {
+      port: 0,
+      dbPath: join(dir, 'http.db'),
+      mediaDir: join(dir, 'media'),
+      companionDir: dir,
+      passwordHash: await hashSecret('correct horse'),
+      secureCookies: false,
+      ha: null,
+      allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.test/kids/topup' },
+    };
+    const db = openDb(config.dbPath);
+    server = startServer(config, db, undefined, []);
+    await once(server, 'listening');
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    cookie = (await post('/api/login', { password: 'correct horse' })).headers.get('set-cookie')!.split(';')[0];
+    const d = (await (await post('/api/drafts', {}, { cookie })).json()) as Draft;
+    await fetch(`${base}/api/drafts/${d.id}`, { method: 'PUT', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ base: d.base, layout: layout() }) });
+    assert.equal((await post(`/api/drafts/${d.id}/publish`, {}, { cookie })).status, 200);
+    const code = createCode(db);
+    approveCode(db, code.code);
+    const claimed = claimToken(db, code.code, code.secret);
+    tv = { Authorization: 'Bearer ' + (claimed as { token: string }).token };
+  });
+  after(() => server.close());
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+    fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 
-test('POST /api/layout/ops: the TV token commits a revision; no token, bad ops, a stale base and Kids Mode are refused', async () => {
-  const snap = (await (await fetch(base + '/api/snapshot', { headers: tv })).json()) as Snapshot;
-  const move = { base: snap.revision, op: { op: 'move', widget: 'a', index: 1 } };
-  assert.equal((await post('/api/layout/ops', move)).status, 401);
-  assert.equal((await post('/api/layout/ops', move, { Authorization: 'Bearer nope' })).status, 401);
-  assert.equal((await post('/api/layout/ops', { base: snap.revision, op: { op: 'delete', widget: 'a' } }, tv)).status, 400);
-  assert.equal((await post('/api/layout/ops', { op: move.op }, tv)).status, 400);
-  assert.equal((await post('/api/kids/enter', {}, tv)).status, 200);
-  assert.equal((await post('/api/layout/ops', move, tv)).status, 403, 'no editing in Kids Mode');
-  assert.equal((await post('/api/kids/exit', {}, { cookie })).status, 200);
-  const res = await post('/api/layout/ops', move, tv);
-  assert.equal(res.status, 200);
-  const next = (await res.json()) as Snapshot;
-  assert.equal(next.revision, snap.revision + 1);
-  assert.deepEqual(row(next.layout), ['b', 'a', 'c']);
-  assert.equal((await post('/api/layout/ops', move, tv)).status, 409, 'the same request again is on an old base');
+  test('POST /api/layout/ops: the TV token commits a revision; no token, bad ops, a stale base and Kids Mode are refused', async () => {
+    const snap = (await (await fetch(base + '/api/snapshot', { headers: tv })).json()) as Snapshot;
+    const move = { base: snap.revision, op: { op: 'move', widget: 'a', index: 1 } };
+    assert.equal((await post('/api/layout/ops', move)).status, 401);
+    assert.equal((await post('/api/layout/ops', move, { Authorization: 'Bearer nope' })).status, 401);
+    assert.equal((await post('/api/layout/ops', { base: snap.revision, op: { op: 'delete', widget: 'a' } }, tv)).status, 400);
+    assert.equal((await post('/api/layout/ops', { op: move.op }, tv)).status, 400);
+    assert.equal((await post('/api/kids/enter', {}, tv)).status, 200);
+    assert.equal((await post('/api/layout/ops', move, tv)).status, 403, 'no editing in Kids Mode');
+    assert.equal((await post('/api/kids/exit', {}, { cookie })).status, 200);
+    const res = await post('/api/layout/ops', move, tv);
+    assert.equal(res.status, 200);
+    const next = (await res.json()) as Snapshot;
+    assert.equal(next.revision, snap.revision + 1);
+    assert.deepEqual(row(next.layout), ['b', 'a', 'c']);
+    assert.equal((await post('/api/layout/ops', move, tv)).status, 409, 'the same request again is on an old base');
+  });
 });
