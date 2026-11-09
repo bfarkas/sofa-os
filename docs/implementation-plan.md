@@ -639,3 +639,28 @@ Follow the event table in the spec's Watch Allowance section.
 **Done when:** the spec records whether "two episodes, then the TV turns off" works, and if it does, a design for adding it to Session 08's engine.
 
 **Why this rating:** inference from a lossy external entity, and the result decides a product feature.
+
+**Result (2026-11-09 ~23:45 CET, real TV, Plex for Samsung 5.59.3, TV volume 0, Kids Mode off; no product code). Verdict: "two episodes, then the TV turns off" can work for Plex, with the design below. Not proven end to end.**
+
+Entity `media_player.plex_plex_for_samsung_tv_2018` (the TV's Plex client; its name says 2018 but it is this TV), read every second from rei3 with the Server's token (throwaway poll script, log kept at `rei3:/tmp/plexpoll-session22.log`). Adventure Time S3E7 "Still" (707 s) and S3E8 "Wizard Battle" (705 s). Times UTC.
+
+| Case | What happened |
+| --- | --- |
+| **Start / resume** | ENTER on the episode: `playing` 1 s after the press, position 0, fresh timestamp. A resume at 213 s was reported at 22:45:53 with 213, but 11 s later the position was 234: the first update after a resume can be about 10 s stale. |
+| **Updates while playing** | About every 10.6 s, plus at once on every change. The position does not tick between updates. |
+| **`KEY_PAUSE`** | Works: `paused` within 1 s (22:46:09.96, position 239, frozen). `KEY_PLAY`: `playing` again at 239 with a fresh timestamp (22:46:23). |
+| **Seek** | `KEY_RIGHT` seeks +30 s. Every jump came through within 1 to 2 s with a fresh timestamp (13 presses: 239 → 276 → 339 → … → 688, consistent with the playback time in between). Backward seek not tried. |
+| **Natural end, autoplay on** | Last update 22:47:02.6 at 688 → predicted end 22:47:21.6; `idle` at 22:47:22.3 (+0.7 s), details cleared. Next episode `playing` at 22:47:39.7 with a new content ID (57684) and position 0: gap 17.4 s (17 s on 2026-11-07 too). The credits played to the file end; no early Up Next. |
+| **Stop mid-episode** | `KEY_STOP` at about 20 s of 705: `idle` at 22:47:59.9 within 1 s, details cleared, Plex back on the episode page. The state is the same as an end; only the prediction (about 685 s early) tells them apart. |
+| **End without autoplay** | Episode 8 seeked to the end: last update 22:48:48.7 at 700 → predicted 22:48:53.7; `idle` at 22:48:58.7 (+5 s). `KEY_RETURN` on Plex's Up Next screen cancelled the countdown: still `idle` 40 s later, nothing played, Plex on the season page. |
+| **TV REST API** | Reports Plex (`kIciSQlYEM.plex`) `running:false, visible:false` while it is in front, so the REST API cannot see Plex. Launching it through REST works. |
+
+**Design for Session 08's engine (if the household wants it):**
+
+- Config: `kidsMode.plexEpisodes` in the layout (optional whole number 1 to 10; absent means minutes only) and `SOFA_HA_PLEX_ENTITY` (this entity). The minutes allowance stays as the backstop; whichever runs out first wins.
+- A small pure tracker next to `allowance.ts`, fed the Plex entity on every tick (a second `getState`; unavailable or unknown counts nothing). It keeps the content ID, duration, position and timestamp of the last `playing` or `paused`. On `idle` it counts one episode only if the predicted position (position, plus the time since the timestamp if it was playing) is at least the duration minus 30 s; otherwise it is a stop and counts nothing. A `playing` with a new content ID while the old one was predicted within 30 s of its end also counts the old one (covers an Up Next that skips credits, untested). It keeps the last counted content ID and time so one end is never counted twice. Counts reset with the day at 04:00 like the minutes, and are saved with the rest of the state.
+- At the counting `idle` that reaches the limit: send `KEY_RETURN` at once (cancels Plex autoplay; already allowed by the Phone Remote write guard), then the existing zero path (bring Sofa Home to the front, switch off, Done Screen, re-off). With the 5 s tick plus up to 10 s launch wait, the off can land 15 s after `idle`, too close to the 17 s autoplay, which is why Back comes first. If the next episode starts anyway, send `KEY_PAUSE` (works, also allowed) and go on with the zero path.
+- Warning: when the last allowed episode starts, notify the adults instead of the five-minute warning, with a "+1 episode" action next to the minute Top-ups.
+- Status for Companion and the Done Screen: episodes watched and allowed today.
+
+**Not proven:** turning the TV off inside the 17 s gap (not tried at midnight: the TV could not be switched back on from the Mac); the whole flow through the Server (no code); a series finale with no next episode; shows whose credits marker starts Up Next early; seeking backward; long pauses (whether the entity goes `unavailable` while paused); other Plex users or profiles on the TV.
