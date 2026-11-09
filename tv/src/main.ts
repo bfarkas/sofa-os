@@ -112,6 +112,7 @@ document.addEventListener('visibilitychange', () => {
   forget();
   add(document.hidden ? 'HIDDEN' : 'VISIBLE');
   photoView.pause(document.hidden); // no slideshow timers while another app has the screen
+  reportVisible();
   if (!document.hidden) {
     focusStage();
     refocusSoon();
@@ -303,8 +304,10 @@ function runSync(): void {
     openSocket: (h) => {
       // Browsers cannot set WebSocket headers, so the token travels as a subprotocol, never in the URL.
       const ws = new WebSocket(server.replace(/^http/, 'ws') + '/ws', [TV_PROTOCOL_PREFIX + t]);
+      liveSocket = ws;
       ws.onopen = () => {
         h.open();
+        reportVisible();
         if (!document.hidden) kidsCtl.refresh(); // a dropped socket may have missed a Kids Mode signal
       };
       ws.onmessage = (e) => h.message(String(e.data));
@@ -315,6 +318,7 @@ function runSync(): void {
     storageKey: kids ? KIDS_STORAGE_KEY : STORAGE_KEY,
     onKids: () => kidsCtl.refresh(),
     onWidgets: () => widgetsSync && widgetsSync.refresh(),
+    onMenu: phoneMenu,
     onChange: renderHome,
     onUnauthorized: tokenRefused,
   });
@@ -570,6 +574,18 @@ function sendOp(op: LayoutOp, base: number): void {
 function openPhotos(album: string, profile: 'household' | 'kids', how: 'ambient' | 'slideshow', name = ''): void {
   overlay = 'photos';
   photoView.open(album, profile, how, name);
+}
+
+// Phone Remote. The Server only sends Menu to a Sofa Home that says it is in front (a provider app on top means hidden).
+let liveSocket: WebSocket | null = null;
+function reportVisible(): void {
+  if (liveSocket && liveSocket.readyState === 1) liveSocket.send(JSON.stringify({ type: 'visible', visible: !document.hidden }));
+}
+// Menu opens the focused widget's context menu like a long press, and never selects when there is none.
+function phoneMenu(): void {
+  if (document.hidden || overlay !== null) return;
+  const act = shell.menuKey();
+  if (act && act.type === 'menu') openMenu(act);
 }
 
 function onRemote(e: RemoteEvent): void {

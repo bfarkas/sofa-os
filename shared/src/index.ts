@@ -2,6 +2,7 @@
 export * from './layout.ts';
 export * from './ops.ts';
 export * from './photos.ts';
+export * from './remote.ts';
 export * from './tokens.ts';
 export * from './widgets.ts';
 
@@ -51,7 +52,8 @@ export type ServerMessage =
   | { type: 'hello'; serverTime: string }
   | { type: 'revision'; revision: number } // a new revision is published: fetch GET /api/snapshot
   | { type: 'kids' } // Kids Mode or the Watch Allowance changed (enter, exit, Top-up, zero, reset): fetch GET /api/kids
-  | { type: 'widgets' }; // widget data changed: fetch GET /api/widgets
+  | { type: 'widgets' } // widget data changed: fetch GET /api/widgets
+  | { type: 'menu' }; // Phone Remote Menu: open the focused widget's context menu
 
 /** The Watch Allowance as GET /api/kids returns it. All times are whole seconds. */
 export interface KidsStatus {

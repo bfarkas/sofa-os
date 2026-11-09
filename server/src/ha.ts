@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { REMOTE_KEYS } from '@sofa/shared';
 import type { HaConfig } from './config.ts';
 import { log } from './log.ts';
 
@@ -22,7 +23,7 @@ export class HaHttpError extends Error {
   }
 }
 
-const KEY = /^KEY_[A-Z0-9_]+$/;
+const KEYS: string[] = Object.values(REMOTE_KEYS); // only the Phone Remote's keys, not any KEY_*
 const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
 
 function onlyKeys(data: Record<string, unknown>, allowed: string[]): boolean {
@@ -40,7 +41,7 @@ export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   // 3. Forward Phone Remote keys to this TV.
   if (name === 'remote.send_command' && onlyKeys(data, ['entity_id', 'command']) && data.entity_id === ha.remoteEntity) {
     const cmd = data.command;
-    if ((typeof cmd === 'string' && KEY.test(cmd)) || (Array.isArray(cmd) && cmd.length > 0 && cmd.every((c) => typeof c === 'string' && KEY.test(c)))) return;
+    if ((typeof cmd === 'string' && KEYS.includes(cmd)) || (Array.isArray(cmd) && cmd.length > 0 && cmd.every((c) => typeof c === 'string' && KEYS.includes(c)))) return;
   }
   throw new WriteRefused(`Home Assistant write refused: ${name} ${JSON.stringify(data)}`);
 }

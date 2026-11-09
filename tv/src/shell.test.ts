@@ -355,3 +355,21 @@ test('no menus in Kids Mode, and a screen change drops a lifted widget', () => {
   assert.deepEqual(long(shell), shell.key({ key: 'ok', long: false }), 'a long press is just OK');
   assert.equal(shell.lift('w1'), false);
 });
+
+// Session 18: the Phone Remote's Menu button.
+test('Menu opens the same context menu as a long press, and never selects, launches or opens anything else', () => {
+  const { shell } = setup(arranged());
+  assert.ok(shell.focus.focus('widget:w1'));
+  assert.deepEqual(shell.menuKey(), long(shell));
+  assert.ok(shell.focus.focus('app:a.One'));
+  assert.equal(shell.menuKey(), null, 'a long press launches an app, Menu does nothing');
+  assert.ok(shell.focus.focus('widget:w1'));
+  assert.ok(shell.lift('w1'));
+  assert.equal(shell.menuKey(), null, 'while a widget is lifted');
+  const other = setup(arranged());
+  other.press('right', 'right', 'down'); // the Widgets tab
+  assert.ok(other.shell.focus.focus('widget:w1'));
+  assert.equal(other.shell.menuKey(), null, 'a widget already on the Dashboard has no menu there');
+  assert.ok(other.shell.focus.focus('widget:w4'));
+  assert.deepEqual(other.shell.menuKey(), { type: 'menu', widget: 'w4', title: 'Energy', items: ['add'] });
+});
