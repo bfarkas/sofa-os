@@ -26,11 +26,11 @@ function sample(): Layout {
     { id: 'mvOizTfhQn.KiKAplayer', name: 'KiKA' },
   ];
   const both: Layout['widgets'][number]['profiles'] = ['household', 'kids'];
-  const widget = (id: string, size: 'small' | 'medium' | 'large', profiles = both): Layout['widgets'][number] => ({ id, type: id, size, config: {}, profiles, freshness: 'hourly' });
+  const widget = (id: string, size: 'small' | 'medium' | 'large', profiles = both, config: Record<string, unknown> = {}): Layout['widgets'][number] => ({ id, type: id, size, config, profiles, freshness: 'hourly' });
   return {
     schema: 1,
     apps,
-    widgets: [widget('weather', 'medium'), widget('calendar', 'large', ['household']), widget('energy', 'small', ['household']), widget('photos', 'medium'), widget('home', 'small', ['household'])],
+    widgets: [widget('weather', 'medium', both, { entity: 'weather.home' }), widget('calendar', 'large', ['household']), widget('energy', 'small', ['household'], { entity: 'sensor.powerfox_aktuell', period: 'now' }), widget('photos', 'medium'), widget('home', 'small', ['household'])],
     rows: [
       { id: 'today', title: 'Today (published ' + new Date().toLocaleTimeString('en-GB') + ')', items: ['weather', 'calendar', 'energy'].map((id) => ({ kind: 'widget' as const, id })) },
       { id: 'apps', title: 'My Apps', items: apps.map((a) => ({ kind: 'app' as const, id: a.id })) },
