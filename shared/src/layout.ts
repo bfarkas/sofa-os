@@ -5,7 +5,7 @@
 export const LAYOUT_SCHEMA = 1;
 export const WIDGET_SIZES = ['small', 'medium', 'large'] as const;
 export const PROFILES = ['household', 'kids'] as const;
-/** How old a widget's data may get before its card shows as stale. Session 11 sets the thresholds. */
+/** How old a widget's data may get before its card shows as stale; the thresholds are FRESHNESS_POLICY in widgets.ts. */
 export const FRESHNESS = ['live', 'hourly', 'daily'] as const;
 
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
