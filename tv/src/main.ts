@@ -1,7 +1,7 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { textOn, tokensCss, TV_PROTOCOL_PREFIX } from '@sofa/shared';
+import { textOn, tokensCss, TV_PROTOCOL_PREFIX, UUID } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { createKids, createPad, forestFor, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
@@ -10,7 +10,9 @@ import { createShell, type Tab } from './shell.ts';
 import { dashed, normalizeServer, SERVER_KEY, startSignIn, TOKEN_KEY, type SignInState } from './signin.ts';
 import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
 import { initView, redrawCards, render, renderPad, setFocus, updateClock } from './view.ts';
-import { cardOptions, drawCard, setWidgetsState } from './cards.ts';
+import { cardOptions, drawCard, setWidgetsState, viewFor } from './cards.ts';
+import { albumOfCard, authedGet, backgroundImage, fetchImages, startAlbums } from './photos.ts';
+import { createPhotoView } from './photoview.ts';
 import { startWidgets, widgetsFetcher } from './widgets.ts';
 
 declare global {
@@ -109,6 +111,7 @@ window.addEventListener('focus', () => { focusStage(); refocusSoon(); });
 document.addEventListener('visibilitychange', () => {
   forget();
   add(document.hidden ? 'HIDDEN' : 'VISIBLE');
+  photoView.pause(document.hidden); // no slideshow timers while another app has the screen
   if (!document.hidden) {
     focusStage();
     refocusSoon();
@@ -119,6 +122,7 @@ document.addEventListener('visibilitychange', () => {
       kidsCtl.refresh(); // the Server counts this request as proof that the TV is on
       if (sync) sync.refresh();
       if (widgetsSync) widgetsSync.refresh();
+      if (albumsSync) albumsSync.refresh();
     }
   }
 });
@@ -168,6 +172,7 @@ let server = normalizeServer(store.get(SERVER_KEY) || window.SOFA_SERVER_URL || 
 let token = store.get(TOKEN_KEY) || '';
 let sync: { stop(): void; refresh(): void } | null = null;
 let widgetsSync: { stop(): void; refresh(): void } | null = null; // widget data, while the household screen shows
+let albumsSync: { stop(): void; refresh(): void } | null = null; // the albums Kids Mode may open, while Kids Mode shows
 let fullWidget = { id: '', title: '' }; // the widget in the full-screen view
 let signIn: { stop(): void } | null = null;
 let lastRevision = 0;
@@ -179,7 +184,8 @@ const SCREEN_KEY = 'sofahome.screen'; // the last screen, so a restart in Kids M
 let screen: Screen = store.get(SCREEN_KEY) === 'kids' ? 'kids' : store.get(SCREEN_KEY) === 'done' ? 'done' : 'household';
 let syncKids = screen !== 'household'; // which view of the layout the sync fetches
 let bgColor = ''; // the household layout's background
-let overlay: 'settings' | 'pin' | 'full' | null = null;
+let bgPhoto: { path: string } | { album: string } | null = null; // or a photo / album slideshow from Immich
+let overlay: 'settings' | 'pin' | 'full' | 'photos' | null = null;
 let kidsTileOk = false; // the Kids Mode request has been answered
 
 const settingsEl = $('settings'), pinEl = $('pin'), codeEl = $('code'), signinNote = $('signin-note'), toastEl = $('toast');
@@ -193,6 +199,11 @@ initView();
 const shell = createShell({ onView: render, onFocus: setFocus });
 shell.setScreen(screen);
 const launcher = tizenLauncher(typeof tizen === 'undefined' ? undefined : tizen);
+// Photos (Session 14): the slideshow and ambient view, and a photo background. Pictures come from the Server's media cache.
+const photoView = createPhotoView({
+  server: () => server,
+  images: (album, profile) => fetchImages(authedGet(window.fetch.bind(window), server, token), album, profile),
+});
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function toast(text: string): void {
@@ -221,11 +232,15 @@ function renderHome(s: SyncState): void {
     const l = snap.layout;
     appNames = {};
     for (const a of l.apps) appNames[a.id] = a.name;
-    // Only a colour background until Session 14; text colour follows it so labels outside tiles stay legible.
-    bgColor = l.background.kind === 'color' ? l.background.color : '';
+    // A colour or an Immich photo; text colour follows it so labels outside tiles stay legible.
+    const bg = l.background;
+    bgColor = bg.kind === 'color' ? bg.color : '';
+    const path = bg.kind === 'image' ? backgroundImage(bg.image) : null;
+    bgPhoto = path ? { path } : bg.kind === 'slideshow' && UUID.test(bg.album) ? { album: bg.album } : null;
     paintBackground();
     shell.setLayout(l);
     if (widgetsSync) widgetsSync.refresh(); // new or changed widgets
+    if (albumsSync) albumsSync.refresh(); // Kids Mode albums approved or removed
   }
   updateFoot();
   if (snap && !resumed) {
@@ -246,7 +261,12 @@ function start(signedOutNote = ''): void {
   if (sync) sync.stop();
   if (signIn) signIn.stop();
   if (widgetsSync) widgetsSync.stop();
-  sync = signIn = widgetsSync = null;
+  if (albumsSync) albumsSync.stop();
+  sync = signIn = widgetsSync = albumsSync = null;
+  if (overlay === 'photos') {
+    overlay = null;
+    syncOverlays();
+  }
   lastSync = null;
   updateFoot();
   shell.setMode(token && server ? 'home' : 'signin');
@@ -308,6 +328,10 @@ function runSync(): void {
       if (overlay === 'full') drawCard($('full-card'), fullWidget.id, fullWidget.title, 'full');
     },
   });
+  // Kids Mode shows the approved albums as tiles; the Server lists only those (and checks again on every picture).
+  if (albumsSync) albumsSync.stop();
+  albumsSync = kids ? startAlbums({ fetchAlbums: () => authedGet(window.fetch.bind(window), server, t)('/api/photos/albums?profile=kids'), onChange: (list) => shell.setAlbums(list) }) : null;
+  if (!kids) shell.setAlbums([]);
 }
 
 function tokenRefused(): void {
@@ -363,12 +387,16 @@ function showScreen(next: Screen): void {
 let painted = '';
 function paintBackground(): void {
   const look = token ? screen : 'household';
-  const bg = look === 'household' ? (token ? bgColor : '') : '#26331f url(img/kids-forest-' + forestFor(new Date()) + '.jpg) center / cover no-repeat';
-  if (bg === painted) return;
-  painted = bg;
+  const photo = look === 'household' && token ? bgPhoto : null; // Kids Mode keeps the forest, whatever the household chose
+  photoView.setBackground(photo);
+  const bg = look === 'household' ? (token ? (photo ? '#1f241e' : bgColor) : '') : '#26331f url(img/kids-forest-' + forestFor(new Date()) + '.jpg) center / cover no-repeat';
+  const key = bg + (photo ? '|photo' : '');
+  if (key === painted) return;
+  painted = key;
   document.body.className = look === 'household' ? '' : 'kids';
   document.body.style.background = bg;
-  if (look === 'household' && bgColor && token) stage.style.setProperty('--on-bg', textOn(bgColor)); // kids: the stylesheet's ivory
+  if (photo) stage.style.setProperty('--on-bg', '#fffdf8'); // the background's scrim is dark
+  else if (look === 'household' && bgColor && token) stage.style.setProperty('--on-bg', textOn(bgColor)); // kids: the stylesheet's ivory
   else stage.style.removeProperty('--on-bg');
 }
 
@@ -409,6 +437,7 @@ function syncOverlays(): void {
   settingsEl.hidden = overlay !== 'settings';
   pinEl.hidden = overlay !== 'pin';
   $('full').hidden = overlay !== 'full';
+  if (overlay !== 'photos') photoView.close(); // the view hides itself; the background gets its pictures' place back
 }
 
 // ---- Launching apps, and coming back ----
@@ -491,13 +520,28 @@ function endTyping(): void {
   focusStage();
 }
 
+function openPhotos(album: string, profile: 'household' | 'kids', how: 'ambient' | 'slideshow', name = ''): void {
+  overlay = 'photos';
+  photoView.open(album, profile, how, name);
+}
+
 function onRemote(e: RemoteEvent): void {
+  if (overlay === 'photos') {
+    // The slideshow owns the remote: arrows step, OK pauses, Back returns to the tile that opened it.
+    if (photoView.key(e)) {
+      overlay = null;
+      syncOverlays();
+    }
+    return;
+  }
   if (e.key === 'back' && overlay === 'settings' && !server) return;
   const act = shell.key(e);
   if (shell.focus.depth() <= 1) overlay = null; // Back closed it
   syncOverlays();
   if (!act) return;
   if (act.type === 'launch') launchApp(act.appId);
+  else if (act.type === 'album') openPhotos(act.id, 'kids', 'slideshow', act.name);
+  else if (act.type === 'widget' && albumOfCard(viewFor(act.id, act.title))) openPhotos(albumOfCard(viewFor(act.id, act.title))!, 'household', 'ambient'); // the photo widget opens the ambient view
   else if (act.type === 'widget') {
     // The read-only full-screen view: Back or OK closes it, and focus returns to the widget.
     fullWidget = { id: act.id, title: act.title };

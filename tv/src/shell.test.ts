@@ -276,3 +276,21 @@ test('Kids Mode ignores the household tab and has no Settings', () => {
   assert.match(shell.view().message, /No apps are approved/);
   assert.equal(shell.focus.current(), 'kids:exit');
 });
+
+const A1 = '11111111-1111-4111-8111-111111111111';
+const A2 = '22222222-2222-4222-8222-222222222222';
+
+test('Kids Mode adds an album tile only for an album the layout approves, and OK opens its slideshow', () => {
+  const { shell, press } = setup(layout({ kidsMode: { apps: ['a.One'], dailyMinutes: 40, albums: [A1] } }));
+  shell.setScreen('kids');
+  shell.setAlbums([{ id: A1, name: 'Ponies', count: 12 }, { id: A2, name: 'Not approved', count: 3 }]); // the Server would not send A2; the TV checks anyway
+  const tiles = shell.view().sections[0].tiles;
+  assert.deepEqual(tiles.map((t) => [t.id, t.kind, t.label, t.detail]), [['app:a.One', 'app', 'One', ''], ['album:' + A1, 'album', 'Ponies', '12 photos']]);
+  press('right');
+  assert.equal(shell.focus.current(), 'album:' + A1);
+  assert.deepEqual(press('ok')[0], { type: 'album', id: A1, name: 'Ponies' });
+  shell.setAlbums([{ id: A1, name: 'Ponies', count: 1 }]);
+  assert.equal(shell.view().sections[0].tiles[1].detail, '1 photo');
+  shell.setAlbums([]);
+  assert.deepEqual(shell.view().sections[0].tiles.map((t) => t.id), ['app:a.One']);
+});

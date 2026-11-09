@@ -32,7 +32,7 @@
   .tile { flex: none; box-sizing: border-box; height: var(--sofa-size-tile); margin-right: var(--sofa-size-gap); border-radius: var(--sofa-size-radius);
     background: var(--sofa-color-panel); color: var(--sofa-color-ink); border: 2px solid rgba(43, 47, 42, 0.16); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22); display: flex; flex-direction: column; justify-content: center; }
   .tile:last-child { margin-right: 0; }
-  .tile.app, .tile.allapps { width: var(--sofa-size-tile); align-items: center; text-align: center; padding: 0 12px; }
+  .tile.app, .tile.allapps, .tile.album { width: var(--sofa-size-tile); align-items: center; text-align: center; padding: 0 12px; }
   .tile.widget { padding: 0 24px; }
   .tile.small { width: var(--sofa-size-widget-small); }
   .tile.medium { width: var(--sofa-size-widget-medium); }
@@ -92,7 +92,7 @@
   #kids-head img { width: 95px; height: 100px; margin-right: 24px; }
   #kids-title { flex: 1; font-size: var(--sofa-size-text-hero); font-weight: bold; }
   #content.kidsview { top: 220px; }
-  .kidsview .tile.app { width: 300px; height: 300px; border-radius: 34px; }
+  .kidsview .tile.app, .kidsview .tile.album { width: 300px; height: 300px; border-radius: 34px; }
   .kidsview .tile .badge { width: 150px; height: 150px; margin-bottom: 20px; border-radius: 75px; font-size: 84px; line-height: 150px; }
   .kidsview .tile .label { font-size: 44px; }
   #done { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
@@ -118,8 +118,10 @@
   .pkey.word { font-size: 32px; }
 </style>
 <link rel="stylesheet" href="cards.css">
+<link rel="stylesheet" href="photos.css">
 </head>
 <body>
+<div id="bg" hidden><img class="pl" id="bg-a" alt=""><img class="pl" id="bg-b" alt=""><div id="bg-shade"></div></div>
 <div id="stage" tabindex="0">
   <div id="bar" hidden>
     <div id="tabs"></div>
@@ -164,6 +166,12 @@
   <div id="full" hidden>
     <div id="full-card" class="full"></div>
     <div id="full-foot"><div class="pill" id="full:close">Close</div></div>
+  </div>
+  <div id="photos" hidden>
+    <img class="pl" id="pl-a" alt=""><img class="pl" id="pl-b" alt="">
+    <div id="pl-msg"></div>
+    <div id="pl-clock"><div id="pl-time"></div><div id="pl-date"></div></div>
+    <div id="pl-cap" hidden></div>
   </div>
   <div id="settings" hidden>
     <div id="settings-panel">
