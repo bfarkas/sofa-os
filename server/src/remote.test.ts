@@ -142,7 +142,10 @@ before(async () => {
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   cookie = (await fetch(base + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'correct horse' }) })).headers.get('set-cookie')!.split(';')[0];
 });
-after(() => server.close());
+after(() => {
+  server.close();
+  server.closeAllConnections();
+});
 
 const press = (key: unknown, headers: Record<string, string>) =>
   fetch(base + '/api/remote', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ key }) });

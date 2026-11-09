@@ -341,6 +341,8 @@ export function createShell(hooks: ShellHooks) {
       else focus.move(e.key);
       return null;
     },
+    /** The Phone Remote's Menu: the focused widget's context menu, or null where there is none. Never selects, unlike a long OK. */
+    menuKey: (): Activation | null => (lift ? null : menu()),
     /** Where focus is, for restoring it after the app was away. Null while an overlay is open. */
     where(): { tab: Tab; id: string } | null {
       const id = focus.current();

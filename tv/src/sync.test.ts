@@ -195,3 +195,14 @@ test('the kids view is fetched with ?profile=kids, kept under its own key, and a
   assert.equal(signals, 1);
   sync.stop();
 });
+
+test('the Phone Remote Menu signal reaches onMenu', async () => {
+  const h = harness();
+  let menus = 0;
+  const sync = startSync({ ...h.options, onMenu: () => void menus++ });
+  await tick();
+  h.socket().h.open();
+  h.socket().h.message(JSON.stringify({ type: 'menu' }));
+  assert.equal(menus, 1);
+  sync.stop();
+});
