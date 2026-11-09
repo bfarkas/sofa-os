@@ -105,7 +105,8 @@ export function startServer(
     }
     res.writeHead(200, {
       'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-      'Cache-Control': extname(file) === '.html' ? 'no-cache' : 'public, max-age=300',
+      // sw.js must revalidate, or a browser can keep an old worker for minutes after a change.
+      'Cache-Control': extname(file) === '.html' || file.endsWith(sep + 'sw.js') ? 'no-cache' : 'public, max-age=300',
       'Content-Security-Policy': "default-src 'self'; frame-ancestors 'self'",
     });
     res.end(req.method === 'HEAD' ? undefined : body);
