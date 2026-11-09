@@ -1,7 +1,8 @@
 // Photos for the TV: which Immich albums each profile may open, and the bounded JPEGs in the media cache.
 //
 // Policy (ADR 0003, Photos). Kids get exactly the albums in the layout's kidsMode.albums. The household gets every album the
-// published layout uses (a photo widget, the background, the kids list). Both are checked on every request, here, so a path
+// published layout uses (a photo widget, the background, the kids list), and the photostream (the library's newest photos) when
+// the layout uses it; the stream is never served to kids. Both are checked on every request, here, so a path
 // handed to the wrong profile is refused whatever the TV asks for. An asset is served only if it is in that album.
 //
 // Pictures are not resized here: Immich already makes a web-friendly "preview" JPEG of every photo (HEIC and RAW included),
@@ -9,7 +10,7 @@
 // that is not a JPEG (Chromium 56 on the TV, and the budget), or bigger than MAX_FILE_BYTES.
 import { mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { mediaPath, SLIDESHOW_IMAGES, UUID, type Layout, type PhotoAlbum, type Profile } from '@sofa/shared';
+import { isSource, mediaPath, SLIDESHOW_IMAGES, STREAM, UUID, type Layout, type PhotoAlbum, type Profile } from '@sofa/shared';
 import type { ImmichApi } from './immich.ts';
 import { log } from './log.ts';
 
@@ -57,14 +58,15 @@ export function createPhotos(o: PhotosOptions) {
   /** The albums the household's published layout uses. */
   function usedAlbums(l: Layout): Set<string> {
     const s = new Set<string>(l.kidsMode.albums ?? []);
-    for (const w of l.widgets) if (w.type === 'photo' && typeof w.config.album === 'string') s.add(w.config.album);
+    for (const w of l.widgets) if (w.type === 'photo') s.add(w.config.source === 'photostream' ? STREAM : String(w.config.album));
     if (l.background.kind === 'slideshow') s.add(l.background.album);
     else if (l.background.kind === 'image') s.add(l.background.image.split('/')[0]);
     return s;
   }
+  // The photostream (the whole library) is the household's only: Kids Mode gets an approved album or nothing, whatever the layout says.
   const allowed = (profile: Profile, album: string): boolean => {
     const l = o.layout();
-    return UUID.test(album) && (profile === 'kids' ? (l.kidsMode.albums ?? []).indexOf(album) >= 0 : usedAlbums(l).has(album));
+    return profile === 'kids' ? UUID.test(album) && (l.kidsMode.albums ?? []).indexOf(album) >= 0 : isSource(album) && usedAlbums(l).has(album);
   };
   function must(profile: Profile, album: string): void {
     if (!o.immich) throw new PhotoError(502, 'Immich is not set up');
@@ -95,7 +97,7 @@ export function createPhotos(o: PhotosOptions) {
     if (pending) return pending;
     const p = (async () => {
       try {
-        const a = await o.immich!.album(album, signal);
+        const a = album === STREAM ? { name: 'Photostream', assetIds: await o.immich!.stream(signal) } : await o.immich!.album(album, signal);
         const fresh = { name: a.name, ids: a.assetIds, at: now() };
         lists.set(album, fresh);
         mkdir(listDir, { recursive: true }).then(() => writeFile(join(listDir, album + '.json'), JSON.stringify(fresh))).catch(() => {}); // a cache: losing it only matters in an outage

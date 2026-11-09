@@ -1,7 +1,7 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { applyOp, textOn, tokensCss, TV_PROTOCOL_PREFIX, UUID, type LayoutOp } from '@sofa/shared';
+import { applyOp, isSource, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { createKids, createPad, forestFor, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
@@ -239,7 +239,7 @@ function renderHome(s: SyncState): void {
     const bg = l.background;
     bgColor = bg.kind === 'color' ? bg.color : '';
     const path = bg.kind === 'image' ? backgroundImage(bg.image) : null;
-    bgPhoto = path ? { path } : bg.kind === 'slideshow' && UUID.test(bg.album) ? { album: bg.album } : null;
+    bgPhoto = path ? { path } : bg.kind === 'slideshow' && isSource(bg.album) ? { album: bg.album } : null;
     paintBackground();
     shell.setLayout(l);
     if (widgetsSync) widgetsSync.refresh(); // new or changed widgets

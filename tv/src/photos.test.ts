@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mediaPath } from '@sofa/shared';
+import { mediaPath, STREAM } from '@sofa/shared';
 import { albumOfCard, authedGet, backgroundImage, fetchImages, parseAlbums, startAlbums } from './photos.ts';
 import type { CardView } from './widgets.ts';
 
@@ -59,4 +59,12 @@ test('requests carry the device token and fail on any other status', async () =>
   assert.deepEqual(await get('/api/x'), { a: 1 });
   await assert.rejects(get('/bad'), /403/);
   assert.deepEqual(calls[0], { url: 'https://sofa.test/api/x', auth: 'Bearer tok' });
+});
+
+test('the photostream behaves as an album id on the TV, for the household only', async () => {
+  assert.equal(albumOfCard(ok(mediaPath('household', STREAM, asset(1)))), STREAM);
+  assert.equal(albumOfCard(ok(mediaPath('kids', STREAM, asset(1)))), null);
+  assert.equal(backgroundImage(STREAM + '/' + asset(1)), mediaPath('household', STREAM, asset(1)));
+  const get = async () => ({ name: 'Photostream', images: [mediaPath('household', STREAM, asset(1)), mediaPath('household', A, asset(2))] });
+  assert.deepEqual((await fetchImages(get, STREAM, 'household')).images, [mediaPath('household', STREAM, asset(1))]);
 });

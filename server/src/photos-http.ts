@@ -1,5 +1,5 @@
 // The photo endpoints, called from server.ts:
-//   GET /api/media/<profile>/<album>/<asset>.jpg   a cached JPEG. No credentials: an <img> on the TV cannot send any. The path
+//   GET /api/media/<profile>/<album|photostream>/<asset>.jpg   a cached JPEG. No credentials: an <img> on the TV cannot send any. The path
 //                                                  is the capability (unguessable ids) and photos.ts checks profile and album.
 //   GET /api/photos/albums?profile=household|kids  the albums a profile may open (Sofa Home, Companion)
 //   GET /api/photos/albums                         every Immich album with its Kids Mode approval (Companion only)
@@ -7,7 +7,7 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PROFILES, UUID, type PhotoAlbumsResponse, type PhotoImagesResponse, type Profile } from '@sofa/shared';
+import { isSource, PROFILES, type PhotoAlbumsResponse, type PhotoImagesResponse, type Profile } from '@sofa/shared';
 import { log } from './log.ts';
 import { PhotoError, type Photos } from './photos.ts';
 
@@ -23,8 +23,8 @@ const profileOf = (v: string | null): Profile | null | undefined => (v === null 
 export async function photoRoute(photos: Photos, req: IncomingMessage, res: ServerResponse, access: { companion: boolean; tv: boolean }): Promise<boolean> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
-  const media = /^\/api\/media\/(household|kids)\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.jpg$/.exec(path);
-  const images = /^\/api\/photos\/albums\/([0-9a-f-]{36})\/images$/.exec(path);
+  const media = /^\/api\/media\/(household|kids)\/([0-9a-f-]{36}|photostream)\/([0-9a-f-]{36})\.jpg$/.exec(path);
+  const images = /^\/api\/photos\/albums\/([0-9a-f-]{36}|photostream)\/images$/.exec(path);
   if (!media && !images && path !== '/api/photos/albums') return false;
   if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'method not allowed' });
   const fail = (err: unknown): true => {
@@ -53,7 +53,7 @@ export async function photoRoute(photos: Photos, req: IncomingMessage, res: Serv
   if (profile === undefined) return json(res, 400, { error: 'profile must be household or kids' });
   try {
     if (images) {
-      if (!UUID.test(images[1]) || !profile) return json(res, 400, { error: 'expected an album id and ?profile=' });
+      if (!isSource(images[1]) || !profile) return json(res, 400, { error: 'expected an album id and ?profile=' });
       return json(res, 200, { id: images[1], ...(await photos.images(profile, images[1])) } satisfies PhotoImagesResponse);
     }
     if (profile) return json(res, 200, { albums: await photos.albumsFor(profile) } satisfies PhotoAlbumsResponse);

@@ -1,6 +1,6 @@
 // The photo widget: one random photo of an Immich album on a tile. OK on it opens the ambient view of the same album
 // (Sofa Home finds the album from the image path, shared/src/photos.ts).
-import { mediaPath, parseMediaPath, type Display } from '@sofa/shared';
+import { mediaPath, parseMediaPath, STREAM, type Display } from '@sofa/shared';
 import { PhotoError, type Photos } from '../photos.ts';
 import { Unavailable, type WidgetAdapter, type WidgetResult } from '../widgets.ts';
 
@@ -12,20 +12,21 @@ export function photoAdapter({ photos }: PhotoDeps): WidgetAdapter {
   return {
     type: 'photo',
     title: 'Photos',
-    description: 'A photo from an Immich album. OK opens the album as a slideshow with the clock.',
+    description: 'A photo from an Immich album, or from the newest photos of the whole library (the photostream, household only). OK opens it as a slideshow with the clock.',
     templates: ['photo'],
     sizes: ['small', 'medium', 'large'],
     defaultSize: 'medium',
     defaultFreshness: 'hourly', // a new photo every ten minutes
     fields: [
-      { key: 'album', label: 'Album', kind: 'album', required: true },
+      { key: 'source', label: 'Photos from', kind: 'choice', default: 'album', options: [{ value: 'album', label: 'An album' }, { value: 'photostream', label: 'The photostream (newest photos)' }], help: 'The photostream is the whole library and the household\'s only: Kids Mode never shows it. Albums can be approved for kids.' },
+      { key: 'album', label: 'Album', kind: 'album', required: true, when: { key: 'source', value: 'album' } },
       { key: 'title', label: 'Title', kind: 'text', maxLength: 40, help: 'Shown on the tile. The album name if empty.' },
     ],
     async read(config, ctx) {
       if (!photos.configured) throw new Unavailable('Immich is not set up');
       let pick;
       try {
-        pick = await photos.pick('household', String(config.album), ctx.signal);
+        pick = await photos.pick('household', config.source === 'photostream' ? STREAM : String(config.album), ctx.signal);
       } catch (err) {
         if (err instanceof PhotoError) throw new Unavailable(err.status === 502 ? 'Photos are not reachable' : 'This album is not available');
         throw err;
