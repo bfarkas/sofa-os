@@ -78,3 +78,15 @@ select.compact { width: auto; max-width: 96px; flex: none; margin: 0 6px 0 0; pa
 .line.item > .name { flex: 1 0 100%; padding-left: 0; }
 .line.item > .name .kind { display: inline; margin-right: 8px; }
 .line.item select.compact { flex: 1; max-width: none; }
+
+/* Phone Remote */
+#remote-pad button { height: 64px; padding: 0; font-size: 24px; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+#remote-pad button:active:not(:disabled) { filter: brightness(1.25); }
+#remote-pad .gap { visibility: hidden; }
+.rtop, .rpad, .rmedia { display: grid; gap: 10px; margin: 0 0 16px; }
+.rtop { grid-template-columns: repeat(3, 1fr); }
+.rpad { grid-template-columns: repeat(3, 1fr); }
+.rpad button { height: 84px; }
+.rmedia { grid-template-columns: repeat(5, 1fr); }
+.rmedia button { font-size: 20px; }
+#remote-note { min-height: 3em; color: var(--muted); }

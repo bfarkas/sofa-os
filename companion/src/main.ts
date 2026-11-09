@@ -1,6 +1,7 @@
 import type { ApiError, Draft, KidsPinRequest, KidsStatus, Layout, LoginRequest, Snapshot, TopUpRequest, TvApproveRequest } from '@sofa/shared';
 import { KIDS_TOPUP_PATH, PIN_PATTERN } from '@sofa/shared';
 import { startEditor } from './editor.ts';
+import { startRemote } from './remote.ts';
 import { statusText, topupView } from './kids-view.ts';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -14,6 +15,7 @@ const tvResult = $('tv-result');
 const kidsPage = $('kids');
 const topupPage = $('topup');
 const editPage = $('edit');
+const remotePage = $('remote');
 
 // Makes Companion installable; sw.js caches nothing (see the file).
 if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
@@ -25,6 +27,7 @@ const onTvPage = path === '/tv-signin';
 const onKidsPage = path === '/kids';
 const onTopupPage = path === KIDS_TOPUP_PATH;
 const onEditPage = path === '/edit';
+const onRemotePage = path === '/remote';
 const tvCode = onTvPage ? /^code=([A-Z0-9]{8})$/.exec(location.search.slice(1))?.[1] : undefined;
 const dashed = (code: string) => code.slice(0, 4) + '-' + code.slice(4);
 
@@ -37,8 +40,9 @@ function show(signedIn: boolean): void {
   kidsPage.hidden = !signedIn || !onKidsPage;
   topupPage.hidden = !signedIn || !onTopupPage;
   editPage.hidden = !signedIn || !onEditPage;
+  remotePage.hidden = !signedIn || !onRemotePage;
   document.querySelector('main')!.classList.toggle('wide', onEditPage);
-  home.hidden = !signedIn || onTvPage || onKidsPage || onTopupPage || onEditPage;
+  home.hidden = !signedIn || onTvPage || onKidsPage || onTopupPage || onEditPage || onRemotePage;
   if (!signedIn) return password.focus();
   if (onKidsPage || onTopupPage) {
     void refresh();
@@ -46,6 +50,7 @@ function show(signedIn: boolean): void {
   }
   if (onKidsPage) void loadApps();
   if (onEditPage) startEditor(call);
+  if (onRemotePage) startRemote(call);
 }
 
 // A call to the Server. A 401 means the session ended: back to the login form, which keeps this URL.
