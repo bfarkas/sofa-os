@@ -1,11 +1,14 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { validateLayout, type Draft, type Layout, type Snapshot } from '@sofa/shared';
+import { applyOp, validateLayout, type Draft, type Layout, type LayoutOp, type Snapshot } from '@sofa/shared';
 
 // Revision model (docs/implementation-plan.md, Session 05 note):
 // - Revisions are numbered 1, 2, 3 without gaps; the highest is current. Each records `base`, the revision it was built on.
 // - A draft records `base`, the revision it started from. Publishing commits the draft as current + 1 and deletes it,
 //   in one transaction, and is refused unless draft.base is still current. So a publish never silently drops a
-//   revision the draft has not seen. Session 16 merges a TV change into each open draft and moves its base forward.
+//   revision the draft has not seen.
+// - Sofa Home's changes are operations (ADR 0004): commitOp applies one to the current revision, records it on the new
+//   revision and replays it onto each draft based on the current revision, moving that draft forward. saveDraft accepts an
+//   older base when only such operations follow it, and replays them onto the sent layout.
 
 interface RevisionRow {
   number: number;
@@ -63,14 +66,33 @@ export function getDraft(db: DatabaseSync, id: number): Draft | undefined {
   return row && toDraft(row);
 }
 
-/** Saves a draft's layout as sent, valid or not. 'stale' when `base` is not the draft's base. */
+/** A draft layout may be anything Companion sent; an operation that cannot apply to it leaves it as it was. */
+function replay(layout: unknown, op: LayoutOp): unknown {
+  try {
+    return applyOp(layout as Layout, op) ?? layout;
+  } catch {
+    return layout;
+  }
+}
+
+/**
+ * Saves a draft's layout as sent, valid or not. `base` is the draft's base, or an earlier revision followed only by Sofa Home's
+ * operations: those are replayed onto the layout and the draft moves to the current revision. Anything else is 'stale'.
+ */
 export function saveDraft(db: DatabaseSync, id: number, base: number, layout: unknown, now = Date.now()): Draft | 'missing' | 'stale' {
   const row = draftRow(db, id);
   if (!row) return 'missing';
-  if (row.base !== base) return 'stale';
-  const json = JSON.stringify(layout);
-  db.prepare('UPDATE drafts SET layout = ?, updated_at = ? WHERE id = ?').run(json, now, id);
-  return toDraft({ ...row, layout: json });
+  if (base > row.base) return 'stale';
+  const after = db.prepare('SELECT number, op FROM revisions WHERE number > ? ORDER BY number').all(base) as unknown as { number: number; op: string | null }[];
+  let merged = layout;
+  for (const r of after) {
+    if (r.op === null) return 'stale'; // a Companion publish: whole layouts do not merge
+    merged = replay(merged, JSON.parse(r.op) as LayoutOp);
+  }
+  const json = JSON.stringify(merged);
+  const top = after.length ? after[after.length - 1].number : base;
+  db.prepare('UPDATE drafts SET base = ?, layout = ?, updated_at = ? WHERE id = ?').run(top, json, now, id);
+  return toDraft({ id, base: top, layout: json });
 }
 
 export function deleteDraft(db: DatabaseSync, id: number): boolean {
@@ -95,6 +117,32 @@ export function publishDraft(db: DatabaseSync, id: number, now = Date.now(), che
     }
     db.prepare('INSERT INTO revisions (number, base, layout, created_at) VALUES (?, ?, ?, ?)').run(current + 1, row.base, row.layout, now);
     db.prepare('DELETE FROM drafts WHERE id = ?').run(id);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return { ok: true, snapshot: currentSnapshot(db) };
+}
+
+export type OpResult = { ok: true; snapshot: Snapshot } | { ok: false; status: 409 | 422; error: string; errors?: string[] };
+
+/** Applies Sofa Home's operation to the current revision as the next one, and replays it onto the drafts based on it, atomically. */
+export function commitOp(db: DatabaseSync, base: number, op: LayoutOp, now = Date.now()): OpResult {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const cur = currentRow(db);
+    const next = cur.number === base ? applyOp(JSON.parse(cur.layout) as Layout, op) : null;
+    const errors = next ? validateLayout(next) : [];
+    if (!next || errors.length) {
+      db.exec('ROLLBACK');
+      if (cur.number !== base) return { ok: false, status: 409, error: `the layout changed: revision ${cur.number} is current, not ${base}` };
+      return next ? { ok: false, status: 422, error: 'layout is invalid', errors } : { ok: false, status: 409, error: 'that widget is not where the TV showed it' };
+    }
+    db.prepare('INSERT INTO revisions (number, base, layout, created_at, op) VALUES (?, ?, ?, ?, ?)').run(cur.number + 1, cur.number, JSON.stringify(next), now, JSON.stringify(op));
+    const drafts = db.prepare('SELECT id, base, layout FROM drafts WHERE base = ?').all(cur.number) as unknown as DraftRow[];
+    const move = db.prepare('UPDATE drafts SET base = ?, layout = ? WHERE id = ?');
+    for (const d of drafts) move.run(cur.number + 1, JSON.stringify(replay(JSON.parse(d.layout), op)), d.id);
     db.exec('COMMIT');
   } catch (err) {
     db.exec('ROLLBACK');
