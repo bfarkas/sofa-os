@@ -39,7 +39,7 @@ test('the Dashboard shows the layout rows and ends the last app row with All App
   assert.deepEqual(s[0].tiles.map((t) => t.id), ['kids']); // the Kids Mode tile leads
   assert.deepEqual(s[1].tiles.map((t) => t.id), ['app:a.One', 'app:a.Two', 'allapps']);
   assert.deepEqual(s[2].tiles.map((t) => t.id), ['widget:w1']); // w3 is for kids only: the profile filter
-  assert.equal(s[2].tiles[0].detail, 'Medium widget');
+  assert.equal(s[2].tiles[0].detail, ''); // the card itself shows the widget (cards.ts)
 });
 
 test('without any app row the All Apps tile gets a row of its own', () => {
@@ -63,8 +63,8 @@ test('the Widgets tab packs six units to a row and says what is on the Dashboard
   const s = sectionsFor(l, 'widgets', new Set());
   // household widgets: w1 medium (2), w2 large (3), w4 small (1), w5 large (3)
   assert.deepEqual(s.map((x) => x.tiles.map((t) => t.id)), [['widget:w1', 'widget:w2', 'widget:w4'], ['widget:w5']]);
-  assert.equal(s[0].tiles[0].detail, 'Medium\nOn Dashboard');
-  assert.equal(s[0].tiles[1].detail, 'Large\nNot on Dashboard');
+  assert.equal(s[0].tiles[0].detail, 'On Dashboard');
+  assert.equal(s[0].tiles[1].detail, 'Not on Dashboard');
 });
 
 test('rows that point at nothing are skipped', () => {
@@ -118,11 +118,11 @@ test('OK on a tab goes into it, OK on All Apps opens the Apps tab, OK on an app 
   assert.deepEqual(press('ok')[0], { type: 'launch', appId: 'a.One' });
 });
 
-test('a widget placeholder is focusable and OK does nothing yet', () => {
+test('a widget is focusable and OK asks for its full-screen view', () => {
   const { shell, press } = setup();
   press('down', 'down', 'down');
   assert.equal(shell.focus.current(), 'widget:w1');
-  assert.deepEqual(press('ok')[0], null);
+  assert.deepEqual(press('ok')[0], { type: 'widget', id: 'w1', title: 'Weather' });
 });
 
 test('Back: from a tile to the bar, from Apps or Widgets to Dashboard, then nothing', () => {

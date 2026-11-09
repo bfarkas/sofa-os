@@ -1,6 +1,6 @@
 // The shell of Sofa Home without the DOM: tabs, what each tab shows, and focus. view.ts draws it, main.ts feeds it keys.
 //   Dashboard: the layout's rows, plus an All Apps tile that opens the Apps tab.
-//   Apps: every app in household order (All Apps).   Widgets: every widget instance, as placeholders until Session 11.
+//   Apps: every app in household order (All Apps).   Widgets: every widget instance as its card (cards.ts).
 // Focus order: a bar on top (Dashboard, Apps, Widgets, Settings), then the tab's rows. Focusing a tab shows it. Down goes into
 // the first tile, Back comes back to the bar, and Back on the Apps or Widgets tab goes to Dashboard. Overlays (Settings) sit
 // on top and Back closes them first.
@@ -49,7 +49,8 @@ export type Activation =
   | { type: 'digit'; digit: string } // a number key while an overlay (the PIN pad) is open
   | { type: 'kids-enter' }
   | { type: 'kids-unavailable' }
-  | { type: 'pin' }; // the Adults button: open the PIN pad
+  | { type: 'pin' } // the Adults button: open the PIN pad
+  | { type: 'widget'; id: string; title: string }; // OK on a widget: its full-screen view (title until the Server names it)
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const BAR = TABS.map((t) => 'tab:' + t.id).concat('settings');
@@ -90,7 +91,7 @@ export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, 
         used = 0;
       }
       used += UNITS[w.size];
-      out[out.length - 1].tiles.push(widgetTile(w, cap(w.size) + '\n' + (placed[w.id] ? 'On Dashboard' : 'Not on Dashboard')));
+      out[out.length - 1].tiles.push(widgetTile(w, placed[w.id] ? 'On Dashboard' : 'Not on Dashboard'));
     }
     return out;
   }
@@ -101,7 +102,7 @@ export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, 
     for (const i of r.items) {
       const w = i.kind === 'widget' ? shown.filter((x) => x.id === i.id)[0] : null;
       if (i.kind === 'app' && apps[i.id]) tiles.push(apps[i.id]);
-      else if (w) tiles.push(widgetTile(w, cap(w.size) + ' widget'));
+      else if (w) tiles.push(widgetTile(w, ''));
     }
     if (tiles.length) out.push({ title: r.title, tiles });
   }
@@ -192,7 +193,11 @@ export function createShell(hooks: ShellHooks) {
       const first = layout && layout.apps[0];
       showTab('apps', first ? 'app:' + first.id : undefined);
     } else if (id.indexOf('app:') === 0) return { type: 'launch', appId: id.slice(4) };
-    return null; // widgets have no full-screen view until Session 11
+    else if (id.indexOf('widget:') === 0) {
+      const w = layout && layout.widgets.filter((x) => 'widget:' + x.id === id)[0];
+      return { type: 'widget', id: id.slice(7), title: w ? cap(w.type) : '' };
+    }
+    return null;
   }
 
   // Where a screen starts: the tab, the first approved app, or the Adults button.

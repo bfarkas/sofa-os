@@ -31,6 +31,7 @@ export interface SyncOptions {
   storage: { getItem(key: string): string | null; setItem(key: string, value: string): void };
   storageKey?: string; // where the last valid snapshot is kept (default STORAGE_KEY)
   onKids?(): void; // the Server signalled that Kids Mode or the Watch Allowance changed
+  onWidgets?(): void; // the Server signalled that widget data changed
   onChange(state: SyncState): void;
   onUnauthorized(): void; // sync has stopped itself; the stored snapshot is untouched
   intervalMs?: number; // polling and reconnecting while the socket is down
@@ -139,6 +140,7 @@ export function startSync(o: SyncOptions): { stop(): void; refresh(): void } {
           }
           if (msg.type === 'revision' && (!state.snapshot || msg.revision !== state.snapshot.revision)) refresh();
           else if (msg.type === 'kids' && o.onKids) o.onKids();
+          else if (msg.type === 'widgets' && o.onWidgets) o.onWidgets();
         },
         close: () => {
           if (current()) drop();

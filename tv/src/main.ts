@@ -9,7 +9,9 @@ import { drawQr } from './qr.ts';
 import { createShell, type Tab } from './shell.ts';
 import { dashed, normalizeServer, SERVER_KEY, startSignIn, TOKEN_KEY, type SignInState } from './signin.ts';
 import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
-import { initView, render, renderPad, setFocus, updateClock } from './view.ts';
+import { initView, redrawCards, render, renderPad, setFocus, updateClock } from './view.ts';
+import { cardOptions, drawCard, setWidgetsState } from './cards.ts';
+import { startWidgets, widgetsFetcher } from './widgets.ts';
 
 declare global {
   interface Window {
@@ -115,6 +117,7 @@ document.addEventListener('visibilitychange', () => {
     if (token && server) {
       kidsCtl.refresh(); // the Server counts this request as proof that the TV is on
       if (sync) sync.refresh();
+      if (widgetsSync) widgetsSync.refresh();
     }
   }
 });
@@ -163,6 +166,8 @@ const RESUME_MAX_MS = 6 * 3600_000;
 let server = normalizeServer(store.get(SERVER_KEY) || window.SOFA_SERVER_URL || '') || '';
 let token = store.get(TOKEN_KEY) || '';
 let sync: { stop(): void; refresh(): void } | null = null;
+let widgetsSync: { stop(): void; refresh(): void } | null = null; // widget data, while the household screen shows
+let fullWidget = { id: '', title: '' }; // the widget in the full-screen view
 let signIn: { stop(): void } | null = null;
 let lastRevision = 0;
 let lastNote = '';
@@ -173,7 +178,7 @@ const SCREEN_KEY = 'sofahome.screen'; // the last screen, so a restart in Kids M
 let screen: Screen = store.get(SCREEN_KEY) === 'kids' ? 'kids' : store.get(SCREEN_KEY) === 'done' ? 'done' : 'household';
 let syncKids = screen !== 'household'; // which view of the layout the sync fetches
 let bgColor = ''; // the household layout's background
-let overlay: 'settings' | 'pin' | null = null;
+let overlay: 'settings' | 'pin' | 'full' | null = null;
 let kidsTileOk = false; // the Kids Mode request has been answered
 
 const settingsEl = $('settings'), pinEl = $('pin'), codeEl = $('code'), signinNote = $('signin-note'), toastEl = $('toast');
@@ -219,6 +224,7 @@ function renderHome(s: SyncState): void {
     bgColor = l.background.kind === 'color' ? l.background.color : '';
     paintBackground();
     shell.setLayout(l);
+    if (widgetsSync) widgetsSync.refresh(); // new or changed widgets
   }
   updateFoot();
   if (snap && !resumed) {
@@ -238,7 +244,8 @@ function renderSignIn(s: SignInState, signedOutNote: string): void {
 function start(signedOutNote = ''): void {
   if (sync) sync.stop();
   if (signIn) signIn.stop();
-  sync = signIn = null;
+  if (widgetsSync) widgetsSync.stop();
+  sync = signIn = widgetsSync = null;
   lastSync = null;
   updateFoot();
   shell.setMode(token && server ? 'home' : 'signin');
@@ -284,8 +291,21 @@ function runSync(): void {
     storage: localStorage,
     storageKey: kids ? KIDS_STORAGE_KEY : STORAGE_KEY,
     onKids: () => kidsCtl.refresh(),
+    onWidgets: () => widgetsSync && widgetsSync.refresh(),
     onChange: renderHome,
     onUnauthorized: tokenRefused,
+  });
+  // Widget cards: only the household screen shows them. A failing widget fetch only marks the cards stale.
+  if (widgetsSync) widgetsSync.stop();
+  cardOptions.server = server;
+  widgetsSync = kids ? null : startWidgets({
+    fetchWidgets: widgetsFetcher(window.fetch.bind(window), server, t),
+    storage: localStorage,
+    onChange: (s) => {
+      setWidgetsState(s);
+      redrawCards();
+      if (overlay === 'full') drawCard($('full-card'), fullWidget.id, fullWidget.title, 'full');
+    },
   });
 }
 
@@ -383,6 +403,7 @@ function padKey(id: string): void {
 function syncOverlays(): void {
   settingsEl.hidden = overlay !== 'settings';
   pinEl.hidden = overlay !== 'pin';
+  $('full').hidden = overlay !== 'full';
 }
 
 // ---- Launching apps, and coming back ----
@@ -472,6 +493,14 @@ function onRemote(e: RemoteEvent): void {
   syncOverlays();
   if (!act) return;
   if (act.type === 'launch') launchApp(act.appId);
+  else if (act.type === 'widget') {
+    // The read-only full-screen view: Back or OK closes it, and focus returns to the widget.
+    fullWidget = { id: act.id, title: act.title };
+    drawCard($('full-card'), act.id, act.title, 'full');
+    overlay = 'full';
+    shell.focus.push([['full:close']]);
+    syncOverlays();
+  }
   else if (act.type === 'settings') openSettings();
   else if (act.type === 'pin') openPin();
   else if (act.type === 'digit') {
@@ -482,6 +511,11 @@ function onRemote(e: RemoteEvent): void {
     toast('Kids Mode is not available right now.');
     kidsCtl.refresh();
   } else if (overlay === 'pin') padKey(act.id);
+  else if (act.id === 'full:close') {
+    shell.focus.pop();
+    overlay = null;
+    syncOverlays();
+  }
   else if (act.id === 'set:server') serverInput.focus(); // the TV's on-screen keyboard opens for a focused text field
   else if (act.id === 'set:again') {
     token = '';
