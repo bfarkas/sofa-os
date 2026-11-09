@@ -29,6 +29,13 @@ test('allowed: turn this TV off', async () => {
   assert.equal((calls[0].init.headers as Record<string, string>).Authorization, 'Bearer test-token');
 });
 
+test('allowed: bring Sofa Home to the front on this TV (before the switch-off at zero)', async () => {
+  const { calls, client } = fakeHa();
+  await client.launchSofaHome();
+  assert.equal(calls[0].url, 'http://ha.test:8123/api/services/media_player/play_media');
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome' });
+});
+
 test("allowed: notify the adults' phones", async () => {
   const { calls, client } = fakeHa();
   await client.notifyAdults('5 minutes left', { title: 'Kids Mode', data: { actions: [{ action: 'SOFA_TOPUP_5', title: '+5 min' }] } });
@@ -66,6 +73,11 @@ const refused: [string, ServiceCall][] = [
   ['turn-off of every player', { domain: 'media_player', service: 'turn_off', data: { entity_id: 'all' } }],
   ['pausing the TV', { domain: 'media_player', service: 'media_pause', data: { entity_id: 'media_player.samung_tv' } }],
   ['notify with an added target', { domain: 'notify', service: 'mobile_app_hidekis_iphone', data: { message: 'hi', target: ['mobile_app_guest'] } }],
+  ['launching another app', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: '111299001912' } }],
+  ['playing a URL on the TV', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.samung_tv', media_content_type: 'url', media_content_id: 'sofahome01.SofaHome' } }],
+  ['launching Sofa Home on another player', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.kitchen', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome' } }],
+  ['a launch with extra data', { domain: 'media_player', service: 'play_media', data: { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome', enqueue: 'play' } }],
+  ['selecting a source', { domain: 'media_player', service: 'select_source', data: { entity_id: 'media_player.samung_tv', source: 'KiKA' } }],
   ['a persistent notification', { domain: 'persistent_notification', service: 'create', data: { message: 'hi' } }],
 ];
 
@@ -86,6 +98,7 @@ test('getState rejects anything but an entity id', () => {
 test('dry run: allowed writes pass the guard and are logged, not sent; everything else is still refused', async () => {
   const { calls, client } = fakeHa({ ...ha, dryRun: true });
   await client.turnOffTv();
+  await client.launchSofaHome();
   await client.notifyAdults('5 minutes left');
   await client.sendKey('KEY_ENTER');
   assert.equal(calls.length, 0);

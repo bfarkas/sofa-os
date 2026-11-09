@@ -24,6 +24,7 @@ export class HaHttpError extends Error {
 }
 
 const KEYS: string[] = Object.values(REMOTE_KEYS); // only the Phone Remote's keys, not any KEY_*
+export const SOFA_HOME_APP_ID = 'sofahome01.SofaHome'; // tv/app/config.xml
 const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
 
 function onlyKeys(data: Record<string, unknown>, allowed: string[]): boolean {
@@ -34,8 +35,10 @@ function onlyKeys(data: Record<string, unknown>, allowed: string[]): boolean {
 export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   const { domain, service, data } = call;
   const name = `${domain}.${service}`;
-  // 1. Turn this TV off when the Watch Allowance reaches zero.
+  // 1. Turn this TV off when the Watch Allowance reaches zero, bringing Sofa Home to the front first (so the TV's
+  //    Start Last App powers on into the Done Screen, not a provider app). Only Sofa Home may be launched.
   if (name === 'media_player.turn_off' && onlyKeys(data, ['entity_id']) && data.entity_id === ha.tvEntity) return;
+  if (name === 'media_player.play_media' && onlyKeys(data, ['entity_id', 'media_content_type', 'media_content_id']) && data.entity_id === ha.tvEntity && data.media_content_type === 'app' && data.media_content_id === SOFA_HOME_APP_ID) return;
   // 2. Send the Watch Allowance notification to the adults' phones.
   if (domain === 'notify' && ha.notifyServices.includes(service) && onlyKeys(data, ['message', 'title', 'data']) && typeof data.message === 'string') return;
   // 3. Forward Phone Remote keys to this TV.
@@ -75,6 +78,7 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
       return request(`/api/states/${entityId}`);
     },
     turnOffTv: () => callService({ domain: 'media_player', service: 'turn_off', data: { entity_id: ha.tvEntity } }),
+    launchSofaHome: () => callService({ domain: 'media_player', service: 'play_media', data: { entity_id: ha.tvEntity, media_content_type: 'app', media_content_id: SOFA_HOME_APP_ID } }),
     notifyAdults: (message: string, extra: { title?: string; data?: Record<string, unknown> } = {}) =>
       Promise.all(ha.notifyServices.map((service) => callService({ domain: 'notify', service, data: { message, ...extra } }))),
     sendKey: (key: string) => callService({ domain: 'remote', service: 'send_command', data: { entity_id: ha.remoteEntity, command: key } }),

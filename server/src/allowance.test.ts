@@ -18,14 +18,17 @@ const memoryStore = (): Store => {
 };
 
 // A fake clock and a fake Home Assistant behind the real client, so every write goes through the write guard.
-function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?: number; failTurnOff?: number } = {}) {
+// By default Sofa Home answers a launch at once (its resume request), as it does from the front; `home` changes that.
+function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?: number; failTurnOff?: number; home?: 'answers' | 'silent' | 'fails' } = {}) {
   const clock = { t: Date.parse(o.at ?? '2026-11-09T17:00:00+01:00') };
   const calls: { path: string; body: Record<string, any> }[] = [];
   let failTurnOff = o.failTurnOff ?? 0;
   const fetchFn = (async (url: string, init: RequestInit) => {
     const path = new URL(url).pathname;
     if (path.endsWith('/turn_off') && failTurnOff-- > 0) return new Response('', { status: 502 });
+    if (path.endsWith('/play_media') && o.home === 'fails') return new Response('', { status: 500 });
     calls.push({ path, body: JSON.parse(String(init.body)) });
+    if (path.endsWith('/play_media') && (o.home ?? 'answers') === 'answers') engine.tvSeen();
     return new Response('[]');
   }) as unknown as typeof fetch;
   const store = memoryStore();
@@ -48,6 +51,9 @@ function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?
       return engine;
     },
     turnOffs: () => calls.filter((c) => c.path === '/api/services/media_player/turn_off'),
+    launches: () => calls.filter((c) => c.path === '/api/services/media_player/play_media'),
+    /** The media player writes in order: 'launch' or 'off'. */
+    writes: () => calls.filter((c) => c.path.startsWith('/api/services/media_player/')).map((c) => (c.path.endsWith('/play_media') ? 'launch' : 'off')),
     notifies: () => calls.filter((c) => c.path.startsWith('/api/services/notify/')),
     used: () => engine.status().usedSeconds,
     /** A Server restart: a new engine on the same store, `seconds` later. */
@@ -530,4 +536,83 @@ test('a Done Screen shown while the TV is still going to standby does not start 
   assert.equal(k.turnOffs().length, 1, 'the minute counts from the power-on, not from the old Done Screen');
   await k.watch(10);
   assert.equal(k.turnOffs().length, 2);
+});
+
+test('zero brings Sofa Home to the front through the write guard, then switches the TV off once it has answered', async () => {
+  const k = setup({ minutes: 1 });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(55);
+  assert.deepEqual(k.writes(), []);
+  await k.watch(5);
+  assert.deepEqual(k.writes(), ['launch', 'off'], 'Sofa Home first, so Start Last App powers on into it');
+  assert.deepEqual(k.launches()[0].body, { entity_id: 'media_player.samung_tv', media_content_type: 'app', media_content_id: 'sofahome01.SofaHome' });
+  assert.equal(k.engine.status().donePending, true);
+  await k.watch(30); // Home Assistant has not caught up yet: no second launch, no second switch-off
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+});
+
+test('zero: if Sofa Home does not answer the launch, the TV still goes off after the launch wait', async () => {
+  const k = setup({ minutes: 1, home: 'silent' });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60);
+  assert.deepEqual(k.writes(), ['launch']);
+  assert.equal(k.engine.status().donePending, false);
+  await k.watch(5);
+  assert.deepEqual(k.writes(), ['launch']);
+  await k.watch(5); // LAUNCH_WAIT_MS after the launch
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+  assert.equal(k.engine.status().donePending, true);
+});
+
+test('zero: a failed launch switches the TV off at once, and is not retried', async () => {
+  const k = setup({ minutes: 1, home: 'fails' });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60);
+  assert.deepEqual(k.writes(), ['off'], 'the refused launch never reached the calls; the switch-off did, in the same reading');
+  assert.equal(k.engine.status().donePending, true);
+  await k.watch(30);
+  assert.deepEqual(k.writes(), ['off']);
+});
+
+test('a TV powered on at zero into a provider app gets Sofa Home in front, and the re-off still comes a minute later', async () => {
+  const k = setup({ minutes: 1, home: 'silent' }); // Sofa Home is not in front: it only answers when launched, see below
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(70); // zero: launch, no answer, off after the wait
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+  await k.watch(10, 'off');
+  await k.watch(60); // Home Assistant's false on after standby: pending, so nothing is launched (it could wake the TV)
+  assert.equal(k.engine.status().tv, 'pending');
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+  await k.watch(300, 'off');
+  await k.watch(5); // a person powers on; Start Last App resumes the provider app, Sofa Home says nothing
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch'], 'Sofa Home brought to the front at the first on reading');
+  await k.watch(50);
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch'], 'once per power-on');
+  await k.watch(10);
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch', 'off'], 'the re-off a minute after the on, without another launch wait');
+  assert.equal(k.engine.status().donePending, true);
+});
+
+test('a TV powered on at zero into Sofa Home is not launched again; the re-off brings it to the front first', async () => {
+  const k = setup({ minutes: 1 });
+  await backOnAtZero(k); // Sofa Home spoke before the on reading
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+  await k.watch(60);
+  assert.deepEqual(k.writes(), ['launch', 'off', 'launch', 'off']);
+});
+
+test('a failed launch at power-on leaves the re-off a minute later as the backstop', async () => {
+  const k = setup({ minutes: 1, home: 'fails' });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60);
+  await k.watch(300, 'off');
+  await k.watch(60); // the on reading, then 55 seconds
+  assert.deepEqual(k.writes(), ['off']);
+  await k.watch(5);
+  assert.deepEqual(k.writes(), ['off', 'off']);
 });

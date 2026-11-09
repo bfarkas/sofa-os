@@ -15,6 +15,7 @@ export const HOLD_MS = 240_000; // Home Assistant's false "on" after a remote st
 export const WARN_SECONDS = 300;
 export const MAX_TOPUP_MINUTES = 240;
 export const DONE_SCREEN_MS = 60_000; // how long the Done Screen may stay up on a TV that is on again at zero
+export const LAUNCH_WAIT_MS = 10_000; // at most this long between bringing Sofa Home to the front and the switch-off
 export const WARNING_TAG = 'sofa-kids-warning'; // a new warning replaces the old one on the phone
 
 /** The notification actions (spec Known results: a tap arrives as mobile_app_notification_action with { action }). */
@@ -83,8 +84,9 @@ interface State {
   zeroed: boolean; // the TV was switched off for the current zero
   donePending: boolean; // show the Done Screen at the next power-on
   doneAt: number; // ms; when Sofa Home showed the Done Screen at zero (0: not yet); the TV goes off again DONE_SCREEN_MS later
+  launchAt: number; // ms; when the Server brought Sofa Home to the front during this on at zero (0: not yet)
 }
-const INITIAL: State = { day: '', used: 0, topUp: 0, kids: false, tv: 'off', since: 0, onAt: 0, offAt: 0, seenAt: 0, provenAt: 0, warned: false, zeroed: false, donePending: false, doneAt: 0 };
+const INITIAL: State = { day: '', used: 0, topUp: 0, kids: false, tv: 'off', since: 0, onAt: 0, offAt: 0, seenAt: 0, provenAt: 0, warned: false, zeroed: false, donePending: false, doneAt: 0, launchAt: 0 };
 
 /** Where the state is kept between restarts: one JSON document. */
 export interface Store {
@@ -104,7 +106,7 @@ export const fromDb = (db: DatabaseSync) => ({
 export interface AllowanceOptions {
   store: Store;
   budgetSeconds: () => number; // the daily allowance, read on every use so a published layout applies at once
-  ha: Pick<HaClient, 'turnOffTv' | 'notifyAdults'> | null;
+  ha: Pick<HaClient, 'turnOffTv' | 'notifyAdults' | 'launchSofaHome'> | null;
   timeZone: string;
   resetMinutes: number; // local time of the overnight reset, in minutes after midnight
   graceSeconds: number; // time between zero and the switch-off
@@ -133,7 +135,7 @@ export function createAllowance(o: AllowanceOptions) {
     const day = days.of(now);
     if (day <= s.day) return; // date order; never back, so a reset inside the repeated DST hour happens once
     if (s.day) log.info('allowance reset', { day });
-    Object.assign(s, { day, used: 0, topUp: 0, warned: false, zeroed: false, donePending: false, doneAt: 0 });
+    Object.assign(s, { day, used: 0, topUp: 0, warned: false, zeroed: false, donePending: false, doneAt: 0, launchAt: 0 });
     s.since = Math.max(s.since, days.start(day));
   }
 
@@ -152,7 +154,7 @@ export function createAllowance(o: AllowanceOptions) {
   function commit(): void {
     const rem = remaining();
     if (rem > WARN_SECONDS) s.warned = false; // time was added: warn again on the way down
-    if (rem > 0) Object.assign(s, { zeroed: false, donePending: false, doneAt: 0 });
+    if (rem > 0) Object.assign(s, { zeroed: false, donePending: false, doneAt: 0, launchAt: 0 });
     const json = JSON.stringify(counting() ? s : { ...s, seenAt: 0 }); // only a running clock needs its last observation
     if (json !== saved) o.store.save((saved = json));
     if (signature() !== signalled) {
@@ -195,7 +197,7 @@ export function createAllowance(o: AllowanceOptions) {
         s.seenAt = now;
         if (power === 'off') {
           if (s.tv !== 'off') {
-            Object.assign(s, { tv: 'off', offAt: now, doneAt: 0 });
+            Object.assign(s, { tv: 'off', offAt: now, doneAt: 0, launchAt: 0 });
             if (s.kids && s.zeroed) s.donePending = true; // off before the minute was up: the next power-on shows the Done Screen again
           }
         } else if (s.tv === 'off') {
@@ -235,7 +237,7 @@ export function createAllowance(o: AllowanceOptions) {
     exit: () =>
       change(() => {
         if (!s.kids) return;
-        Object.assign(s, { kids: false, donePending: false, doneAt: 0 });
+        Object.assign(s, { kids: false, donePending: false, doneAt: 0, launchAt: 0 });
         log.info('kids mode exited');
       }),
 
@@ -268,23 +270,39 @@ export function createAllowance(o: AllowanceOptions) {
           log.warn('allowance warning failed', { err: String(err) });
         }
       }
-      // A TV switched on again at zero: once Sofa Home has shown the Done Screen for a minute, off again, unless a Top-up came.
-      if (s.zeroed && s.doneAt && rem <= 0 && clock() - s.doneAt >= DONE_SCREEN_MS) {
+      // The TV powers on into the last app (Smart Hub's Start Last App). Sofa Home must be that app, so it is brought to
+      // the front before every switch-off, and when the TV is on at zero without Sofa Home having spoken since the off
+      // (a provider app in front). Home Assistant does not say which app is in front, so a Sofa Home request is the proof.
+      const launch = async (why: string): Promise<boolean> => {
+        s.launchAt = clock(); // once per on at zero: no retry, the switch-off is the backstop
         try {
-          await o.ha.turnOffTv();
-          Object.assign(s, { doneAt: 0, donePending: true });
-          log.info('allowance still at zero: tv switched off again');
+          await o.ha!.launchSofaHome();
+          log.info('sofa home brought to the front', { why });
+          return true;
         } catch (err) {
-          log.warn('switching the tv off again failed', { err: String(err) });
+          log.warn('bringing sofa home to the front failed', { why, err: String(err) });
+          return false;
         }
-      }
-      if (!s.zeroed && rem <= -o.graceSeconds) {
-        try {
-          await o.ha.turnOffTv(); // retried on the next tick if it fails; turning off a TV that is off is harmless
-          Object.assign(s, { zeroed: true, warned: true, donePending: true });
-          log.info('allowance at zero: tv switched off');
-        } catch (err) {
-          log.warn('switching the tv off failed', { err: String(err) });
+      };
+      if (s.zeroed && rem <= 0 && !s.launchAt && s.provenAt < s.offAt) await launch('on at zero');
+      const reOff = s.zeroed && s.doneAt && rem <= 0 && clock() - s.doneAt >= DONE_SCREEN_MS;
+      if (reOff || (!s.zeroed && rem <= -o.graceSeconds)) {
+        // Switch off once Sofa Home has answered from the front, or LAUNCH_WAIT_MS after the launch, or at once if it failed.
+        const failed = !s.launchAt && !(await launch(reOff ? 're-off' : 'zero'));
+        if (failed || s.provenAt >= s.launchAt || clock() - s.launchAt >= LAUNCH_WAIT_MS) {
+          try {
+            await o.ha.turnOffTv(); // retried on the next tick if it fails; turning off a TV that is off is harmless
+            if (reOff) {
+              // A TV switched on again at zero: once Sofa Home has shown the Done Screen for a minute, off again, unless a Top-up came.
+              Object.assign(s, { doneAt: 0, donePending: true });
+              log.info('allowance still at zero: tv switched off again');
+            } else {
+              Object.assign(s, { zeroed: true, warned: true, donePending: true });
+              log.info('allowance at zero: tv switched off');
+            }
+          } catch (err) {
+            log.warn(reOff ? 'switching the tv off again failed' : 'switching the tv off failed', { err: String(err) });
+          }
         }
       }
       commit();
