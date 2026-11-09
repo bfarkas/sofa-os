@@ -82,7 +82,8 @@ document.addEventListener('keydown', (e) => {
     add(`down ${e.keyCode} key=${e.key}`);
   }
   if (document.activeElement === serverInput) {
-    if (e.keyCode === 13 || e.keyCode === 10009 || e.keyCode === 27) {
+    // 65385 is the on-screen keyboard's own Back (tested on the TV): it closes the keyboard but leaves the field focused.
+    if (e.keyCode === 13 || e.keyCode === 10009 || e.keyCode === 27 || e.keyCode === 65385) {
       e.preventDefault();
       endTyping();
     }
@@ -303,7 +304,11 @@ const kidsCtl = createKids({
     const headers: Record<string, string> = { Authorization: 'Bearer ' + token };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     return window.fetch(server + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
-      .then((r) => r.json().then((b) => b, () => null).then((b) => ({ status: r.status, body: b })));
+      .then((r) => r.json().then((b) => b, () => null).then((b) => ({ status: r.status, body: b })))
+      .catch((e) => {
+        add('kids ' + method + ' ' + path + ' failed: ' + e);
+        throw e;
+      });
   },
   onChange: (k: KidsState) => {
     kidsTileOk = tileAvailable(k);
@@ -477,7 +482,8 @@ function onRemote(e: RemoteEvent): void {
   else if (act.type === 'digit') {
     if (overlay === 'pin') padKey('pin:' + act.digit);
   } else if (act.type === 'kids-enter') {
-    kidsCtl.enter().then((ok) => { if (!ok) toast('Kids Mode is not available right now.'); });
+    add('kids enter');
+    kidsCtl.enter().then((ok) => { add('kids enter ' + (ok ? 'ok' : 'refused')); if (!ok) toast('Kids Mode is not available right now.'); });
   } else if (act.type === 'kids-unavailable') {
     toast('Kids Mode is not available right now.');
     kidsCtl.refresh();
