@@ -10,6 +10,9 @@ export const PROFILES = ['household', 'kids'] as const;
 export const FRESHNESS = ['live', 'hourly', 'daily'] as const;
 
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
+/** Width of each size; a row on the TV holds ROW_UNITS and clips anything past it (SIZES.widgetSmall/Medium/Large). */
+export const UNITS: Record<WidgetSize, number> = { small: 1, medium: 2, large: 3 };
+export const ROW_UNITS = 6;
 export type Profile = (typeof PROFILES)[number];
 export type Freshness = (typeof FRESHNESS)[number];
 

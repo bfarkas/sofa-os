@@ -1,11 +1,11 @@
 // The layout changes Sofa Home makes (Session 16, ADR 0004): small operations on a widget id. The Server applies one to the
 // current revision and replays it onto open Companion drafts, so the same function runs on both. Runs on the TV (ES2017).
-import type { Layout, Row } from './layout.ts';
+import { ROW_UNITS, UNITS, type Layout, type Row } from './layout.ts';
 
 export type LayoutOp =
   | { op: 'move'; widget: string; index: number } // to this position among the items of its Dashboard row (clamped)
   | { op: 'remove'; widget: string } // off the Dashboard; the widget itself stays
-  | { op: 'add'; widget: string }; // onto the Dashboard: the end of the first row holding a widget, or a new row
+  | { op: 'add'; widget: string }; // onto the Dashboard: the end of the first widget row with room for it, or a new row
 
 /** Body of POST /api/layout/ops. `base` is the revision Sofa Home showed; any other is refused with 409. */
 export interface LayoutOpRequest {
@@ -22,7 +22,14 @@ export function applyOp(l: Layout, op: LayoutOp): Layout | null {
   if (op.op === 'add') {
     if (row || !l.widgets.some((w) => w.id === op.widget)) return null;
     const item = { kind: 'widget' as const, id: op.widget };
-    const target = l.rows.filter((r) => r.items.some((i) => i.kind === 'widget'))[0];
+    // The first widget row with room for it, since a row clips anything past ROW_UNITS without a hint.
+    const units = (id: string) => {
+      const w = l.widgets.filter((x) => x.id === id)[0];
+      return w ? UNITS[w.size] || 0 : 0;
+    };
+    const target = l.rows.filter(
+      (r) => r.items.some((i) => i.kind === 'widget') && r.items.reduce((n, i) => n + (i.kind === 'widget' ? units(i.id) : 0), units(op.widget)) <= ROW_UNITS,
+    )[0];
     if (target) return { ...l, rows: l.rows.map((r) => (r === target ? { ...r, items: r.items.concat(item) } : r)) };
     let n = l.rows.length + 1;
     while (l.rows.some((r) => r.id === 'row-' + n)) n++;

@@ -9,7 +9,7 @@
 // Arranging widgets (Session 16): a long press on a widget asks for its context menu (Move, Remove from Dashboard on the
 // Dashboard; Add to Dashboard in the Widgets tab for one not there). Move lifts it: left and right reorder it in its row, OK
 // places it as a `move` operation for the Server, Back cancels. A long press anywhere else is a select, as before.
-import { applyOp, type Layout, type LayoutOp, type PhotoAlbum, type Profile, type WidgetSize } from '@sofa/shared';
+import { applyOp, ROW_UNITS, UNITS, type Layout, type LayoutOp, type PhotoAlbum, type Profile, type WidgetSize } from '@sofa/shared';
 import { createFocus } from './focus.ts';
 import type { RemoteEvent } from './keys.ts';
 import type { Screen } from './kids.ts';
@@ -22,8 +22,6 @@ export const TABS: { id: Tab; label: string }[] = [
 ];
 /** The profile Sofa Home shows. Session 09 makes it switchable; today only widgets are filtered by it. */
 export const PROFILE: Profile = 'household';
-const UNITS: Record<WidgetSize, number> = { small: 1, medium: 2, large: 3 };
-const ROW_UNITS = 6; // a Widgets-tab row holds six units, matching SIZES.widgetSmall/Medium/Large
 const APP_COLUMNS = 7;
 
 export interface Tile {

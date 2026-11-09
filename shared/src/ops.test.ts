@@ -38,6 +38,17 @@ test('add puts the widget at the end of the first row holding a widget, or a new
   assert.deepEqual(added.rows[1], { id: 'row-2', title: 'Widgets', items: [{ kind: 'widget', id: 'd' }] });
 });
 
+test('add skips a row with no room left, since the TV clips past six units (found on the TV)', () => {
+  const l = layout();
+  l.widgets[0] = { ...w('a'), size: 'large' }; // info: large 3 + small 1 + small 1 = 5 units
+  l.widgets[3] = { ...w('d'), size: 'medium' };
+  const added = applyOp(l, { op: 'add', widget: 'd' })!;
+  assert.deepEqual(ids(added), ['a', 'a.Plex', 'b', 'c'], 'Info is left alone');
+  assert.deepEqual(added.rows[2].items, [{ kind: 'widget', id: 'd' }]);
+  l.widgets[3] = w('d');
+  assert.deepEqual(ids(applyOp(l, { op: 'add', widget: 'd' })), ['a', 'a.Plex', 'b', 'c', 'd'], 'a small one still fits');
+});
+
 test('an operation that does not apply returns null', () => {
   assert.equal(applyOp(layout(), { op: 'move', widget: 'd', index: 0 }), null); // not on the Dashboard
   assert.equal(applyOp(layout(), { op: 'remove', widget: 'd' }), null);
