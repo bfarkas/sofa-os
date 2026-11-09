@@ -18,7 +18,7 @@ export function photoAdapter({ photos }: PhotoDeps): WidgetAdapter {
     defaultSize: 'medium',
     defaultFreshness: 'hourly', // a new photo every ten minutes
     fields: [
-      { key: 'source', label: 'Photos from', kind: 'choice', default: 'album', options: [{ value: 'album', label: 'An album' }, { value: 'photostream', label: 'The photostream (newest photos, not in Kids Mode)' }] },
+      { key: 'source', label: 'Photos from', kind: 'choice', default: 'album', options: [{ value: 'album', label: 'An album' }, { value: 'photostream', label: 'The photostream (newest photos)' }], help: 'The photostream is the whole library and the household\'s only: Kids Mode never shows it. Albums can be approved for kids.' },
       { key: 'album', label: 'Album', kind: 'album', required: true, when: { key: 'source', value: 'album' } },
       { key: 'title', label: 'Title', kind: 'text', maxLength: 40, help: 'Shown on the tile. The album name if empty.' },
     ],
