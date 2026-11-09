@@ -358,6 +358,15 @@ Follow the spec's [Family calendar](Sofa.OS%20Architecture%20v0.2.md#family-cale
 
 **Done when:** tests cover ordering, recurrence identity and all-day ranges using recorded responses, and the spec's two untested items are recorded.
 
+**Built (2026-11-09).** `server/src/adapters/calendar.ts` (adapter and reader), registered in `catalogue.ts` and given the reader in `server.ts`; tests and anonymised recordings in `server/src/adapters/calendar.test.ts` and `fixtures/`.
+
+- Type `calendar` (agenda template, medium and large, `hourly`). Config: `calendar` (a choice from `CALENDAR_ALLOWLIST`, `calendar.family` first) and `days` (1 to 14, default 7). The reader refuses any entity outside the allowlist and is a read, not one of the three writes.
+- Events are de-duplicated, sorted by start (all day first), then limited to 40, then grouped by local day. A date-only event covers each day up to its exclusive end; a timed event past midnight continues as "Until HH:MM".
+- Household cards show title and time; the full view adds the location. Descriptions never leave the Server (they hold phone numbers and booking text).
+- Kids Mode (`forKids`): only time and "Something planned". A test with sentinel summaries, locations and descriptions checks that none appear anywhere in the kids response.
+- **Measured: the Server's own `calendar.get_events` returns no `uid` or `recurrence_id`** (see the spec). The adapter uses them when present and otherwise start, end and title. Decision for the user: whether to read `/api/calendars/<entity>` instead for exact identity.
+- **Not measured: the 15-minute delay** (needs an event added in the calendar). **The duplicate `icloud` calendars** are untouched: the allowlist keeps them out. Not checked on the TV or in a browser with live data.
+
 ### 14 · Immich photos and ambient view
 
 **Difficulty 3 · Sonnet · high · TV**

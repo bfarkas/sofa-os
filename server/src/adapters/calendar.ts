@@ -88,8 +88,9 @@ export function calendarAdapter(deps: { read: CalendarReader; timeZone: string; 
     const seen = new Map<string, Occurrence>();
     for (const e of raw) {
       const o = parse(e);
-      // An event without a uid cannot be told from another one with the same times, so its start and title stand in.
-      if (o) seen.set(o.id === '|' ? 'x|' + o.startMs + o.title : o.id, o);
+      // Measured 2026-11-09: calendar.get_events itself sends no uid or recurrence_id, so without them the occurrence is
+      // identified by its start, end and title (two identical events then count as one).
+      if (o) seen.set(o.id === '|' ? `x|${JSON.stringify([e.start, e.end])}|${o.title}` : o.id, o);
     }
     return [...seen.values()].sort((x, y) => x.startMs - y.startMs || (x.allDay === y.allDay ? 0 : x.allDay ? -1 : 1) || x.title.localeCompare(y.title));
   }

@@ -140,7 +140,12 @@ Tested against the household's Home Assistant on 2026-11-07, the shared calendar
 - Events do not arrive in date order, so sort by start time before limiting the list.
 - Occurrences of a recurring event share a `uid`, so identify each one by `uid` plus `recurrence_id`.
 
-Event titles appear as written, so they can be German in the English interface. The calendar holds private details such as medical appointments and addresses, so decide what each profile shows. Still untested are the Server's own `calendar.get_events` call and the 15-minute delay. [Home Assistant CalDAV](https://www.home-assistant.io/integrations/caldav/) · [Get calendar events](https://www.home-assistant.io/actions/calendar.get_events/)
+Event titles appear as written, so they can be German in the English interface. The calendar holds private details such as medical appointments and addresses, so decide what each profile shows. Measured on 2026-11-09 (Session 13):
+
+- **The Server's own `calendar.get_events` call.** It works, and it differs from the calendar listing the tests above used: the response has only `start`, `end`, `summary`, `location` and (when set) `description`, with `start` and `end` as plain strings (`2026-11-17` for all day, an ISO time with offset otherwise). It has no `uid`, no `recurrence_id`, no `rrule` and no `status`. So with this action alone an occurrence cannot be identified by `uid` plus `recurrence_id`; the adapter falls back to start, end and title (two identical events then count as one). The Home Assistant calendar listing does carry both fields, so if exact identity matters, read `GET /api/calendars/<entity>?start=&end=` instead (not yet tried from the Server; same token, still a read). The adapter uses either shape.
+- **The 15-minute delay.** Not measured: it needs a calendar change, and Sofa.OS never writes to the calendar. Home Assistant's CalDAV integration polls (the entry is loaded with polling on, no `update_interval` setting is exposed), and its documented interval is 15 minutes. Add that to the Server's own refresh (`hourly` freshness reads every 10 minutes), so a new event can take up to about 25 minutes to show. An adult must add a test event and note when the Server first shows it.
+
+[Home Assistant CalDAV](https://www.home-assistant.io/integrations/caldav/) · [Get calendar events](https://www.home-assistant.io/actions/calendar.get_events/)
 
 ### Immich as the first photo provider
 

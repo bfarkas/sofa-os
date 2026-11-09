@@ -110,6 +110,19 @@ test('the reader asks calendar.get_events for a response and unwraps it', async 
   assert.deepEqual(Object.keys(calls[0].body).sort(), ['end_date_time', 'entity_id', 'start_date_time']);
 });
 
+test("the Server's own calendar.get_events response (no uid, no recurrence_id) still gives an ordered, de-duplicated agenda", async () => {
+  const raw: RawEvent[] = JSON.parse(readFileSync(new URL('./fixtures/get-events-raw.json', import.meta.url), 'utf8')).service_response['calendar.family'].events;
+  assert.ok(raw.every((e) => !('uid' in e)));
+  const d = await days([...raw, raw[0]], { calendar: 'calendar.family', days: 14 });
+  assert.deepEqual(flat(d), [
+    ['Mon 16 Nov', '16:45 Music class'],
+    ['Tue 17 Nov', 'All day Trip away'],
+    ['Wed 18 Nov', 'All day Trip away', '07:45 Cleaner'],
+    ['Thu 19 Nov', 'All day Trip away', '08:30 Dentist', '15:30 Dance class', '16:15 Choir practice'],
+    ['Fri 20 Nov', 'All day School closed', '15:15 Gymnastics'],
+  ]);
+});
+
 // ---- Kids Mode: nothing about an event but that it exists ----
 
 const SECRETS = ['Choir practice', 'Haircut', 'Dentist', 'Trip away', 'Sample Street', 'Community centre', '+49 000', 'booking.example', 'Room 1', 'Open day'];
