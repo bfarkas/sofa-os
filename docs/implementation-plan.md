@@ -234,7 +234,7 @@ The Server-side clock from the spec's [Watch Allowance](Sofa.OS%20Architecture%2
 | **Enter, exit** | Entering starts counting from now if the TV is on. Exiting stops the clock and clears the Done Screen. |
 | **5 minutes left** | While counting, the notification goes once to each phone with **+5 min**, **+10 min** and **Custom**. It goes again only after a Top-up lifts the time left above 5 minutes. |
 | **Top-up** | Adds minutes to today's budget. Clears at zero and Done Screen pending once there is time left. |
-| **Zero** | While counting, `media_player.turn_off` through the write guard, once per zero, retried every tick while it fails. Then at zero and Done Screen pending. Kids Mode stays active. The clock stops at zero, so a later Top-up gives its full minutes. |
+| **Zero** | While counting, Sofa Home is brought to the front first (Session 10b), then `media_player.turn_off` through the write guard, once per zero, retried every tick while it fails. Then at zero and Done Screen pending. Kids Mode stays active. The clock stops at zero, so a later Top-up gives its full minutes. |
 | **Done Screen shown** | `POST /api/kids/done-shown` clears it. |
 | **04:00 local** | A new day: used, Top-up and all flags reset; Kids Mode and the TV state stay. Time from 04:00:00 counts toward the new day. |
 
@@ -318,6 +318,16 @@ Run the Phase 1 exit condition end to end with a short allowance: power-on, TV S
 At zero the TV may be inside a provider app, and the next power-on resumes it. Make the next power-on land on Sofa Home (for example bring Sofa Home to the front before `turn_off` at zero through the write guard, or switch Start Last App off if Sofa Home still launches at power-on), keep the 60-second re-off as a backstop, then repeat Session 10's evening with the power-on from a person's remote.
 
 **Done when:** a zero inside a provider app is followed by a power-on that shows the Done Screen, and Phase 1 can be marked done.
+
+**Built (2026-11-09), unit-tested only; not yet deployed or run on the TV (the TV was off).**
+
+- **Evidence that shaped it.** Home Assistant's `media_player.samung_tv` (core `samsungtv`, `supported_features` 24381) supports `PLAY_MEDIA` and `SELECT_SOURCE` but not `TURN_ON`. Its `source_list` has the store apps (KiKA, Netflix, Plex, even the sideloaded TizenBrew) but not Sofa Home, so `select_source` cannot reach it; `play_media` with `media_content_type: app` launches by app id (`ed.apps.launch`). While the TV is on, its attributes carry only volume and mute: no `source` or `app_id` (24 hours of history checked), so the Server cannot see which app is in front. Sofa Home has `background-support="disable"`, so a hidden Sofa Home gets no event at zero (option B ruled out). Start Last App is a TV setting a person can switch off; it stays the documented fallback (option C).
+- **A: Sofa Home before every switch-off.** At zero, and at the 60-second re-off, the Server first calls `media_player.play_media` (`app`, `sofahome01.SofaHome`), then switches off once Sofa Home has answered (its resume request, which the Server counts as proof) or 10 seconds after the launch (`LAUNCH_WAIT_MS`), whichever comes first. A failed launch switches off in the same tick. A failed switch-off is retried every tick as before, without a second launch.
+- **D: Sofa Home at a power-on at zero.** When the TV is `on` at zero and Sofa Home has made no request since the last off (a provider app is in front), the Server launches Sofa Home once for that power-on. The re-off minute starts at the on reading as before, so a failed launch still ends in a switch-off a minute later. Nothing is launched while the on is `pending` (Home Assistant's false on after standby): sending a command to a TV in standby might wake it, which is untested. So a real power-on within 4 minutes of the off still waits for the hold, unless A made Sofa Home the last app.
+- **Write guard.** Write 1 of the spec now includes bringing Sofa Home to the front: `media_player.play_media` on this TV with exactly `entity_id`, `media_content_type: app` and `media_content_id: sofahome01.SofaHome`. Tests refuse another app id, another content type, another player, extra keys and `select_source`. Dry run logs the launch like any write. Spec bullet updated.
+- **State.** One new field, `launchAt`, cleared on an off reading, when time is added, at the day reset and on exit.
+
+**Still to prove on the TV (needs the TV on):** deploy; a zero inside KiKA shows `launch` then `off` in the log, and how long Sofa Home takes to answer; a power-on from the remote lands on Sofa Home with the Done Screen; the re-off a minute later; whether a launch during Home Assistant's false on wakes the TV (decides whether D may also act on `pending`). If the TV still powers on into KiKA after A, switch Start Last App off on the TV (Settings > General > Smart Features) and record it.
 
 ---
 
