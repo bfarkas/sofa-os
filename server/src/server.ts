@@ -7,7 +7,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
 import { createCalendarReader } from './adapters/calendar.ts';
-import { createForecastReader, watchHomeAssistant } from './adapters/homeassistant.ts';
+import { cachedHistory, createForecastReader, createHistoryReader, watchHomeAssistant } from './adapters/homeassistant.ts';
 import { createCatalogue } from './catalogue.ts';
 import { createImmich } from './immich.ts';
 import type { Config } from './config.ts';
@@ -75,7 +75,7 @@ export function startServer(
   photos: Photos = createPhotos({ immich: config.immich ? createImmich(config.immich) : null, mediaDir: config.mediaDir, layout: () => currentSnapshot(db).layout }),
   system: System = createSystem(!config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on'),
 ): Server {
-  adapters ??= createCatalogue({ db, photos, ha: config.ha && createHaClient(config.ha), calendar: config.ha ? createCalendarReader(config.ha) : undefined, forecast: config.ha ? createForecastReader(config.ha) : undefined, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
+  adapters ??= createCatalogue({ db, photos, ha: config.ha && createHaClient(config.ha), calendar: config.ha ? createCalendarReader(config.ha) : undefined, forecast: config.ha ? createForecastReader(config.ha) : undefined, history: config.ha ? cachedHistory(createHistoryReader(config.ha)) : undefined, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {
     const token = readCookie(req.headers.cookie, SESSION_COOKIE);

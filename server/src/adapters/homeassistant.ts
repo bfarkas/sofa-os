@@ -2,7 +2,7 @@
 // Server's Home Assistant client (REST for snapshots), so the token never leaves the Server. A Home Assistant outage throws
 // Unavailable, which the framework turns into a stale card (last data kept) rather than a zero. An entity Home Assistant
 // itself reports as unavailable or unknown is a missing reading: a dash.
-import { ENTITY_DOMAINS, MAX_CARD_ENTITIES, type Column, type Display, type Layout, type ListRow, type StackPart } from '@sofa/shared';
+import { DASH, ENTITY_DOMAINS, ENTITY_ID, MAX_CARD_ENTITIES, type Column, type Display, type Layout, type ListRow, type StackPart } from '@sofa/shared';
 import type { HaConfig } from '../config.ts';
 import { HaHttpError } from '../ha.ts';
 import { log } from '../log.ts';
@@ -229,13 +229,112 @@ export const ENERGY_PERIODS: Record<string, string> = {
   total: 'Total since the meter started',
 };
 
-/** One energy or power reading with its unit and the period it covers. Home Assistant does not say the period, so the household does. */
-export function energyAdapter(ha: HaReader | null): WidgetAdapter {
+// ---- Power history ----
+
+/** One state change from the recorder: the state (a number or a word like "unavailable") from `at` (ms) until the next entry. */
+export interface HistoryEntry {
+  state: string;
+  at: number;
+}
+/** The recorder's history of one entity for the last `hours` hours up to `now`, oldest first. It holds the state in force at the window's start. */
+export type HistoryReader = (entity: string, hours: number, now: number, signal: AbortSignal) => Promise<HistoryEntry[]>;
+
+const MIN_MS = 60_000;
+const BUCKET_MIN_MIN = 5;
+const MAX_POINTS = 96; // the chart template's limit
+
+/** The chart's time grid: 5 minute buckets, wider (in 5 minute steps) for a long window so that it stays under the point limit. Buckets sit on the clock, so they do not move between reads. */
+export function historyWindow(now: number, hours: number): { start: number; bucket: number; n: number } {
+  const bucket = BUCKET_MIN_MIN * MIN_MS * Math.ceil((hours * 60) / BUCKET_MIN_MIN / (MAX_POINTS - 1));
+  const start = Math.floor((now - hours * 60 * MIN_MS) / bucket) * bucket;
+  return { start, bucket, n: Math.ceil((now - start) / bucket) };
+}
+
+/** GET /api/history/period. A read, like the calendar's and the forecast's: it never goes through the write guard. */
+export function createHistoryReader(ha: HaConfig, fetchFn: typeof fetch = fetch): HistoryReader {
+  return async (entity, hours, now, signal) => {
+    if (!ENTITY_ID.test(entity)) throw new Error('not an entity id: ' + entity);
+    const w = historyWindow(now, hours);
+    // significant_changes_only off: every reported value counts, not only the ones Home Assistant calls significant.
+    const url = `${ha.url}/api/history/period/${new Date(w.start).toISOString()}?filter_entity_id=${entity}&end_time=${new Date(now).toISOString()}&minimal_response&no_attributes&significant_changes_only=0`;
+    const res = await fetchFn(url, { headers: { Authorization: `Bearer ${ha.token}` }, signal });
+    if (!res.ok) throw new Error(`Home Assistant history: HTTP ${res.status}`);
+    const body = (await res.json()) as unknown;
+    if (!Array.isArray(body)) throw new Error('history: unexpected answer');
+    const rows: unknown[] = Array.isArray(body[0]) ? body[0] : [];
+    const out: HistoryEntry[] = [];
+    for (const r of rows as { state?: unknown; last_changed?: unknown; last_updated?: unknown }[]) {
+      const at = Date.parse(String(r?.last_changed ?? r?.last_updated));
+      if (typeof r?.state === 'string' && isFinite(at)) out.push({ state: r.state, at });
+    }
+    return out.sort((a, b) => a.at - b.at);
+  };
+}
+
+/** Remembers each entity's history for `ttlMs` (default one bucket, since the chart only changes that often), per entity and hours. A failure is remembered for at most a minute, so a broken history is not asked every 30 seconds. */
+export function cachedHistory(read: HistoryReader, ttlMs = BUCKET_MIN_MIN * MIN_MS, clock: () => number = Date.now): HistoryReader {
+  const cache = new Map<string, { until: number; value?: HistoryEntry[]; error?: unknown }>();
+  return async (entity, hours, now, signal) => {
+    const key = entity + '|' + hours;
+    const hit = cache.get(key);
+    if (hit && hit.until > clock()) {
+      if (hit.error) throw hit.error;
+      return hit.value as HistoryEntry[];
+    }
+    try {
+      const value = await read(entity, hours, now, signal);
+      cache.set(key, { until: clock() + ttlMs, value });
+      return value;
+    } catch (err) {
+      cache.set(key, { until: clock() + Math.min(ttlMs, MIN_MS), error: err });
+      throw err;
+    }
+  };
+}
+
+/**
+ * Averages a state history into the chart's points. A state holds until the next entry (the last one until `now`), so a
+ * steady sensor that reports rarely still fills its buckets. A bucket is the time-weighted mean of its numeric states; one
+ * that is less than half covered (unavailable, unknown, no data yet) is a gap, never 0. Null when fewer than two points exist.
+ */
+export function historyChart(entries: HistoryEntry[], now: number, hours: number, timeZone: string) {
+  const { start, bucket, n } = historyWindow(now, hours);
+  const sum = new Array<number>(n).fill(0);
+  const cov = new Array<number>(n).fill(0);
+  entries.forEach((e, i) => {
+    const v = /^-?\d+(\.\d+)?$/.test(e.state.trim()) ? Number(e.state) : null;
+    const a = Math.max(e.at, start);
+    const z = Math.min(i + 1 < entries.length ? entries[i + 1].at : now, now);
+    if (v === null || z <= a) return;
+    for (let b = Math.floor((a - start) / bucket); b < n && start + b * bucket < z; b++) {
+      const ov = Math.min(z, start + (b + 1) * bucket) - Math.max(a, start + b * bucket);
+      sum[b] += v * ov;
+      cov[b] += ov;
+    }
+  });
+  const means = sum.map((s, b) => (cov[b] >= Math.min(bucket, now - (start + b * bucket)) / 2 ? s / cov[b] : null));
+  const real = means.filter((v): v is number => v !== null);
+  if (real.length < 2) return null;
+  const lo = Math.min(...real), hi = Math.max(...real);
+  const time = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const total = cov.reduce((a, b) => a + b, 0);
+  return {
+    points: means.map((v) => (v === null ? null : hi === lo ? 0.5 : Math.round(((v - lo) / (hi - lo)) * 1000) / 1000)),
+    min: lo,
+    max: hi,
+    avg: sum.reduce((a, b) => a + b, 0) / total,
+    // Four labels, evenly spread like the line; the last one is the present.
+    axis: [0, 1, 2, 3].map((k) => time.format(new Date(k === 3 ? now : start + Math.round((k * (n - 1)) / 3) * bucket))),
+  };
+}
+
+/** One energy or power reading with its unit and the period it covers. Home Assistant does not say the period, so the household does. With a history reader the detail is a chart of the last hours. */
+export function energyAdapter(ha: HaReader | null, deps: { history?: HistoryReader; timeZone?: string } = {}): WidgetAdapter {
   return {
     type: 'energy',
     title: 'Energy',
-    description: 'One energy or power sensor, with its unit and the period it reports (right now, today, this month, total).',
-    templates: ['value', 'list'],
+    description: 'One energy or power sensor, with its unit and the period it reports (right now, today, this month, total), and its recent history as a chart.',
+    templates: ['value', 'list', 'chart'],
     sizes: ['small', 'medium', 'large'],
     defaultSize: 'small',
     defaultFreshness: 'live',
@@ -243,10 +342,17 @@ export function energyAdapter(ha: HaReader | null): WidgetAdapter {
       { key: 'title', label: 'Title', kind: 'text', maxLength: 40, default: 'Energy' },
       { key: 'entity', label: 'Energy or power sensor', kind: 'entity', domains: ['sensor'], required: true },
       { key: 'period', label: 'Period it reports', kind: 'choice', default: 'today', options: Object.entries(ENERGY_PERIODS).map(([value, label]) => ({ value, label })), help: 'Home Assistant does not say; pick what the sensor measures.' },
+      { key: 'hours', label: 'Hours of history', kind: 'number', min: 2, max: 24, integer: true, default: 6, help: 'How far back the full-screen chart goes.' },
     ],
-    async read(config) {
+    async read(config, ctx) {
       const id = String(config.entity);
-      const s = await load(ha, id);
+      const hours = Number(config.hours);
+      const history = deps.history;
+      const [s, entries] = await Promise.all([
+        load(ha, id),
+        // A history that cannot be read drops only the chart: the reading is still shown, and the card is not stale for it.
+        history ? history(id, hours, ctx.now, AbortSignal.any([ctx.signal, AbortSignal.timeout(5000)])).catch((err) => (log.warn('energy: no history', { entity: id, err: String(err) }), null)) : null,
+      ]);
       if (!s) throw new Unavailable('Sensor ' + id + ' not found in Home Assistant');
       const period = ENERGY_PERIODS[String(config.period)] ?? ENERGY_PERIODS.today;
       const unit = unitOf(s);
@@ -254,7 +360,7 @@ export function energyAdapter(ha: HaReader | null): WidgetAdapter {
       const value = unit ? formatState(s.state) : null;
       const note = unit ? period : period + ' (no unit in Home Assistant)';
       const card: Display = { template: 'value', value, ...(value !== null ? { unit } : {}), note };
-      const detail: Display = {
+      const list: Display = {
         template: 'list',
         rows: [
           { label: 'Reading', value, ...(value !== null ? { unit } : {}) },
@@ -262,6 +368,14 @@ export function energyAdapter(ha: HaReader | null): WidgetAdapter {
           { label: 'Sensor', value: cut(nameOf(s, id), 40) },
         ],
       };
+      const c = unit && entries ? historyChart(entries, ctx.now, hours, deps.timeZone ?? 'UTC') : null;
+      let detail: Display = list;
+      if (c) {
+        const f = (v: number) => (formatState(String(v)) ?? '') + ' ' + unit;
+        // The headline is the chart's note line: a stack with a value part would need a smaller figure on the TV.
+        const head = (period === 'Right now' ? 'Now' : period) + ' ' + (value === null ? DASH : value + ' ' + unit);
+        detail = { template: 'chart', points: c.points, max: f(c.max), min: f(c.min), axis: c.axis, now: true, note: cut(`${head}  ·  Last ${hours} h: min ${f(c.min)}, avg ${f(c.avg)}, max ${f(c.max)}`, 120) };
+      }
       return { title: String(config.title), card, detail };
     },
   };
@@ -269,7 +383,7 @@ export function energyAdapter(ha: HaReader | null): WidgetAdapter {
 
 export const HA_TYPES = ['ha-entities', 'weather', 'energy'];
 
-export const homeAssistantAdapters = (ha: HaReader | null, weather: { forecast?: ForecastReader; timeZone?: string } = {}): WidgetAdapter[] => [entitiesAdapter(ha), weatherAdapter(ha, weather), energyAdapter(ha)];
+export const homeAssistantAdapters = (ha: HaReader | null, weather: { forecast?: ForecastReader; history?: HistoryReader; timeZone?: string } = {}): WidgetAdapter[] => [entitiesAdapter(ha), weatherAdapter(ha, weather), energyAdapter(ha, weather)];
 
 /**
  * Subscribes to Home Assistant state changes and asks for a re-read of a widget type when one of its configured entities

@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
-import { validateDisplay, type Layout, type WidgetInstance } from '@sofa/shared';
+import { readConfig, validateDisplay, type Layout, type WidgetInstance } from '@sofa/shared';
 import { WebSocketServer } from 'ws';
 import type { HaConfig } from '../config.ts';
 import { createHaClient, subscribeEvents } from '../ha.ts';
 import { createWidgets } from '../widgets.ts';
-import { createForecastReader, energyAdapter, entitiesAdapter, forecastColumns, formatState, homeAssistantAdapters, watchHomeAssistant, weatherAdapter, type ForecastItem } from './homeassistant.ts';
+import { cachedHistory, createForecastReader, createHistoryReader, energyAdapter, entitiesAdapter, forecastColumns, formatState, historyChart, historyWindow, homeAssistantAdapters, watchHomeAssistant, weatherAdapter, type ForecastItem, type HistoryEntry } from './homeassistant.ts';
 
 const fixtures = JSON.parse(readFileSync(new URL('../fixtures/ha-states.json', import.meta.url), 'utf8')) as Record<string, { state: string }>;
 
@@ -164,6 +164,139 @@ test('energy: names its unit and period; no unit means no number', async () => {
   } finally {
     await f.down();
   }
+});
+
+// ---- Power history ----
+
+const powerFixture = JSON.parse(readFileSync(new URL('./fixtures/history-power.json', import.meta.url), 'utf8')) as { history: { state: string; last_changed: string }[][] };
+const powerEntries: HistoryEntry[] = powerFixture.history[0].map((r) => ({ state: r.state, at: Date.parse(r.last_changed) }));
+const T = Date.parse('2026-11-10T22:40:00Z'); // on a bucket edge; 23:40 in Berlin
+const HOUR = 3_600_000;
+
+test('history window: 5 minute buckets, wider for a long window, never over the 96 point limit', () => {
+  assert.deepEqual([historyWindow(T, 6).bucket, historyWindow(T, 6).n], [300_000, 72]);
+  assert.equal(historyWindow(T + 60_000, 6).n, 73); // the present bucket is one more
+  for (let h = 2; h <= 24; h++) assert.ok(historyWindow(T + 299_999, h).n <= 96, h + ' h');
+  assert.equal(historyWindow(T, 24).bucket, 20 * 60_000);
+});
+
+test('history chart: a real sample is time-weighted into buckets, earlier buckets without data are gaps', () => {
+  const c = historyChart(powerEntries, Date.parse('2026-11-10T22:14:00Z'), 2, 'Europe/Berlin');
+  assert.ok(c);
+  assert.equal(c.points.length, 25);
+  assert.deepEqual(c.points.slice(0, 23), Array(23).fill(null)); // the sample starts at 22:05
+  assert.equal(c.points[23], 1); // the 22:05 bucket is the high one, 22:10 the low one
+  assert.equal(c.points[24], 0);
+  assert.ok(c.min >= 438 && c.max <= 531 && c.min < c.avg && c.avg < c.max);
+  assert.deepEqual(c.axis[3], '23:14'); // the present, in the configured zone
+  assert.deepEqual(validateDisplay({ template: 'chart', points: c.points, axis: c.axis }), []);
+});
+
+test('history chart: a steady sensor fills every bucket; unavailable stretches are gaps, not zero', () => {
+  const steady = historyChart([{ state: '100', at: T - 8 * HOUR }], T, 6, 'UTC');
+  assert.ok(steady);
+  assert.deepEqual(steady.points, Array(72).fill(0.5));
+  const entries: HistoryEntry[] = [
+    { state: '100', at: T - 8 * HOUR },
+    { state: 'unavailable', at: T - 5 * HOUR },
+    { state: '200', at: T - 4 * HOUR },
+    { state: 'unknown', at: T - 30 * 60_000 },
+  ];
+  const c = historyChart(entries, T, 6, 'UTC');
+  assert.ok(c);
+  assert.equal(c.points.filter((p) => p === null).length, 12 + 6); // the hour unavailable and the last half hour unknown
+  assert.equal(c.points[0], 0);
+  assert.equal(c.points[c.points.length - 7], 1);
+  assert.equal(c.points[12], null);
+  assert.ok(Math.abs(c.avg - (100 * 1 + 200 * 3.5) / 4.5) < 1e-6); // 100 for 1 h, 200 for 3.5 h; the gaps do not count
+});
+
+test('history chart: nothing numeric to draw gives null, so the detail falls back to the reading', () => {
+  assert.equal(historyChart([], T, 6, 'UTC'), null);
+  assert.equal(historyChart([{ state: 'unavailable', at: T - HOUR }], T, 6, 'UTC'), null);
+  assert.equal(historyChart([{ state: '5', at: T - 1_000 }], T, 6, 'UTC'), null); // one bucket only
+});
+
+test('history reader: asks the recorder for a minimal response and unwraps it; only entity ids', async () => {
+  const calls: { url: string; auth: string | null }[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push({ url, auth: new Headers(init.headers).get('authorization') });
+    return new Response(JSON.stringify(powerFixture.history));
+  }) as unknown as typeof fetch;
+  const read = createHistoryReader({ url: 'http://ha.test:8123', token: 'tok' } as HaConfig, fetchFn);
+  const out = await read('sensor.powerfox_aktuell', 6, T, new AbortController().signal);
+  assert.equal(out.length, 40);
+  assert.deepEqual(out[0], { state: '504', at: Date.parse('2026-11-10T22:05:45.114Z') });
+  assert.equal(calls[0].auth, 'Bearer tok');
+  assert.match(calls[0].url, /^http:\/\/ha\.test:8123\/api\/history\/period\/2026-11-10T16:40:00\.000Z\?filter_entity_id=sensor\.powerfox_aktuell&end_time=2026-11-10T22:40:00\.000Z&minimal_response&no_attributes/);
+  await assert.rejects(read('sensor/../x', 6, T, new AbortController().signal), /not an entity id/);
+  const none = createHistoryReader({ url: 'http://ha.test', token: 't' } as HaConfig, (async () => new Response('[]')) as unknown as typeof fetch);
+  assert.deepEqual(await none('sensor.x', 6, T, new AbortController().signal), []);
+  const bad = createHistoryReader({ url: 'http://ha.test', token: 't' } as HaConfig, (async () => new Response('no', { status: 500 })) as unknown as typeof fetch);
+  await assert.rejects(bad('sensor.x', 6, T, new AbortController().signal), /HTTP 500/);
+});
+
+test('cached history: one read per entity and hours within the time to live; a failure is remembered for a minute', async () => {
+  let clock = 0, calls = 0, fail = false;
+  const read = cachedHistory(async () => (++calls, fail ? Promise.reject(new Error('down')) : powerEntries), 300_000, () => clock);
+  const sig = new AbortController().signal;
+  await read('sensor.a', 6, T, sig);
+  clock += 30_000; // a live read 30 s later
+  await read('sensor.a', 6, T, sig);
+  await read('sensor.a', 12, T, sig); // another window is another entry
+  await read('sensor.b', 6, T, sig);
+  assert.equal(calls, 3);
+  clock += 300_000;
+  fail = true;
+  await assert.rejects(read('sensor.a', 6, T, sig), /down/);
+  fail = false;
+  clock += 30_000;
+  await assert.rejects(read('sensor.a', 6, T, sig), /down/); // still remembered
+  assert.equal(calls, 4);
+  clock += 31_000;
+  assert.equal((await read('sensor.a', 6, T, sig)).length, 40);
+  assert.equal(calls, 5);
+});
+
+test('energy with a history: the detail is the chart with the reading as its headline; the card is unchanged', async () => {
+  const f = fakeHa();
+  await f.up();
+  try {
+    const now = Date.parse('2026-11-10T22:14:00Z');
+    const c = { now, signal: new AbortController().signal };
+    const cfg = { title: 'Power', entity: 'sensor.powerfox_aktuell', period: 'now', hours: 2 };
+    const plain = await energyAdapter(reader(f)).read(cfg, c);
+    const withHistory = await energyAdapter(reader(f), { history: async () => powerEntries, timeZone: 'Europe/Berlin' }).read(cfg, c);
+    assert.deepEqual('card' in withHistory && withHistory.card, 'card' in plain && plain.card);
+    assert.deepEqual('card' in plain && plain.card, { template: 'value', value: '98', unit: 'W', note: 'Right now' });
+    const d = 'detail' in withHistory ? withHistory.detail : undefined;
+    assert.equal(d?.template, 'chart');
+    if (d?.template !== 'chart') return;
+    assert.equal(d.points.length, 25);
+    assert.equal(d.now, true);
+    assert.match(d.max ?? '', /^\d+ W$/);
+    assert.match(d.note ?? '', /^Now 98 W {2}· {2}Last 2 h: min \d+ W, avg \d+ W, max \d+ W$/);
+    assert.deepEqual(validateDisplay(d), []);
+
+    // The history fails, is empty, or the sensor has no unit: the reading alone, as before, and no error.
+    const list = 'detail' in plain ? plain.detail : undefined;
+    for (const history of [async () => Promise.reject(new Error('boom')), async () => [], async () => [{ state: 'unavailable', at: now - HOUR }]]) {
+      const r = await energyAdapter(reader(f), { history }).read(cfg, c);
+      assert.deepEqual('detail' in r && r.detail, list);
+    }
+    f.states['sensor.bezug_powerfox'] = { entity_id: 'sensor.bezug_powerfox', state: '23212.387', attributes: {} };
+    const bare = await energyAdapter(reader(f), { history: async () => powerEntries }).read({ ...cfg, entity: 'sensor.bezug_powerfox' }, c);
+    assert.equal('detail' in bare && bare.detail?.template, 'list');
+  } finally {
+    await f.down();
+  }
+});
+
+test('energy config: hours of history is 2 to 24 whole hours, 6 by default', () => {
+  const fields = energyAdapter(null).fields;
+  assert.deepEqual(readConfig(fields, { entity: 'sensor.p' }).config.hours, 6);
+  assert.equal(readConfig(fields, { entity: 'sensor.p', hours: 24 }).errors.length, 0);
+  for (const hours of [1, 25, 2.5, '6']) assert.match(readConfig(fields, { entity: 'sensor.p', hours }).errors.join(), /hours/);
 });
 
 test('entity card: rows in order, missing entity and unavailable state are dashes', async () => {
