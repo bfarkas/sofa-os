@@ -5,7 +5,7 @@
 // hang, return a malformed model, be unknown or misconfigured) ends in that one widget being unavailable or stale. Nothing
 // here throws into the caller, so the snapshot, Kids Mode and every other widget carry on. An adapter that blocks the event
 // loop cannot be stopped this way; adapters must only do asynchronous I/O.
-import { FRESHNESS_POLICY, readConfig, validateDisplay, type Display, type Layout, type Profile, type WidgetData, type WidgetInstance, type WidgetType } from '@sofa/shared';
+import { FRESHNESS_POLICY, readConfig, validateDisplay, type Display, type Layout, type Profile, type WidgetData, type WidgetInstance, type WidgetSize, type WidgetType } from '@sofa/shared';
 import { log } from './log.ts';
 
 /** What a read returns: a card and optionally a richer full-screen view, or nothing to show (with the words for it). */
@@ -14,6 +14,7 @@ export type WidgetResult = { title?: string; card: Display; detail?: Display } |
 export interface ReadContext {
   now: number; // ms since the epoch
   signal: AbortSignal; // aborted when the read times out; pass it to fetch
+  size?: WidgetSize; // the instance's size, for a card that is built differently per size (the calendar)
 }
 
 /**
@@ -136,7 +137,7 @@ export function createWidgets(o: WidgetsOptions) {
         }, timeoutMs);
       });
       // Promise.resolve().then runs the adapter inside the chain, so a synchronous throw is caught like a rejection.
-      const result = await Promise.race([Promise.resolve().then(() => adapter.read(e.config, { now: now(), signal: ac.signal })), timeout]);
+      const result = await Promise.race([Promise.resolve().then(() => adapter.read(e.config, { now: now(), signal: ac.signal, size: e.instance.size })), timeout]);
       const problems = resultProblems(result);
       if (problems.length) throw new Error('malformed display model: ' + problems.slice(0, 3).join('; '));
       if (entries.get(e.instance.id) !== e) return; // replaced while reading: this answer is for the old config

@@ -30,6 +30,12 @@ All three go through `validateDisplay` like the others, so a malformed one shows
 - **Columns gain `badge` and `tint`.** `Column.badge` is a short string drawn under the value (the rain chance or amount) and `tint` (0 to 1) shades the column behind it, so rain stands out. Home Assistant's forecast has no rain probability here, so the Server sends the precipitation amount in mm and scales the tint from it; a probability is used when an integration provides one.
 - **Failure.** Each forecast part fails alone: the card keeps today's reading and the detail drops that part (and falls back to the list of readings if both fail). A Home Assistant outage marks the widget stale like any other.
 
+## Calendar on the `days` template (Session 26, 2026-11-10)
+
+- **The card is built per size.** `ReadContext` carries the instance's `size`, and the calendar uses it: the Server decides what a small, medium or large card says (the next event and "and N more today"; two or three day columns), the TV only lays out. An adapter that ignores `size` still works, and an unset size reads as small.
+- **Kids Mode.** `forKids` rebuilds each event as "Something planned" with only its time, drops places and the full-screen detail, and lets through only the Server's own count line ("and N more today"), which has no time and a fixed wording.
+- **Long text** is cut with an ellipsis by the Server at the display limit (120 characters); the TV additionally clamps a title to two lines.
+
 Each widget sends a `card` for its tile and may send a `detail` for the read-only full-screen view. Sizes cap the rows a template may carry (`ITEM_LIMITS`), and the Server refuses an adapter result over the cap, too long, or of the wrong shape. There are no icons in v1, including weather icons: a glyph set is a template change, and words read fine at sofa distance.
 
 ## Limits on the generic entity card

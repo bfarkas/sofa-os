@@ -49,6 +49,7 @@ const templates: [string, WidgetData][] = [
   ['chart', w('chart', { title: 'Power', card: { template: 'chart', now: true, max: '2.4 kW', min: '0.1 kW', axis: ['12:00', '15:00', '18:00'], note: 'Last 6 hours', points: powerPoints } })],
   ['chart with a gap', w('chart-gap', { title: 'Power', card: { template: 'chart', now: true, max: '2.4 kW', min: '0.1 kW', axis: ['12:00', '15:00', '18:00'], points: powerPoints.map((v, i) => (i > 30 && i < 42 ? null : v)) } })],
   ['days', w('days', { title: 'Family calendar', card: { template: 'days', days: weekDays }, detail: { template: 'days', days: weekDays } })],
+  ['days, next event', w('days-next', { title: 'Family calendar', card: { template: 'days', days: [{ title: 'Today', today: true, events: [{ time: '16:30', title: 'Elternabend der Klasse 2b mit dem langen Titel, der abgeschnitten wird' }, { time: '', title: 'and 3 more today' }] }] }, detail: { template: 'days', days: weekDays } })],
   ['stack', w('stack', { title: 'Weather', card: { template: 'stack', parts: stackParts }, detail: { template: 'stack', parts: stackParts } })],
   ['photo', w('photo', { title: 'Summer 2026', card: { template: 'photo', image: '/img/kids-tile-forest.jpg', caption: 'Forest walk' } })],
   ['photo, image missing', w('photo-missing', { title: 'Album', card: { template: 'photo', image: '/img/missing.jpg' } })],

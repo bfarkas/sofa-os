@@ -64,7 +64,9 @@
 .dy-e { margin-top: 6px; padding: 3px 6px; border-radius: 8px; overflow: hidden; }
 .dy-e.all { background: rgba(143, 195, 160, 0.35); }
 .dy-t { white-space: nowrap; font-size: 20px; color: var(--sofa-color-ink-muted); }
-.dy-w { max-height: 52px; overflow: hidden; font-size: 24px; line-height: 26px; font-weight: bold; word-wrap: break-word; }
+.dy-w { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 24px; line-height: 26px; font-weight: bold; word-wrap: break-word; }
+.dy-t:empty { display: none; }
+.dy-t:empty + .dy-w { -webkit-line-clamp: 1; font-size: 22px; line-height: 26px; font-weight: normal; color: var(--sofa-color-ink-muted); } /* the Server's "and 3 more today" line: no time, one quiet line */
 .dy-p { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 20px; color: var(--sofa-color-ink-muted); }
 .dy-more { padding-left: 6px; font-size: 24px; color: var(--sofa-color-ink-muted); }
 .small .dy { margin: 0; }
@@ -138,7 +140,7 @@
 .full .dy-s { font-size: 44px; }
 .full .dy-e { margin-top: 14px; padding: 8px 8px; }
 .full .dy-t { font-size: 26px; }
-.full .dy-w { max-height: 72px; font-size: 30px; line-height: 36px; }
+.full .dy-w { font-size: 30px; line-height: 36px; }
 .full .dy-p { font-size: 24px; }
 .full .t-chart { height: 528px; }
 .full .ch-y { width: 140px; font-size: 28px; }
