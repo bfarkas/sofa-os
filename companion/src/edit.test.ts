@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkWidgets, validateLayout, type Layout, type WidgetType, type WidgetsResponse } from '@sofa/shared';
-import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundStream, setConfig, showOnDashboard, updateWidget } from './edit.ts';
+import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, showOnDashboard, updateWidget } from './edit.ts';
 
 const type: WidgetType = {
   type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['small', 'medium'], defaultSize: 'medium', defaultFreshness: 'live',
@@ -104,6 +104,12 @@ test('the photostream background is a slideshow of the stream; a colour replaces
   const l = setBackgroundStream(base());
   assert.deepEqual(l.background, { kind: 'slideshow', album: 'photostream' });
   assert.deepEqual(setBackgroundColor(l, '#112233').background, { kind: 'color', color: '#112233' });
+});
+
+test('the day cycle background replaces a colour, and validates', () => {
+  const l = setBackgroundDayCycle(setBackgroundColor(base(), '#112233'));
+  assert.deepEqual(l.background, { kind: 'daycycle' });
+  assert.deepEqual(validateLayout(l), []);
 });
 
 test('a row is too wide when its widgets pass five units (small 1, medium 2, large 3); apps do not count', () => {

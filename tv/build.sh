@@ -19,6 +19,8 @@ mkdir -p "$OUT"
 LOG_URL="${LOG_URL-http://$(ipconfig getifaddr en0):8099/log}"
 SOFA_SERVER_URL="${SOFA_SERVER_URL-https://sofa.familie-farkas.de}"
 printf "window.SOFA_LOG_URL = '%s';\nwindow.SOFA_SERVER_URL = '%s';\n" "$LOG_URL" "$SOFA_SERVER_URL" > "$HERE/app/env.js"
+# Testing the day-cycle background: SOFA_FAKE_HOUR=21 tv/build.sh install pretends it is 21:00 (0 to 23). Unset (the default) uses the clock.
+[ -n "${SOFA_FAKE_HOUR-}" ] && printf "window.SOFA_FAKE_HOUR = '%s';\n" "$SOFA_FAKE_HOUR" >> "$HERE/app/env.js"
 rm -f "$OUT"/*.wgt "$HERE"/app/.manifest.tmp
 npm run build -w tv --prefix "$HERE/.." >/dev/null
 

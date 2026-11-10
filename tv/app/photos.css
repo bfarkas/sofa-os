@@ -6,6 +6,11 @@
 /* The background sits behind #stage; a scrim keeps labels and tiles legible over any photo. */
 #bg { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; background: #1f241e; }
 #bg .pl { object-fit: cover; }
+/* The day cycle: the new picture fades in over the old one for 2 s, which stays opaque until then (no dip to the dark base); the pictures are quiet, so no scrim. */
+#bg.day .pl { transition: opacity 2s ease-in-out; }
+#bg.day .pl.on { z-index: 1; }
+#bg.day .pl:not(.on) { transition: opacity 0s linear 2s; }
+#bg.day #bg-shade { display: none; }
 #bg-shade { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: rgba(20, 24, 19, 0.38); }
 
 #photos { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 12; background: #0d0f0c; color: #fffdf8; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7); }

@@ -42,6 +42,8 @@ test('enums are checked', () => {
   assert.match(errorsAfter((l) => { l.widgets[0].profiles = ['kids', 'kids'] }).join(), /duplicate/);
   assert.match(errorsAfter((l) => { l.background = { kind: 'video' } }).join(), /background\.kind/);
   assert.match(errorsAfter((l) => { l.background.color = 'red' }).join(), /background\.color/);
+  assert.deepEqual(errorsAfter((l) => { l.background = { kind: 'daycycle' } }), []);
+  assert.match(errorsAfter((l) => { l.background = { kind: 'video' } }).join(), /color, image, slideshow, daycycle/);
 });
 
 test('references and duplicates are checked', () => {

@@ -118,6 +118,7 @@ export function setConfig(l: Layout, id: string, key: string, value: unknown): L
 // ---- Appearance ----
 
 export const setBackgroundStream = (l: Layout): Layout => ({ ...l, background: { kind: 'slideshow', album: STREAM } });
+export const setBackgroundDayCycle = (l: Layout): Layout => ({ ...l, background: { kind: 'daycycle' } });
 export const setBackgroundColor = (l: Layout, color: string): Layout => ({ ...l, background: { kind: 'color', color } });
 
 // ---- What the preview shows for widgets ----

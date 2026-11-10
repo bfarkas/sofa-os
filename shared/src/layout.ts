@@ -45,7 +45,8 @@ export interface Row {
 export type Background =
   | { kind: 'color'; color: string } // #rrggbb
   | { kind: 'image'; image: string } // "<album id or photostream>/<asset id>": one Immich photo (Session 14)
-  | { kind: 'slideshow'; album: string }; // an Immich album id or "photostream": its photos fade through behind the Dashboard (Session 14)
+  | { kind: 'slideshow'; album: string } // an Immich album id or "photostream": its photos fade through behind the Dashboard (Session 14)
+  | { kind: 'daycycle' }; // four pictures shipped in the Sofa Home package, by the TV's clock (Session 29, shared/src/daycycle.ts)
 
 export interface KidsModeSettings {
   apps: string[]; // approved app ids, in tile order
@@ -152,7 +153,7 @@ export function validateLayout(value: unknown): string[] {
     if (typeof bg.color !== 'string' || !COLOR.test(bg.color)) err('background.color', 'must be #rrggbb');
   } else if (bg.kind === 'image') str(bg.image, 'background.image', 128);
   else if (bg.kind === 'slideshow') str(bg.album, 'background.album', 128);
-  else err('background.kind', 'must be one of color, image, slideshow');
+  else if (bg.kind !== 'daycycle') err('background.kind', 'must be one of color, image, slideshow, daycycle');
 
   const kids = value.kidsMode;
   if (!isObj(kids)) err('kidsMode', 'must be an object');

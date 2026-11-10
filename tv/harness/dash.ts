@@ -2,10 +2,11 @@
 // fixture widget data (no Server, no TV). The arrow keys, Enter and Escape drive it like the remote. Not part of the signed package.
 //   npm run harness -w tv, serve tv/ (python3 -m http.server 8077 -d tv), open /harness/dash.html at 1920 x 1080.
 // Query: ?tab=apps|widgets, ?focus=<id> (kids, widget:weather, app:org.tizen.netflix-app, allapps), ?screen=kids, ?apps=N (more apps),
-//   ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable.
-import { tokensCss, type Layout, type WidgetData } from '@sofa/shared';
+//   ?day=H (0 to 23: the day-cycle background as at that hour, through the real photoview; setDayHour(h) in the console changes it), ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable.
+import { dayFootInk, dayInk, periodAt, tokensCss, type Layout, type WidgetData } from '@sofa/shared';
 import { cardOptions, setWidgetsState } from '../src/cards.ts';
 import type { RemoteEvent, RemoteKey } from '../src/keys.ts';
+import { createPhotoView } from '../src/photoview.ts';
 import { createShell } from '../src/shell.ts';
 import { initView, redrawCards, render, setFocus, updateClock } from '../src/view.ts';
 import { parseWidgets } from '../src/widgets.ts';
@@ -60,6 +61,19 @@ const layout: Layout = {
   if (!kids && !bg) document.getElementById('stage')!.style.setProperty('--on-bg', '#2b2f2a');
   else if (!kids) document.getElementById('stage')!.style.setProperty('--on-bg', '#fffdf8');
 
+  const day = q.get('day');
+  if (day !== null && !kids) {
+    const view = createPhotoView({ server: () => '', images: () => Promise.reject(new Error('no photos in the harness')) });
+    const setDayHour = (h: number) => {
+      const p = periodAt(h);
+      document.body.style.background = '#1f241e';
+      document.getElementById('stage')!.style.setProperty('--on-bg', dayInk(p));
+      document.getElementById('stage')!.style.setProperty('--on-foot', dayFootInk(p));
+      view.setBackground({ day: p });
+    };
+    setDayHour(Number(day));
+    (window as unknown as { setDayHour: typeof setDayHour }).setDayHour = setDayHour;
+  }
   cardOptions.server = '';
   initView();
   const shell = createShell({ onView: render, onFocus: setFocus });

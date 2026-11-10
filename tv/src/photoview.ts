@@ -2,13 +2,14 @@
 // every show owns exactly two <img> layers, so at most two pictures are decoded at once, and a layer is emptied (its src
 // removed) as soon as it has faded out. While the slideshow or ambient view is open the background gives up its layers too,
 // and while the app is in the background every timer stops. The order and timing are in slideshow.ts.
-import type { Profile } from '@sofa/shared';
+import { dayImage, type DayPeriod, type Profile } from '@sofa/shared';
 import { AMBIENT_MS, BACKGROUND_MS, SLIDESHOW_MS, type AlbumImages } from './photos.ts';
 import type { RemoteEvent } from './keys.ts';
 import { clockText, dateText } from './shell.ts';
 import { createSlideshow } from './slideshow.ts';
 
-const FADE_MS = 1000; // matches the opacity transition in index.html
+const FADE_MS = 1000; // matches the opacity transition in photos.css
+const DAY_FADE_MS = 2000; // the day cycle fades slower: `#bg.day` in photos.css
 const $ = (id: string) => document.getElementById(id)! as HTMLElement;
 
 interface Layer {
@@ -17,7 +18,7 @@ interface Layer {
 }
 
 /** Two stacked images: load the next one in the hidden layer, fade it in, then empty the one that faded out. */
-function createLayers(a: HTMLImageElement, b: HTMLImageElement, note: (text: string) => void) {
+function createLayers(a: HTMLImageElement, b: HTMLImageElement, note: (text: string) => void, fadeMs: () => number = () => FADE_MS) {
   let front: Layer = { el: a }, back: Layer = { el: b };
   const empty = (l: Layer) => {
     clearTimeout(l.release);
@@ -45,7 +46,7 @@ function createLayers(a: HTMLImageElement, b: HTMLImageElement, note: (text: str
       const old = front;
       front = back;
       back = old;
-      old.release = setTimeout(() => empty(old), FADE_MS + 300);
+      old.release = setTimeout(() => empty(old), fadeMs() + 300);
     },
     clear(): void {
       empty(front);
@@ -66,7 +67,7 @@ export function createPhotoView(deps: PhotoViewDeps) {
   const overlay = $('photos');
   const note = (t: string) => deps.log?.(t);
   const layers = createLayers($('pl-a') as HTMLImageElement, $('pl-b') as HTMLImageElement, (t) => note('show ' + t));
-  const bgLayers = createLayers($('bg-a') as HTMLImageElement, $('bg-b') as HTMLImageElement, (t) => note('bg ' + t));
+  const bgLayers = createLayers($('bg-a') as HTMLImageElement, $('bg-b') as HTMLImageElement, (t) => note('bg ' + t), () => (bgSpec && bgSpec.day ? DAY_FADE_MS : FADE_MS));
   let show: ReturnType<typeof createSlideshow> | null = null;
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   let opened = 0; // ticket: an answer for a view that has been closed is ignored
@@ -78,7 +79,7 @@ export function createPhotoView(deps: PhotoViewDeps) {
   // ---- the background ----
   let bgKey = '';
   let bgShow: ReturnType<typeof createSlideshow> | null = null;
-  let bgSpec: { path?: string; album?: string } | null = null;
+  let bgSpec: { path?: string; album?: string; day?: DayPeriod } | null = null;
   let bgPlace = 0; // where the slideshow carries on after it was suspended
   let bgCount = 1;
   let bgRetry: ReturnType<typeof setTimeout> | undefined;
@@ -96,6 +97,7 @@ export function createPhotoView(deps: PhotoViewDeps) {
     const spec = bgSpec;
     if (!spec || suspended) return;
     $('bg').hidden = false;
+    if (spec.day) return void bgLayers.load(dayImage(spec.day)).then(() => bgLayers.show(), () => {}); // from the package, not the Server
     if (spec.path) {
       const path = spec.path;
       bgLayers.load(deps.server() + path).then(() => bgLayers.show(), () => {});
@@ -211,15 +213,19 @@ export function createPhotoView(deps: PhotoViewDeps) {
       return false;
     },
 
-    /** The Dashboard background: a Layout background that is a photo, or null for a colour. Same input twice changes nothing. */
-    setBackground(spec: { path: string } | { album: string } | null): void {
+    /** The Dashboard background: a Layout background that is a photo or a day-cycle picture, or null for a colour. Same input twice changes nothing. */
+    setBackground(spec: { path: string } | { album: string } | { day: DayPeriod } | null): void {
       const key = JSON.stringify(spec);
       if (key === bgKey) return;
       bgKey = key;
-      stopBackground();
-      bgPlace = 0;
+      const swap = !!bgSpec && !!bgSpec.day && !!spec && 'day' in spec; // the next picture loads behind the one on screen, then fades over it: no empty frame
+      if (!swap) {
+        stopBackground();
+        bgPlace = 0;
+        $('bg').hidden = true;
+      }
       bgSpec = spec;
-      $('bg').hidden = true;
+      $('bg').className = spec && 'day' in spec ? 'day' : '';
       startBackground();
     },
 

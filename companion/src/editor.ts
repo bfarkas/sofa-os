@@ -399,6 +399,8 @@ export function startEditor(call: Call): void {
           h('input', { type: 'color', value: color, 'aria-label': 'Background colour', onchange: (e: Event) => edit(E.setBackgroundColor(layout, (e.target as HTMLInputElement).value)) }),
         ),
         h('p', { class: 'hint' }, 'The Dashboard background on the TV. Text outside the tiles follows it.'),
+        h('div', { class: 'line' }, btn('Time of day', () => edit(E.setBackgroundDayCycle(layout)), 'small ghost', { disabled: bg.kind === 'daycycle' })),
+        h('p', { class: 'hint' }, 'Four mountain lake pictures by the TV’s clock: morning 6 to 10, midday 10 to 17, evening 17 to 21, night 21 to 6.'),
         h('div', { class: 'line' }, btn('Slideshow of the newest photos', () => edit(E.setBackgroundStream(layout)), 'small ghost', { disabled: bg.kind === 'slideshow' && bg.album === STREAM })),
         h('p', { class: 'hint' }, 'Needs Immich. The household Dashboard only; Kids Mode keeps its own background.'),
       ),

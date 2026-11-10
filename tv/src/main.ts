@@ -1,9 +1,10 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { applyOp, isSource, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
+import { applyOp, dayFootInk, dayInk, isSource, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
+import { currentPeriod, fakeHour } from './daycycle.ts';
 import { createKids, createPad, forestFor, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
 import { drawQr } from './qr.ts';
 import { createShell, type Activation, type Tab } from './shell.ts';
@@ -19,6 +20,7 @@ declare global {
   interface Window {
     SOFA_LOG_URL?: string;
     SOFA_SERVER_URL?: string;
+    SOFA_FAKE_HOUR?: string | number; // optional, from env.js: pretend it is this hour (0 to 23) for the day-cycle background
   }
   // Tizen web API, only the parts used here. Absent in a desktop browser.
   const tizen: TizenApplicationApi & {
@@ -117,6 +119,7 @@ document.addEventListener('visibilitychange', () => {
     focusStage();
     refocusSoon();
     updateClock(new Date());
+    paintBackground(); // the hour may have moved on while the TV was away
     shell.focus.refresh(); // the focus model survived; draw it again
     resumeFromLaunch();
     if (token && server) {
@@ -181,11 +184,13 @@ let lastNote = '';
 let lastSync: SyncState | null = null;
 let appNames: Record<string, string> = {};
 let resumed = false;
+const FAKE_HOUR_KEY = 'sofahome.fakehour'; // optional localStorage twin of SOFA_FAKE_HOUR
 const SCREEN_KEY = 'sofahome.screen'; // the last screen, so a restart in Kids Mode does not flash the household Dashboard
 let screen: Screen = store.get(SCREEN_KEY) === 'kids' ? 'kids' : store.get(SCREEN_KEY) === 'done' ? 'done' : 'household';
 let syncKids = screen !== 'household'; // which view of the layout the sync fetches
 let bgColor = ''; // the household layout's background
 let bgPhoto: { path: string } | { album: string } | null = null; // or a photo / album slideshow from Immich
+let bgDay = false; // or the day cycle: four pictures from the package, by the clock
 let overlay: 'settings' | 'pin' | 'full' | 'photos' | 'menu' | null = null;
 let menuWidget = ''; // the widget the context menu is for
 let liftBase = 0; // the revision a lifted widget was lifted on
@@ -241,6 +246,7 @@ function renderHome(s: SyncState): void {
     bgColor = bg.kind === 'color' ? bg.color : '';
     const path = bg.kind === 'image' ? backgroundImage(bg.image) : null;
     bgPhoto = path ? { path } : bg.kind === 'slideshow' && isSource(bg.album) ? { album: bg.album } : null;
+    bgDay = bg.kind === 'daycycle';
     paintBackground();
     shell.setLayout(l);
     if (widgetsSync) widgetsSync.refresh(); // new or changed widgets
@@ -394,17 +400,20 @@ function showScreen(next: Screen): void {
 let painted = '';
 function paintBackground(): void {
   const look = token ? screen : 'household';
-  const photo = look === 'household' && token ? bgPhoto : null; // Kids Mode keeps the forest, whatever the household chose
+  const day = bgDay ? currentPeriod(new Date(), fakeHour(window.SOFA_FAKE_HOUR, store.get(FAKE_HOUR_KEY))) : null;
+  const photo = look === 'household' && token ? (day ? { day } : bgPhoto) : null; // Kids Mode keeps the forest, whatever the household chose
   photoView.setBackground(photo);
   const bg = look === 'household' ? (token ? (photo ? '#1f241e' : bgColor) : '') : '#26331f url(img/kids-forest-' + forestFor(new Date()) + '.jpg) center / cover no-repeat';
-  const key = bg + (photo ? '|photo' : '');
+  const key = bg + (photo ? '|' + JSON.stringify(photo) : '');
   if (key === painted) return;
   painted = key;
   document.body.className = look === 'household' ? '' : 'kids';
   document.body.style.background = bg;
-  if (photo) stage.style.setProperty('--on-bg', '#fffdf8'); // the background's scrim is dark
+  if (photo) stage.style.setProperty('--on-bg', 'day' in photo ? dayInk(photo.day) : '#fffdf8'); // a photo's scrim is dark; a day picture has its own measured ink
   else if (look === 'household' && bgColor && token) stage.style.setProperty('--on-bg', textOn(bgColor)); // kids: the stylesheet's ivory
   else stage.style.removeProperty('--on-bg');
+  if (photo && 'day' in photo) stage.style.setProperty('--on-foot', dayFootInk(photo.day));
+  else stage.style.removeProperty('--on-foot');
 }
 
 // ---- The PIN pad: an overlay over Kids Mode or the Done Screen. Arrows and OK, or the number keys. ----
@@ -645,7 +654,7 @@ function onRemote(e: RemoteEvent): void {
 
 setInterval(() => {
   updateClock(new Date());
-  paintBackground(); // the forest changes with the hour
+  paintBackground(); // the forest and the day cycle change with the hour
 }, 10_000);
 start();
 

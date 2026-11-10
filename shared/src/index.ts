@@ -1,4 +1,5 @@
 // Types and constants shared by the Server, Companion and Sofa Home.
+export * from './daycycle.ts';
 export * from './layout.ts';
 export * from './ops.ts';
 export * from './photos.ts';
