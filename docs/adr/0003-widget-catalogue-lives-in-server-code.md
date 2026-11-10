@@ -36,6 +36,13 @@ All three go through `validateDisplay` like the others, so a malformed one shows
 - **Kids Mode.** `forKids` rebuilds each event as "Something planned" with only its time, drops places and the full-screen detail, and lets through only the Server's own count line ("and N more today"), which has no time and a fixed wording.
 - **Long text** is cut with an ellipsis by the Server at the display limit (120 characters); the TV additionally clamps a title to two lines.
 
+## Power history (Session 27, 2026-11-10)
+
+- **A third read, not a write.** The energy adapter reads `/api/history/period` from Home Assistant's recorder (minimal response, no attributes) for its sensor; like the calendar and forecast reads it never goes through the write guard, and only entity ids are accepted. The Server turns the states (about 1800 in 6 hours) into 5 minute time-weighted buckets itself, so the TV receives at most 96 points and does no arithmetic.
+- **The detail is a `chart`, not a `stack`.** The reading is the headline in the chart's `note` line, with min, average and max for the window, and `max`/`min` label the scale. A stack with a `value` part was the alternative; at the full-screen size a value is drawn at 180 px, which would not fit half the panel without a TV style change, so it was not chosen. A card keeps the plain value. Revisit if a headline figure over the chart is wanted.
+- **Gaps are never zero.** A bucket mostly covered by `unavailable`, `unknown` or no data is `null`. If the history read fails, is empty or the sensor has no unit, the detail stays the list of readings and the widget is not marked stale for it.
+- **Config and cost.** `hours` (2 to 24, default 6) is an ordinary `number` field, so Companion's form shows it. Histories are cached per entity and hours for 5 minutes (one bucket), because the 30 second live read and the state-change refreshes would otherwise pull 120 to 490 KB each time.
+
 Each widget sends a `card` for its tile and may send a `detail` for the read-only full-screen view. Sizes cap the rows a template may carry (`ITEM_LIMITS`), and the Server refuses an adapter result over the cap, too long, or of the wrong shape. There are no icons in v1, including weather icons: a glyph set is a template change, and words read fine at sofa distance.
 
 ## Limits on the generic entity card
