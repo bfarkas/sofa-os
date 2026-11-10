@@ -52,6 +52,47 @@
 .large .t-agenda { height: 140px; }
 .large .a-day, .large .a-ev { width: 47%; margin-right: 6%; }
 
+/* days: day columns, today marked, all-day events first on a tint */
+.t-days { display: flex; }
+.dy { flex: 1; min-width: 0; margin-right: 8px; padding: 4px 6px; border-radius: 12px; overflow: hidden; }
+.dy:last-child { margin-right: 0; }
+.dy.today { background: rgba(43, 47, 42, 0.08); }
+.dy-h { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: var(--sofa-color-sage-deep); }
+.dy-s { font-size: 30px; font-weight: bold; line-height: 1.1; }
+.dy-e { margin-top: 6px; padding: 3px 6px; border-radius: 8px; overflow: hidden; }
+.dy-e.all { background: rgba(143, 195, 160, 0.35); }
+.dy-t { white-space: nowrap; font-size: 20px; color: var(--sofa-color-ink-muted); }
+.dy-w { max-height: 52px; overflow: hidden; font-size: 24px; line-height: 26px; font-weight: bold; word-wrap: break-word; }
+.dy-p { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 20px; color: var(--sofa-color-ink-muted); }
+.dy-more { padding-left: 6px; font-size: 24px; color: var(--sofa-color-ink-muted); }
+.small .dy { margin: 0; }
+.dy-s { display: none; }
+.full .dy-s { display: block; }
+
+/* chart: one series as a line with a soft fill; the y labels and the time axis drop out on a small tile */
+.t-chart { display: flex; flex-direction: column; }
+.ch { display: flex; flex: 1; min-height: 0; padding-right: 10px; }
+.ch-y { flex: none; display: flex; flex-direction: column; justify-content: space-between; width: 90px; margin-right: 10px; text-align: right; font-size: 22px; color: var(--sofa-color-ink-muted); white-space: nowrap; }
+.ch-plot { position: relative; flex: 1; min-width: 0; border-bottom: 2px solid rgba(43, 47, 42, 0.2); }
+.ch-plot svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
+.ch-line { fill: none; stroke: var(--sofa-color-sage-deep); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.ch-fill { fill: var(--sofa-color-sage); fill-opacity: .3; stroke: none; }
+.ch-now { position: absolute; width: 16px; height: 16px; margin: 0 0 -8px -8px; border-radius: 8px; background: var(--sofa-color-sage-deep); box-shadow: 0 0 0 4px var(--sofa-color-ivory); }
+.ch-x { display: flex; justify-content: space-between; margin: 6px 0 0 100px; font-size: 22px; color: var(--sofa-color-ink-muted); }
+.t-chart .v-note { margin-top: 4px; font-size: 22px; }
+.small .ch-y, .small .ch-x, .small .t-chart .v-note { display: none; }
+.small .ch-plot { border-bottom: 0; }
+
+/* stack: two or three displays one over the other (full-screen only); each gets an equal share and a heading */
+.t-stack { display: flex; flex-direction: column; }
+.sk { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sk + .sk { margin-top: 14px; }
+.sk-t { flex: none; font-size: 22px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: var(--sofa-color-sage-deep); }
+.sk .w-body { margin-top: 4px; }
+.sk .c-bar { height: 64px; }
+.sk .c-l, .sk .c-n { font-size: 26px; }
+.sk .c-v { font-size: 34px; }
+
 /* photo: on a tile the image fills it and the title sits on a shade at the bottom */
 .ph { display: block; width: 100%; height: 100%; object-fit: cover; }
 .noimg .ph { visibility: hidden; }
@@ -88,4 +129,20 @@
 .full .a-ev { width: 47%; margin-right: 6%; height: 62px; font-size: 36px; }
 .full .a-t { width: 170px; font-size: 32px; }
 .full .ph { height: 520px; object-fit: contain; }
+.full .t-days { height: 528px; }
+.full .dy { padding: 8px 10px; }
+.full .dy-h { font-size: 26px; }
+.full .dy-s { font-size: 44px; }
+.full .dy-e { margin-top: 14px; padding: 8px 8px; }
+.full .dy-t { font-size: 26px; }
+.full .dy-w { max-height: 72px; font-size: 30px; line-height: 36px; }
+.full .dy-p { font-size: 24px; }
+.full .t-chart { height: 528px; }
+.full .ch-y { width: 140px; font-size: 28px; }
+.full .ch-x { margin-left: 150px; font-size: 28px; }
+.full .t-chart .v-note { font-size: 30px; }
+.full .t-stack { height: 528px; }
+.full .sk .c-bar { height: 96px; margin: 4px 22%; }
+.full .sk .c-l, .full .sk .c-n { font-size: 26px; }
+.full .sk .c-v { font-size: 34px; }
 .full .ph-cap { margin-top: 12px; text-align: center; font-size: 30px; color: var(--sofa-color-ink-muted); }

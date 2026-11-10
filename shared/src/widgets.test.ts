@@ -36,11 +36,22 @@ test('validateDisplay accepts every template and refuses malformed ones', () => 
     { template: 'columns', note: 'Last 3 hours', columns: [{ label: '14:00', value: '0.4', unit: 'kWh', level: 0.5 }, { label: '15:00', value: null }] },
     { template: 'agenda', days: [{ title: 'Today', events: [{ time: 'All day', title: 'Holiday' }, { time: '18:00', title: 'Swim', detail: 'Pool' }] }] },
     { template: 'photo', image: '/api/media/abc.jpg', caption: 'Summer' },
+    { template: 'chart', points: [0.2, null, 0.8, 1], max: '2.4 kW', min: '0.1 kW', axis: ['12:00', '15:00', '18:00'], now: true, note: 'Last 6 hours' },
+    { template: 'days', days: [{ title: 'Today', subtitle: '10', today: true, events: [{ time: 'All day', title: 'Holiday', allDay: true }, { time: '18:00', title: 'Swim', detail: 'Pool' }] }, { title: 'Wed', events: [] }] },
+    { template: 'stack', parts: [{ title: 'Next 12 hours', display: { template: 'columns', columns: [{ label: '14:00', value: '4', unit: '°', level: 0.5 }] } }, { display: { template: 'chart', points: [0.5] } }] },
   ];
   for (const d of good) assert.deepEqual(validateDisplay(d), [], d.template);
   assert.deepEqual(validateDisplay({ template: 'value', value: 0 }), ['display.value: must be a string of at most 40 characters']);
   assert.deepEqual(validateDisplay({ template: 'columns', columns: [{ label: 'a', value: '1', level: 2 }] }), ['display.columns[0].level: must be a number from 0 to 1']);
-  assert.deepEqual(validateDisplay({ template: 'chart' }), ['display.template: must be one of value, list, columns, agenda, photo']);
+  assert.deepEqual(validateDisplay({ template: 'gauge' }), ['display.template: must be one of value, list, columns, agenda, photo, chart, days, stack']);
+  assert.deepEqual(validateDisplay({ template: 'chart', points: [0.5, 2, 'x'] }).length, 2);
+  assert.deepEqual(validateDisplay({ template: 'chart', points: new Array(97).fill(0.5) }), ['display.points: must be a list of at most 96']);
+  assert.deepEqual(validateDisplay({ template: 'days', days: [{ title: 'Today', today: 'yes', events: [{ time: '1', title: 'x', allDay: 1 }] }] }), ['display.days[0].today: must be true or false', 'display.days[0].events[0].allDay: must be true or false']);
+  const inner = { template: 'chart', points: [0.5] };
+  assert.deepEqual(validateDisplay({ template: 'stack', parts: [] }), ['display.parts: must hold at least one display']);
+  assert.deepEqual(validateDisplay({ template: 'stack', parts: [{ display: { template: 'stack', parts: [{ display: inner }] } }] }), ['display.parts[0].display: a stack cannot hold a stack']);
+  assert.deepEqual(validateDisplay({ template: 'stack', parts: [inner, inner, inner, inner].map((display) => ({ display })) }), ['display.parts: must be a list of at most 3']);
+  assert.deepEqual(validateDisplay({ template: 'stack', parts: [{ display: { template: 'chart', points: [3] } }] }), ['display.parts[0].display.points[0]: must be a number from 0 to 1, or null for a gap']);
   for (const image of ['https://evil.example/x.jpg', '//evil.example/x.jpg', 'x.jpg', '/a b.jpg']) assert.equal(validateDisplay({ template: 'photo', image }).length, 1, image);
 });
 

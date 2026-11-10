@@ -6,7 +6,7 @@ import type { Freshness, WidgetSize } from './layout.ts';
 import { UUID } from './photos.ts';
 
 /** The fixed set of display templates in Sofa Home 0.x. Changing it needs a Sofa Home release (ADR 0003). */
-export const TEMPLATES = ['value', 'list', 'columns', 'agenda', 'photo'] as const;
+export const TEMPLATES = ['value', 'list', 'columns', 'agenda', 'photo', 'chart', 'days', 'stack'] as const;
 export type TemplateName = (typeof TEMPLATES)[number];
 
 /** A reading as the Server formats it ("21.5", "Closed", "3 h 12 min"). null is a missing reading: Sofa Home shows a dash, never 0. */
@@ -29,10 +29,17 @@ export interface AgendaEvent {
   time: string; // "18:00", "All day"
   title: string;
   detail?: string; // a place or note; the Server leaves it out for Kids Mode
+  allDay?: boolean; // the `days` template sets an all-day event apart (and lists it first)
 }
 export interface AgendaDay {
   title: string; // "Today", "Tue 10 Nov"
+  subtitle?: string; // `days` only: a second line under the title, e.g. the date number "11"
+  today?: boolean; // `days` only: the column is marked
   events: AgendaEvent[];
+}
+export interface StackPart {
+  title?: string; // a section heading, "Next 12 hours"
+  display: Leaf;
 }
 
 /**
@@ -42,22 +49,30 @@ export interface AgendaDay {
  *   columns  a row of short columns, optionally with bars (a forecast, energy per hour)
  *   agenda   days with timed events (the family calendar)
  *   photo    one image from the Server and a caption
+ *   chart    one series over time as a line with a soft fill (power over the last hours); `points` are 0 to 1, null is a gap
+ *   days     day columns side by side, each with its events (the calendar's week); the same days as `agenda`, laid out as columns
+ *   stack    two or three of the above, one over the other, in the full-screen view (hours over days); a card shows the first only
  */
-export type Display =
+export type Leaf =
   | { template: 'value'; value: Reading; unit?: string; note?: string }
   | { template: 'list'; rows: ListRow[] }
   | { template: 'columns'; columns: Column[]; note?: string }
   | { template: 'agenda'; days: AgendaDay[] }
-  | { template: 'photo'; image: string; caption?: string }; // image: a path on the Server, loadable without headers
+  | { template: 'photo'; image: string; caption?: string } // image: a path on the Server, loadable without headers
+  | { template: 'chart'; points: (number | null)[]; max?: Reading; min?: Reading; axis?: string[]; now?: boolean; note?: string } // max, min: the labels of the top and bottom of the scale; axis: labels spread under the line; now: marks the last point
+  | { template: 'days'; days: AgendaDay[] };
+export type Display = Leaf | { template: 'stack'; parts: StackPart[] };
 
 /** A card's size, or the full-screen view. */
 export type CardSize = WidgetSize | 'full';
 
 /** How many rows, columns or agenda lines (day titles count) each size shows. The Server may send more; the rest is cut. */
-export const ITEM_LIMITS: Record<'list' | 'columns' | 'agenda', Record<CardSize, number>> = {
+export const ITEM_LIMITS: Record<'list' | 'columns' | 'agenda' | 'days' | 'dayEvents', Record<CardSize, number>> = {
   list: { small: 2, medium: 3, large: 6, full: 16 },
   columns: { small: 2, medium: 4, large: 6, full: 12 },
   agenda: { small: 2, medium: 3, large: 6, full: 16 },
+  days: { small: 1, medium: 2, large: 3, full: 7 }, // day columns; each shows at most `dayEvents` events, the rest is cut with an ellipsis
+  dayEvents: { small: 2, medium: 2, large: 2, full: 4 },
 };
 
 /**
@@ -226,8 +241,23 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
     }
     return v;
   };
-  if (!isObj(value)) return [path + ': must be an object'];
-  const d = value;
+  const agendaDays = (v: unknown, p0: string) =>
+    list(v, p0, 14).forEach((day, i) => {
+      const p = p0 + '[' + i + ']';
+      if (!isObj(day)) return err(p, 'must be an object');
+      str(day.title, p + '.title', SHORT);
+      str(day.subtitle, p + '.subtitle', SHORT, true);
+      if (day.today !== undefined && typeof day.today !== 'boolean') err(p + '.today', 'must be true or false');
+      list(day.events, p + '.events', 30).forEach((e, j) => {
+        const q = p + '.events[' + j + ']';
+        if (!isObj(e)) return err(q, 'must be an object');
+        str(e.time, q + '.time', SHORT);
+        str(e.title, q + '.title', TEXT);
+        str(e.detail, q + '.detail', TEXT, true);
+        if (e.allDay !== undefined && typeof e.allDay !== 'boolean') err(q + '.allDay', 'must be true or false');
+      });
+    });
+  const one = (d: Obj, path: string, nested: boolean): void => {
   if (d.template === 'value') {
     reading(d.value, path + '.value');
     str(d.unit, path + '.unit', SHORT, true);
@@ -251,23 +281,35 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
       str(c.note, p + '.note', SHORT, true);
       if (c.level !== undefined && (typeof c.level !== 'number' || !(c.level >= 0 && c.level <= 1))) err(p + '.level', 'must be a number from 0 to 1');
     });
-  } else if (d.template === 'agenda') {
-    list(d.days, path + '.days', 14).forEach((day, i) => {
-      const p = path + '.days[' + i + ']';
-      if (!isObj(day)) return err(p, 'must be an object');
-      str(day.title, p + '.title', SHORT);
-      list(day.events, p + '.events', 30).forEach((e, j) => {
-        const q = p + '.events[' + j + ']';
-        if (!isObj(e)) return err(q, 'must be an object');
-        str(e.time, q + '.time', SHORT);
-        str(e.title, q + '.title', TEXT);
-        str(e.detail, q + '.detail', TEXT, true);
-      });
-    });
+  } else if (d.template === 'agenda' || d.template === 'days') {
+    agendaDays(d.days, path + '.days');
   } else if (d.template === 'photo') {
     if (typeof d.image !== 'string' || !IMAGE.test(d.image)) err(path + '.image', 'must be a path on the Server, like /api/media/1.jpg');
     str(d.caption, path + '.caption', TEXT, true);
+  } else if (d.template === 'chart') {
+    list(d.points, path + '.points', 96).forEach((v, i) => {
+      if (v !== null && (typeof v !== 'number' || !(v >= 0 && v <= 1))) err(path + '.points[' + i + ']', 'must be a number from 0 to 1, or null for a gap');
+    });
+    reading(d.max ?? null, path + '.max');
+    reading(d.min ?? null, path + '.min');
+    if (d.axis !== undefined) list(d.axis, path + '.axis', 8).forEach((v, i) => str(v, path + '.axis[' + i + ']', SHORT));
+    if (d.now !== undefined && typeof d.now !== 'boolean') err(path + '.now', 'must be true or false');
+    str(d.note, path + '.note', TEXT, true);
+  } else if (d.template === 'stack' && !nested) {
+    const parts = list(d.parts, path + '.parts', 3);
+    if (Array.isArray(d.parts) && !d.parts.length) err(path + '.parts', 'must hold at least one display');
+    parts.forEach((part, i) => {
+      const p = path + '.parts[' + i + ']';
+      if (!isObj(part)) return err(p, 'must be an object');
+      str(part.title, p + '.title', SHORT, true);
+      if (!isObj(part.display)) return err(p + '.display', 'must be an object');
+      if (part.display.template === 'stack') return err(p + '.display', 'a stack cannot hold a stack');
+      one(part.display, p + '.display', true);
+    });
   } else err(path + '.template', 'must be one of ' + TEMPLATES.join(', '));
+  };
+  if (!isObj(value)) return [path + ': must be an object'];
+  one(value, path, false);
   return errors;
 }
 

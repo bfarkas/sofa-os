@@ -14,6 +14,16 @@ Five templates, defined in `shared/src/widgets.ts` (`Display`). Every reading is
 - **agenda:** day titles with timed events (the family calendar).
 - **photo:** one image and a caption. The image is a path on the Server that the TV can load without headers; how that path is protected is Session 14's decision.
 
+## Three more templates (Session 24, 2026-11-10)
+
+Phase 4 added the templates a forecast, a calendar week and a power history need, in one Sofa Home release so later widget changes stay Server-only.
+
+- **chart:** one series over time. `points` are 0 to 1 (the Server scales them, so Sofa Home does no arithmetic on readings) and `null` is a gap, never zero; at most 96. `max` and `min` label the top and bottom of the scale, `axis` (at most 8 strings) is spread under the line, `now` marks the last point. Drawn as an inline SVG line with a soft fill. A small tile shows the line alone.
+- **days:** the agenda's days as columns (`AgendaDay` gains `subtitle` and `today`, `AgendaEvent` gains `allDay`). A card shows 1, 2 or 3 days by size, the full-screen view 7; a day shows at most 2 events on a card and 4 full-screen, the rest cut with an ellipsis. All-day events are drawn first, on a tint.
+- **stack:** one to three displays one over the other, each with an optional heading, so a widget can show hours over days. Full-screen only: a card draws the first part. A stack cannot hold a stack.
+
+All three go through `validateDisplay` like the others, so a malformed one shows its widget as unavailable and never breaks the Dashboard.
+
 Each widget sends a `card` for its tile and may send a `detail` for the read-only full-screen view. Sizes cap the rows a template may carry (`ITEM_LIMITS`), and the Server refuses an adapter result over the cap, too long, or of the wrong shape. There are no icons in v1, including weather icons: a glyph set is a template change, and words read fine at sofa distance.
 
 ## Limits on the generic entity card

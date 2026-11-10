@@ -726,6 +726,8 @@ Settle the look before building, from what the Dashboard does today and what the
 
 **Done when:** each template draws from a fixture on the TV at card and full size, an unknown or malformed display shows the widget as unavailable instead of breaking the Dashboard, and Sofa Home is reinstalled.
 
+**Built (2026-11-10, in the harness; TV reinstall pending).** `chart` (points 0 to 1 or null, `max`, `min`, `axis`, `now`, `note`), `days` (`AgendaDay.subtitle` and `today`, `AgendaEvent.allDay`; limits `ITEM_LIMITS.days` 1/2/3/7 columns and `dayEvents` 2/2/2/4) and `stack` (one to three parts with headings; a card draws the first). `validateDisplay` checks all three (a stack cannot hold a stack); `tv/src/cards.ts` draws them (the line is an inline SVG with `vector-effect: non-scaling-stroke`), `tv/harness` has fixtures, ADR 0003 describes them. Tests: `shared/src/widgets.test.ts`, `tv/src/cards.test.ts`. The Server and Companion need no change (Companion's preview does not draw templates). `forKids` stays per adapter and arrives with Session 26.
+
 ### 25 · Weather forecast views
 
 **Difficulty 3 · Sonnet · medium · HA**

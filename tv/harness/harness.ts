@@ -1,7 +1,7 @@
 // A fixture page for the widget cards: every template at every size, every state of the sample (status) widget, and the
 // full-screen view, drawn by the same cards.ts and cards.css as Sofa Home. Not part of the signed package.
 //   npm run harness -w tv, then serve tv/ (python3 -m http.server -d tv 8077) and open /harness/ at 1920 wide.
-import { tokensCss, type Display, type WidgetData } from '@sofa/shared';
+import { tokensCss, type Display, type StackPart, type WidgetData } from '@sofa/shared';
 import { cardOptions, drawCard, setWidgetsState } from '../src/cards.ts';
 import { parseWidgets } from '../src/widgets.ts';
 
@@ -21,6 +21,22 @@ const statusDetail: Display = {
   ]),
 };
 
+const powerPoints = Array.from({ length: 72 }, (_, i) => Math.min(1, 0.15 + 0.12 * Math.sin(i / 5) + (i % 23 === 0 ? 0.6 : 0) + (i > 50 ? 0.25 : 0)));
+const weekDays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((title, i) => ({
+  title,
+  subtitle: String(10 + i),
+  today: i === 0,
+  events: [
+    ...(i === 1 ? [{ time: 'All day', title: "St. Martin's Day", allDay: true }] : []),
+    { time: '09:15', title: i === 2 ? 'Elternabend Klasse 2b' : 'Dentist', detail: i === 2 ? 'Schule' : undefined },
+    { time: '16:30', title: 'Piano lesson' },
+    ...(i % 3 === 0 ? [{ time: '18:00', title: 'Football training' }, { time: '19:30', title: 'Dinner' }, { time: '21:00', title: 'Call' }, { time: '22:00', title: 'Late' }] : []),
+  ],
+}));
+const hours = Array.from({ length: 12 }, (_, i) => ({ label: String((19 + i) % 24).padStart(2, '0') + ':00', value: String(4 - Math.round(i / 3)), unit: '\u00b0', level: 0.8 - i * 0.04, note: [10, 10, 20, 30, 55, 70, 60, 40, 25, 15, 10, 10][i] + ' %' }));
+const wdays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((label, i) => ({ label, value: String(6 - i % 3), unit: '\u00b0', note: '2\u00b0  ' + [10, 80, 70, 30, 5, 20, 40][i] + ' %' }));
+const stackParts: StackPart[] = [{ title: 'Next 12 hours', display: { template: 'columns', columns: hours } }, { title: 'Next 7 days', display: { template: 'columns', columns: wdays } }];
+
 const templates: [string, WidgetData][] = [
   ['value', w('value', { title: 'Living room', card: { template: 'value', value: '21.5', unit: '°C', note: 'Humidity 48 %' } })],
   ['value, missing reading', w('value-missing', { title: 'Energy today', card: { template: 'value', value: null, unit: 'kWh', note: 'Today, since 00:00' } })],
@@ -28,6 +44,10 @@ const templates: [string, WidgetData][] = [
   ['columns', w('columns', { title: 'Weather', card: { template: 'columns', columns: ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => ({ label: d, value: String(9 + i), unit: '°', note: String(2 + (i % 3)) + '°' })) } })],
   ['columns with bars', w('bars', { title: 'Energy', card: { template: 'columns', note: 'kWh per hour, today', columns: ['14', '15', '16', '17', '18', '19'].map((h, i) => ({ label: h + ':00', value: i === 3 ? null : (0.3 + i * 0.25).toFixed(1), level: i === 3 ? undefined : (0.3 + i * 0.25) / 1.6 })) } })],
   ['agenda', w('agenda', { title: 'Family calendar', card: { template: 'agenda', days: [{ title: 'Today', events: [{ time: '16:30', title: 'Swimming', detail: 'Hallenbad' }, { time: '18:00', title: 'Elternabend Klasse 2b', detail: 'Schule' }] }, { title: 'Tue 10 Nov', events: [{ time: 'All day', title: 'Sankt Martin' }, { time: '09:00', title: 'Dentist' }] }] } })],
+  ['chart', w('chart', { title: 'Power', card: { template: 'chart', now: true, max: '2.4 kW', min: '0.1 kW', axis: ['12:00', '15:00', '18:00'], note: 'Last 6 hours', points: powerPoints } })],
+  ['chart with a gap', w('chart-gap', { title: 'Power', card: { template: 'chart', now: true, max: '2.4 kW', min: '0.1 kW', axis: ['12:00', '15:00', '18:00'], points: powerPoints.map((v, i) => (i > 30 && i < 42 ? null : v)) } })],
+  ['days', w('days', { title: 'Family calendar', card: { template: 'days', days: weekDays }, detail: { template: 'days', days: weekDays } })],
+  ['stack', w('stack', { title: 'Weather', card: { template: 'stack', parts: stackParts }, detail: { template: 'stack', parts: stackParts } })],
   ['photo', w('photo', { title: 'Summer 2026', card: { template: 'photo', image: '/img/kids-tile-forest.jpg', caption: 'Forest walk' } })],
   ['photo, image missing', w('photo-missing', { title: 'Album', card: { template: 'photo', image: '/img/missing.jpg' } })],
 ];
@@ -80,7 +100,7 @@ for (const [name, data] of states.slice(1, 6)) {
 
 page.appendChild(el('h2', '', 'Full-screen view (drawn at 1560 x 760, shown at half size)'));
 const fulls = page.appendChild(el('div', 'grid'));
-for (const id of ['s-ok', 's-old', 'value', 'list', 'columns', 'bars', 'agenda', 'photo', 's-empty', 's-unavailable']) {
+for (const id of ['s-ok', 's-old', 'value', 'list', 'columns', 'bars', 'agenda', 'photo', 'chart', 'chart-gap', 'days', 'stack', 's-empty', 's-unavailable']) {
   const box = fulls.appendChild(el('div', 'fullbox'));
   drawCard(box.appendChild(el('div', 'full')), id, 'Sofa.OS', 'full');
 }

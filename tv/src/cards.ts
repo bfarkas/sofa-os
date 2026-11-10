@@ -2,6 +2,8 @@
 // says what a card shows, this file lays it out. Text goes in with textContent only. A card that fails to draw shows as
 // unavailable, so one bad widget never breaks the Dashboard.
 import { DASH, ITEM_LIMITS, type CardSize, type Display, type Reading } from '@sofa/shared';
+
+const SVG = 'http://www.w3.org/2000/svg';
 import { cardView, emptyState, type CardView, type WidgetsState } from './widgets.ts';
 
 /** The Server address, for photo paths. main.ts sets it. */
@@ -28,7 +30,29 @@ function reading(parent: HTMLElement, cls: string, value: Reading, unit?: string
   return el;
 }
 
+/** The chart's line as SVG path data in a 0..1000 by 0..100 box; each gap (null) starts a new stretch. Also the closed shape under it. */
+export function chartPaths(points: (number | null)[]): { line: string; fill: string } {
+  let line = '', fill = '', start = -1;
+  const x = (i: number) => (points.length < 2 ? 500 : Math.round((i / (points.length - 1)) * 1000));
+  const y = (v: number) => Math.round((1 - v) * 100);
+  const close = (end: number) => {
+    if (start >= 0) fill += 'L' + x(end) + ',100L' + x(start) + ',100Z';
+    start = -1;
+  };
+  points.forEach((v, i) => {
+    if (v === null) return close(i - 1);
+    line += (start < 0 ? 'M' : 'L') + x(i) + ',' + y(v);
+    if (start < 0) {
+      fill += 'M' + x(i) + ',' + y(v);
+      start = i;
+    } else fill += 'L' + x(i) + ',' + y(v);
+  });
+  close(points.length - 1);
+  return { line, fill };
+}
+
 function template(d: Display, size: CardSize): HTMLElement {
+  if (d.template === 'stack' && size !== 'full') return template(d.parts[0].display, size); // a card has room for the first part only
   const body = h('div', 'w-body t-' + d.template);
   if (d.template === 'value') {
     reading(body.appendChild(h('div', 'v-main')), 'v-num', d.value, d.unit);
@@ -70,6 +94,54 @@ function template(d: Display, size: CardSize): HTMLElement {
     const shown = lines.slice(0, ITEM_LIMITS.agenda[size]);
     if (shown.length && shown[shown.length - 1].className === 'a-day') shown.pop();
     for (const l of shown) body.appendChild(l);
+  } else if (d.template === 'days') {
+    for (const day of d.days.slice(0, ITEM_LIMITS.days[size])) {
+      const col = body.appendChild(h('div', 'dy' + (day.today ? ' today' : '')));
+      col.appendChild(h('div', 'dy-h', day.title));
+      if (day.subtitle) col.appendChild(h('div', 'dy-s', day.subtitle));
+      const cap = ITEM_LIMITS.dayEvents[size];
+      // All-day events first, as the Server may send them in start order.
+      const events = day.events.filter((e) => e.allDay).concat(day.events.filter((e) => !e.allDay));
+      for (const e of events.slice(0, cap < events.length ? cap - 1 : cap)) {
+        const ev = col.appendChild(h('div', 'dy-e' + (e.allDay ? ' all' : '')));
+        ev.appendChild(h('div', 'dy-t', e.time));
+        ev.appendChild(h('div', 'dy-w', e.title));
+        if (e.detail && (size === 'full' || size === 'large')) ev.appendChild(h('div', 'dy-p', e.detail));
+      }
+      if (events.length > cap) col.appendChild(h('div', 'dy-more', '\u2026'));
+    }
+  } else if (d.template === 'chart') {
+    const wrap = body.appendChild(h('div', 'ch'));
+    const y = wrap.appendChild(h('div', 'ch-y'));
+    y.appendChild(h('span', '', d.max ?? ''));
+    y.appendChild(h('span', '', d.min ?? ''));
+    const plot = wrap.appendChild(h('div', 'ch-plot'));
+    const paths = chartPaths(d.points);
+    const svg = plot.appendChild(document.createElementNS(SVG, 'svg'));
+    svg.setAttribute('viewBox', '0 0 1000 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    for (const [cls, data] of [['ch-fill', paths.fill], ['ch-line', paths.line]]) {
+      const path = svg.appendChild(document.createElementNS(SVG, 'path'));
+      path.setAttribute('class', cls);
+      path.setAttribute('d', data);
+    }
+    const last = d.points.length - 1;
+    if (d.now && last >= 0 && d.points[last] !== null) {
+      const dot = plot.appendChild(h('div', 'ch-now'));
+      dot.style.left = (last === 0 ? 50 : 100) + '%';
+      dot.style.bottom = Math.round((d.points[last] as number) * 100) + '%';
+    }
+    if (d.axis && d.axis.length) {
+      const x = body.appendChild(h('div', 'ch-x'));
+      for (const a of d.axis) x.appendChild(h('span', '', a));
+    }
+    if (d.note) body.appendChild(h('div', 'v-note', d.note));
+  } else if (d.template === 'stack') {
+    for (const part of d.parts) {
+      const box = body.appendChild(h('div', 'sk'));
+      if (part.title) box.appendChild(h('div', 'sk-t', part.title));
+      box.appendChild(template(part.display, size));
+    }
   } else if (d.template === 'photo') {
     const img = body.appendChild(h('img', 'ph')) as HTMLImageElement;
     img.onerror = () => body.classList.add('noimg');
