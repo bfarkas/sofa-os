@@ -711,7 +711,7 @@ Settle the look before building, from what the Dashboard does today and what the
 - **Weather view: hours over days** (a `stack` of 12 hours over 7 days). The chance of rain is prominent: a blue tint behind each column in proportion to the chance, a large percentage with a drop mark under each hour and day (dimmed under 20 %), and a headline "rain, next 12 h" figure beside wind and humidity.
 - **Calendar view: week of day columns.** The month grid is dropped. The card shows the next event (time, title) and "and N more".
 - **Power view: the line chart with min, max and average**, as drawn.
-- **Wallpapers.** The shoreline of the current day-cycle pictures cuts through the widget row. New pictures are being generated (imagegen via Codex) with the shoreline and the lower half calm, so the widget row sits on water or forest. They land in `assets/brand/v2/wallpaper/day-cycle/` (untracked; the user decides what is committed). Session 29 uses those.
+- **Wallpapers.** The shoreline of the current day-cycle pictures cuts through the widget row. New pictures were generated 2026-11-10 (imagegen via Codex): shoreline at y=466 to 468 of 1080 in all four, peak at about (855, 273), calm water below. They are in `assets/brand/v2/wallpaper/day-cycle/` (untracked; the user decides what is committed; the 4K files are upscales of 1672 x 941 sources, which is fine for a 1080p TV). Session 29 uses those.
 
 **Done:** the picks above. Token changes for Session 28: widget unit 323 x 252 (`SIZES`, `ROW_UNITS` 5), app tile 176, row padding 36.
 
