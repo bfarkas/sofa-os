@@ -8,6 +8,6 @@
   },
   "scripts": {
     "build": "esbuild src/main.ts --bundle --target=chrome56,es2017 --outfile=app/main.js",
-    "harness": "esbuild harness/harness.ts --bundle --target=chrome56,es2017 --outfile=harness/harness.js"
+    "harness": "esbuild harness/harness.ts harness/dash.ts --bundle --target=chrome56,es2017 --outdir=harness"
   }
 }

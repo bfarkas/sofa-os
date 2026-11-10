@@ -112,7 +112,7 @@ for (const id of ['s-ok', 's-old', 'value', 'list', 'columns', 'bars', 'agenda',
 const style = document.createElement('style');
 style.textContent = tokensCss();
 document.head.insertBefore(style, document.head.firstChild);
-fetch('../app/index.html')
+fetch('../app/index.html', { cache: 'no-store' })
   .then((r) => r.text())
   .then((html) => {
     const css = /<style>([\s\S]*?)<\/style>/.exec(html);

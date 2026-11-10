@@ -1,6 +1,6 @@
 // Editing operations on a layout, pure and immutable: each takes a layout and returns the next one (an equal layout when
 // nothing changes). The editor (editor.ts) only calls these, so every rule about rows, apps and widgets is tested here.
-import { readConfig, STREAM, widgetProblems, type AppTile, type Layout, type RowItem, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
+import { readConfig, ROW_UNITS, STREAM, UNITS, widgetProblems, type AppTile, type Layout, type RowItem, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
 
 export type Item = RowItem;
 const same = (a: Item, b: Item) => a.kind === b.kind && a.id === b.id;
@@ -35,6 +35,10 @@ export const moveRow = (l: Layout, rowId: string, delta: number): Layout => ({ .
 
 /** The id of the row an app or widget sits in on the Dashboard, or null. */
 export const rowOf = (l: Layout, item: Item): string | null => l.rows.find((r) => r.items.some((i) => same(i, item)))?.id ?? null;
+
+/** True when a row's widgets are wider than the TV's widget row (ROW_UNITS small widgets): the TV cuts off the last one. */
+export const rowTooWide = (l: Layout, rowId: string): boolean =>
+  (l.rows.find((r) => r.id === rowId)?.items ?? []).reduce((n, i) => n + (i.kind === 'widget' ? UNITS[l.widgets.find((w) => w.id === i.id)?.size ?? 'small'] : 0), 0) > ROW_UNITS;
 
 export const removeFromRows = (l: Layout, item: Item): Layout => ({ ...l, rows: l.rows.map((r) => (r.items.some((i) => same(i, item)) ? { ...r, items: r.items.filter((i) => !same(i, item)) } : r)) });
 

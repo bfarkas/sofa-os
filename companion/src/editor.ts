@@ -1,7 +1,7 @@
 // Companion's Home Screen editor (/edit): Dashboard, Apps, Widgets and Settings over one working copy of the layout, with a
 // 16:9 preview made by Sofa Home's own drawing code (preview.ts). The working copy is saved to a Server draft as you go and
 // published through the Session 05 API. Every change goes through edit.ts; this file is forms and plumbing.
-import { checkWidgets, fieldApplies, FRESHNESS, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type KidsStatus, type Layout, type Snapshot, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, fieldApplies, FRESHNESS, ROW_UNITS, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type KidsStatus, type Layout, type Snapshot, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
 import * as E from './edit.ts';
 import type { PreviewApi } from './preview.ts';
 
@@ -264,6 +264,7 @@ export function startEditor(call: Call): void {
             ),
           ),
           !r.items.length && h('p', { class: 'hint' }, 'Empty rows are not shown on the TV.'),
+          E.rowTooWide(layout, r.id) && h('p', { class: 'hint' }, 'The TV fits ' + ROW_UNITS + ' small widgets in a row (a medium counts 2, a large 3). The last widgets here are cut off.'),
           free.length > 1 && select(free, '', (v) => v && edit(E.placeInRow(layout, { kind: v.startsWith('app:') ? 'app' : 'widget', id: v.slice(v.indexOf(':') + 1) }, r.id)), { 'aria-label': 'Add to this row' }),
         ),
       ),

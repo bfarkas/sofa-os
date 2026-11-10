@@ -9,3 +9,4 @@ tv/app/main.js
 companion/dist/
 *.db
 tv/harness/harness.js
+tv/harness/dash.js

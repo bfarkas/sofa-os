@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkWidgets, validateLayout, type Layout, type WidgetType, type WidgetsResponse } from '@sofa/shared';
-import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, setBackgroundColor, setBackgroundStream, setConfig, showOnDashboard, updateWidget } from './edit.ts';
+import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundStream, setConfig, showOnDashboard, updateWidget } from './edit.ts';
 
 const type: WidgetType = {
   type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['small', 'medium'], defaultSize: 'medium', defaultFreshness: 'live',
@@ -104,4 +104,13 @@ test('the photostream background is a slideshow of the stream; a colour replaces
   const l = setBackgroundStream(base());
   assert.deepEqual(l.background, { kind: 'slideshow', album: 'photostream' });
   assert.deepEqual(setBackgroundColor(l, '#112233').background, { kind: 'color', color: '#112233' });
+});
+
+test('a row is too wide when its widgets pass five units (small 1, medium 2, large 3); apps do not count', () => {
+  let l = placeInRow(addWidget(base(), { ...type, defaultSize: 'large' }), { kind: 'widget', id: 'home' }, 'row-1');
+  assert.equal(rowTooWide(l, 'row-1'), false); // medium 2 + large 3 = 5
+  l = updateWidget(l, 'w1', { size: 'large' });
+  assert.equal(rowTooWide(l, 'row-1'), true); // 6
+  assert.equal(rowTooWide(l, 'row-2'), false);
+  assert.equal(rowTooWide(l, 'missing'), false);
 });

@@ -68,7 +68,7 @@ function template(d: Display, size: CardSize): HTMLElement {
     const cols = body.appendChild(h('div', 'cols'));
     for (const c of d.columns.slice(0, ITEM_LIMITS.columns[size])) {
       const col = cols.appendChild(h('div', 'c' + (c.tint !== undefined ? ' tinted' : '')));
-      if (c.tint) col.style.backgroundColor = 'rgba(31, 111, 184, ' + (c.tint * 0.35).toFixed(2) + ')';
+      if (c.tint) col.style.backgroundColor = 'rgba(110, 175, 240, ' + (c.tint * 0.42).toFixed(2) + ')';
       col.appendChild(h('div', 'c-l', c.label));
       if (bars) {
         const bar = col.appendChild(h('div', 'c-bar')).appendChild(h('div', 'c-fill'));

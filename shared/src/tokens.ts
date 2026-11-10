@@ -5,13 +5,27 @@
 /** Colours. Panels stay ivory with ink text whatever is behind them, so a tile reads over a photo or a dark colour. */
 export const COLORS = {
   ivory: '#f6f1e7', // page and panel base
-  panel: 'rgba(246, 241, 231, 0.94)', // tiles over a background
-  panelDim: 'rgba(246, 241, 231, 0.62)', // unavailable tiles
+  panel: 'rgba(246, 241, 231, 0.94)', // ivory tiles over a background (Kids Mode)
+  panelDim: 'rgba(246, 241, 231, 0.62)', // unavailable ivory tiles
+  // Smoked glass (Session 28): translucent dark panels with light text, for the Dashboard, tabs and full-screen views. No blur, since
+  // the TV's Chromium 56 has no backdrop-filter; the wallpaper just shows through.
+  glass: 'rgba(16, 24, 21, 0.66)',
+  glassDim: 'rgba(16, 24, 21, 0.5)', // unavailable tiles, tab pills
+  glassFull: 'rgba(14, 20, 18, 0.9)', // the full-screen panel, which needs more body than a tile
+  glassInk: '#fffdf8',
+  glassMuted: 'rgba(255, 253, 248, 0.74)',
+  glassLine: 'rgba(255, 255, 255, 0.2)',
+  glassSoft: 'rgba(255, 255, 255, 0.1)',
+  glassAccent: '#b5dcc0', // headings and lines on glass
+  glassBar: '#8fc3a0', // bars and fills on glass
+  glassWarn: '#ffb4aa', // "unavailable" and stale marks on glass
+  rain: '#8cc4f5', // the chance of rain on glass
   ink: '#2b2f2a', // text on panels and on light backgrounds
   inkMuted: '#4f5a4d', // secondary text on panels (above 6:1 on ivory)
   sage: '#8aa58d', // muted sage: accents and the app letter badge
   sageDeep: '#2f5d46', // focus outline, selected tab
-  focusRing: '#fffdf8', // inner focus ring, separates the outline from any background
+  focusRing: 'rgba(255, 253, 248, 0.8)', // inner focus ring, separates the outline from any background; slightly transparent
+  focusEdge: 'rgba(143, 195, 160, 0.85)', // the outline around it on the Dashboard (over glass and wallpapers); overlays on ivory use sageDeep
   warn: '#a3352b', // errors and "unavailable"
   scrim: 'rgba(31, 36, 30, 0.72)', // behind overlays
 } as const;
@@ -20,13 +34,15 @@ export const COLORS = {
 export const SIZES = {
   marginX: 96,
   marginY: 54,
-  tile: 220, // an app tile is a square this wide; widgets are this tall
-  widgetSmall: 264, // six small widgets fill a row; a medium takes two, a large three
-  widgetMedium: 556,
-  widgetLarge: 848,
+  tile: 176, // an app tile is a square this wide
+  widgetHeight: 252, // every widget is this tall
+  widgetSmall: 323, // five small widgets fill a row; a medium takes two (2 x 323 + gap), a large three
+  widgetMedium: 674,
+  widgetLarge: 1025,
   gap: 28, // between tiles
+  rowPad: 36, // a row's side padding, room for the focus ring and scale of its first and last tile
   radius: 22,
-  focusRing: 5, // inner ring; the outline adds 6 more
+  focusRing: 5, // inner ring; the outline adds 6 more. A focused tile also scales by 1.06, so a row's side padding (36) must cover the widest tile's growth plus 11 (the 700 px Kids Mode tile: 21 + 11)
   focusOutline: 6,
   textBody: 30,
   textLabel: 32,

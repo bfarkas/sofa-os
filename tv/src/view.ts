@@ -1,7 +1,7 @@
 // Draws the shell (shell.ts) into tv/app/index.html and shows which id has focus. No decisions are made here.
 import { drawCard } from './cards.ts';
 import { PAD_ROWS } from './kids.ts';
-import { clockText, dateText, TABS, type Tile, type View } from './shell.ts';
+import { clockText, dateText, greetingText, longDateText, TABS, type Tile, type View } from './shell.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 function h(tag: string, cls: string, text?: string): HTMLElement {
@@ -75,7 +75,7 @@ export function render(v: View): void {
   const kids = v.mode === 'kids';
   $('bar').hidden = v.mode !== 'home';
   $('content').hidden = v.mode !== 'home' && !kids;
-  $('content').className = kids ? 'kidsview' : '';
+  $('content').className = kids ? 'kidsview' : v.tab === 'dashboard' ? 'dashview' : '';
   $('kids-head').hidden = !kids;
   $('done').hidden = v.mode !== 'done';
   $('foot').hidden = kids || v.mode === 'done'; // the Server line is for adults
@@ -94,7 +94,14 @@ export function render(v: View): void {
     if (host !== content) host.id = 'dash';
     for (const s of v.sections) {
       const sec = h('div', 'section');
-      const row = sec.appendChild(h('div', 'row'));
+      // Layout B: the Dashboard's first row is the greeting on the left, the Kids Mode tile on the right.
+      const hello = v.mode === 'home' && v.tab === 'dashboard' && s.tiles[0].kind === 'kids';
+      const row = sec.appendChild(h('div', 'row' + (hello ? ' hello' : '')));
+      if (hello) {
+        const greet = row.appendChild(h('div', 'greet'));
+        greet.appendChild(h('h1', '', greetingText(new Date()))).id = 'greet-hello';
+        greet.appendChild(h('p', '', longDateText(new Date()))).id = 'greet-date';
+      }
       for (const t of s.tiles) {
         row.appendChild((tiles[t.id] = tileEl(t)));
         if (t.kind === 'widget') cards[t.id] = t;
@@ -108,7 +115,7 @@ export function render(v: View): void {
     }
   }
   $('lift-hint').hidden = !v.sections.some((s) => s.tiles.some((t) => !!t.lifted));
-  content.scrollTop = v.tab === tab ? keepScroll : 0;
+  content.scrollTop = v.tab === 'dashboard' && !kids ? content.scrollHeight : v.tab === tab ? keepScroll : 0; // the Dashboard starts with its last row (the apps) in view
   tab = v.tab;
   setFocus(focusId);
 }
@@ -121,6 +128,11 @@ export function redrawCards(): void {
 export function updateClock(d: Date): void {
   $('time').textContent = clockText(d);
   $('date').textContent = dateText(d);
+  const hello = document.getElementById('greet-hello'), day = document.getElementById('greet-date');
+  if (hello && day) {
+    hello.textContent = greetingText(d);
+    day.textContent = longDateText(d);
+  }
 }
 
 /** Highlights `id` and scrolls its row into view: its section vertically (the first one all the way up), the tile horizontally. */
@@ -131,8 +143,12 @@ export function setFocus(id: string | null): void {
   if (!el) return;
   el.classList.add('focus');
   const sec = el.closest('.section');
-  if (!sec) return;
-  const content = $('content'), c = content.getBoundingClientRect(), s = sec.getBoundingClientRect();
+  const content = $('content');
+  if (!sec) {
+    if (content.className === 'dashview') content.scrollTop = content.scrollHeight; // back on the bar: the apps row is in view again
+    return;
+  }
+  const c = content.getBoundingClientRect(), s = sec.getBoundingClientRect();
   if (sec === content.querySelector('.section')) content.scrollTop = 0;
   else if (s.top < c.top) content.scrollTop += s.top - c.top;
   else if (s.bottom > c.bottom) content.scrollTop += s.bottom - c.bottom;

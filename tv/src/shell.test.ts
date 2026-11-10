@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { Layout } from '@sofa/shared';
 import type { RemoteEvent, RemoteKey } from './keys.ts';
 import { PAD_ROWS } from './kids.ts';
-import { clockText, createShell, dateText, kidsSections, sectionsFor } from './shell.ts';
+import { clockText, createShell, dateText, greetingText, kidsSections, longDateText, sectionsFor } from './shell.ts';
 
 const app = (id: string, name: string) => ({ id, name });
 const layout = (over: Partial<Layout> = {}): Layout => ({
@@ -56,13 +56,13 @@ test('the Apps tab lists every app, seven to a row', () => {
   assert.equal(s[0].tiles[1].unavailable, true);
 });
 
-test('the Widgets tab packs six units to a row and says what is on the Dashboard', () => {
+test('the Widgets tab packs five units to a row and says what is on the Dashboard', () => {
   const l = layout();
   l.widgets.push({ id: 'w4', type: 'energy', size: 'small', config: {}, profiles: ['household'], freshness: 'live' });
   l.widgets.push({ id: 'w5', type: 'photos', size: 'large', config: {}, profiles: ['household'], freshness: 'daily' });
   const s = sectionsFor(l, 'widgets', new Set());
   // household widgets: w1 medium (2), w2 large (3), w4 small (1), w5 large (3)
-  assert.deepEqual(s.map((x) => x.tiles.map((t) => t.id)), [['widget:w1', 'widget:w2', 'widget:w4'], ['widget:w5']]);
+  assert.deepEqual(s.map((x) => x.tiles.map((t) => t.id)), [['widget:w1', 'widget:w2'], ['widget:w4', 'widget:w5']]);
   assert.equal(s[0].tiles[0].detail, 'On Dashboard');
   assert.equal(s[0].tiles[1].detail, 'Not on Dashboard');
 });
@@ -372,4 +372,24 @@ test('Menu opens the same context menu as a long press, and never selects, launc
   assert.equal(other.shell.menuKey(), null, 'a widget already on the Dashboard has no menu there');
   assert.ok(other.shell.focus.focus('widget:w4'));
   assert.deepEqual(other.shell.menuKey(), { type: 'menu', widget: 'w4', title: 'Energy', items: ['add'] });
+});
+
+test('the greeting follows the clock: night until 05:00, morning until 10:00, day until 17:00, then evening', () => {
+  const at = (h: number, m = 0) => greetingText(new Date(2026, 10, 10, h, m));
+  assert.deepEqual([at(0), at(4, 59), at(5), at(9, 59), at(10), at(16, 59), at(17), at(23, 59)], ['Good night', 'Good night', 'Good morning', 'Good morning', 'Good day', 'Good day', 'Good evening', 'Good evening']);
+  assert.equal(longDateText(new Date(2026, 10, 10, 18)), 'Tuesday, 10 November');
+});
+
+test('on the Dashboard the Kids Mode tile is a row of its own that the arrows reach from the first widget', () => {
+  const { shell, press } = setup(layout({ rows: [layout().rows[1], layout().rows[0]] })); // a widget row, then the apps
+  press('down');
+  assert.equal(shell.focus.current(), 'kids');
+  press('left', 'right'); // one tile in its row: nowhere sideways
+  assert.equal(shell.focus.current(), 'kids');
+  press('down');
+  assert.equal(shell.focus.current(), 'widget:w1');
+  press('down');
+  assert.equal(shell.focus.current(), 'app:a.One');
+  press('up', 'up');
+  assert.equal(shell.focus.current(), 'kids');
 });

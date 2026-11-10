@@ -15,7 +15,7 @@ export function photoAdapter({ photos }: PhotoDeps): WidgetAdapter {
     description: 'A photo from an Immich album, or from the newest photos of the whole library (the photostream, household only). OK opens it as a slideshow with the clock.',
     templates: ['photo'],
     sizes: ['small', 'medium', 'large'],
-    defaultSize: 'medium',
+    defaultSize: 'small', // one slot of the Dashboard's widget row
     defaultFreshness: 'hourly', // a new photo every ten minutes
     fields: [
       { key: 'source', label: 'Photos from', kind: 'choice', default: 'album', options: [{ value: 'album', label: 'An album' }, { value: 'photostream', label: 'The photostream (newest photos)' }], help: 'The photostream is the whole library and the household\'s only: Kids Mode never shows it. Albums can be approved for kids.' },

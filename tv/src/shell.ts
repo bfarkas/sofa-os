@@ -132,6 +132,12 @@ const two = (n: number) => (n < 10 ? '0' : '') + n;
 export const clockText = (d: Date) => two(d.getHours()) + ':' + two(d.getMinutes());
 export const dateText = (d: Date) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
 
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** The Dashboard's greeting by the clock's hour: night until 05:00, morning until 10:00, day until 17:00, then evening. */
+export const greetingText = (d: Date) => (d.getHours() < 5 ? 'Good night' : d.getHours() < 10 ? 'Good morning' : d.getHours() < 17 ? 'Good day' : 'Good evening');
+export const longDateText = (d: Date) => DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
+
 export interface ShellHooks {
   onView(view: View): void; // the sections, tab or mode changed: draw again
   onFocus(id: string | null): void; // highlight this id
