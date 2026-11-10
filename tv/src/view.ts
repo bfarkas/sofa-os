@@ -1,5 +1,6 @@
 // Draws the shell (shell.ts) into tv/app/index.html and shows which id has focus. No decisions are made here.
 import { drawCard } from './cards.ts';
+import type { Icons } from './icons.ts';
 import { PAD_ROWS } from './kids.ts';
 import { clockText, dateText, greetingText, longDateText, TABS, type Tile, type View } from './shell.ts';
 
@@ -17,8 +18,10 @@ let cards: Record<string, Tile> = {}; // its widget tiles, redrawn on their own 
 let mode: View['mode'] = 'signin';
 let tab = '';
 let focusId: string | null = null;
+let icons: Icons | undefined; // the app icons (icons.ts); without them every app shows its letter
 
-export function initView(): void {
+export function initView(appIcons?: Icons): void {
+  icons = appIcons;
   for (const t of TABS) {
     const el = h('div', 'pill', t.label);
     $('tabs').appendChild(el);
@@ -46,6 +49,25 @@ export function renderPad(count: number, note: string): void {
 
 const find = (id: string): HTMLElement | undefined => (id === 'settings' ? $(mode === 'home' ? 'bar-settings' : 'signin-settings') : tiles[id] || fixed[id]);
 
+/** The letter stays until the TV's own icon has loaded; if it never does, nothing changes. */
+function showIcon(badge: HTMLElement, appId: string): void {
+  const first = icons && icons.src(appId);
+  if (!icons || !first) return;
+  const img = new Image();
+  img.alt = '';
+  img.onload = () => {
+    icons!.loaded(appId, img.getAttribute('src') || '');
+    badge.textContent = '';
+    badge.appendChild(img);
+    badge.className += ' icon';
+  };
+  img.onerror = () => {
+    const next = icons!.failed(appId, img.getAttribute('src') || '');
+    if (next) img.src = next;
+  };
+  img.src = first;
+}
+
 function tileEl(t: Tile): HTMLElement {
   const el = h('div', 'tile ' + t.kind + (t.size ? ' ' + t.size : '') + (t.unavailable ? ' unavailable' : '') + (t.lifted ? ' lifted' : ''));
   if (t.kind === 'kids') {
@@ -64,7 +86,8 @@ function tileEl(t: Tile): HTMLElement {
     drawCard(el, t.id.slice(7), t.label, t.size || 'medium', t.detail);
     return el;
   }
-  el.appendChild(h('div', 'badge', t.kind === 'allapps' ? '+' : t.label.charAt(0).toUpperCase()));
+  const badge = el.appendChild(h('div', 'badge', t.kind === 'allapps' ? '+' : t.label.charAt(0).toUpperCase()));
+  if (t.kind === 'app') showIcon(badge, t.id.slice(4));
   el.appendChild(h('div', 'label', t.label));
   if (t.detail) el.appendChild(h('div', 'detail', t.detail));
   return el;

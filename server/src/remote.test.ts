@@ -11,7 +11,7 @@ import { hashSecret } from './auth.ts';
 import type { Config } from './config.ts';
 import { openDb } from './db.ts';
 import type { HaClient } from './ha.ts';
-import { createPhoneRemote, RATE_LIMIT, RATE_WINDOW_MS } from './remote.ts';
+import { createPhoneRemote, ICON_REPORTS, RATE_LIMIT, RATE_WINDOW_MS } from './remote.ts';
 import { startServer } from './server.ts';
 import { approveCode, claimToken, createCode } from './tv.ts';
 
@@ -113,6 +113,22 @@ test('Menu goes to Sofa Home only while it is in front, and sends no TV key', as
   tv.emit('close');
   assert.equal((await phone.press('s', { key: 'menu' })).status, 409, 'closed socket');
   assert.deepEqual(keys, []);
+});
+
+test('icon reports from the TV are logged (trimmed, capped per socket) and change nothing else', () => {
+  const lines: string[] = [];
+  const write = process.stdout.write;
+  process.stdout.write = ((chunk: string) => (lines.push(String(chunk)), true)) as never;
+  try {
+    const tv = tvSocket(createPhoneRemote({ ha: null, kidsActive: () => false }));
+    tv.emit('message', JSON.stringify({ type: 'icon', app: 'SrAoJxGQUf.ARD', outcome: 'loaded', detail: 'x'.repeat(500) }));
+    for (let i = 0; i < ICON_REPORTS + 5; i++) tv.emit('message', JSON.stringify({ type: 'icon', app: 'a' + i, outcome: 'none', detail: 'no iconPath' }));
+  } finally {
+    process.stdout.write = write;
+  }
+  const logged = lines.map((l) => JSON.parse(l)).filter((l) => l.msg === 'sofa home icon');
+  assert.equal(logged.length, ICON_REPORTS);
+  assert.deepEqual([logged[0].app, logged[0].outcome, logged[0].detail.length], ['SrAoJxGQUf.ARD', 'loaded', 200]);
 });
 
 // Over HTTP and a real WebSocket, with Home Assistant in dry run.

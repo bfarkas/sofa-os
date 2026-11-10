@@ -3,6 +3,7 @@
 // esbuild bundles it for Chromium M56 (ES2017).
 import { applyOp, dayFootInk, dayInk, isSource, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
+import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { currentPeriod, fakeHour } from './daycycle.ts';
 import { createKids, createPad, forestFor, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
@@ -23,7 +24,7 @@ declare global {
     SOFA_FAKE_HOUR?: string | number; // optional, from env.js: pretend it is this hour (0 to 23) for the day-cycle background
   }
   // Tizen web API, only the parts used here. Absent in a desktop browser.
-  const tizen: TizenApplicationApi & {
+  const tizen: TizenApplicationApi & TizenAppInfoApi & {
     tvinputdevice: {
       registerKey(name: string): void;
       getSupportedKeys(): { name: string; code: number }[];
@@ -203,7 +204,20 @@ const settingsNote = $('settings-note');
 const style = document.createElement('style');
 style.textContent = tokensCss();
 document.head.appendChild(style);
-initView();
+// App icons (Session 30): each app's outcome goes to the Server's log once (over the socket when it is up), and to the local log.
+let liveSocket: WebSocket | null = null; // the sync socket (runSync); Phone Remote's visible report and the icon reports go over it
+let iconReports: string[] = []; // waiting for the socket
+function flushIconReports(): void {
+  if (!liveSocket || liveSocket.readyState !== 1) return;
+  for (const m of iconReports) liveSocket.send(m);
+  iconReports = [];
+}
+function reportIcon(r: IconReport): void {
+  add('icon ' + r.app + ' ' + r.outcome + ' ' + r.detail);
+  iconReports.push(JSON.stringify({ type: 'icon', ...r }));
+  flushIconReports();
+}
+initView(createIcons(typeof tizen === 'undefined' ? undefined : tizen, reportIcon));
 const shell = createShell({ onView: render, onFocus: setFocus });
 shell.setScreen(screen);
 const launcher = tizenLauncher(typeof tizen === 'undefined' ? undefined : tizen);
@@ -315,6 +329,7 @@ function runSync(): void {
       ws.onopen = () => {
         h.open();
         reportVisible();
+        flushIconReports();
         if (!document.hidden) kidsCtl.refresh(); // a dropped socket may have missed a Kids Mode signal
       };
       ws.onmessage = (e) => h.message(String(e.data));
@@ -587,7 +602,6 @@ function openPhotos(album: string, profile: 'household' | 'kids', how: 'ambient'
 }
 
 // Phone Remote. The Server only sends Menu to a Sofa Home that says it is in front (a provider app on top means hidden).
-let liveSocket: WebSocket | null = null;
 function reportVisible(): void {
   if (liveSocket && liveSocket.readyState === 1) liveSocket.send(JSON.stringify({ type: 'visible', visible: !document.hidden }));
 }

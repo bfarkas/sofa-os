@@ -2,10 +2,11 @@
 // fixture widget data (no Server, no TV). The arrow keys, Enter and Escape drive it like the remote. Not part of the signed package.
 //   npm run harness -w tv, serve tv/ (python3 -m http.server 8077 -d tv), open /harness/dash.html at 1920 x 1080.
 // Query: ?tab=apps|widgets, ?focus=<id> (kids, widget:weather, app:org.tizen.netflix-app, allapps), ?screen=kids, ?apps=N (more apps),
-//   ?day=H (0 to 23: the day-cycle background as at that hour, through the real photoview; setDayHour(h) in the console changes it), ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable.
+//   ?icons=<image url> (Session 30: Netflix, Plex and ARD get that picture as their icon, YouTube a path that does not load, ZDF an API error and KiKA none: the letter stays), ?day=H (0 to 23: the day-cycle background as at that hour, through the real photoview; setDayHour(h) in the console changes it), ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable.
 import { dayFootInk, dayInk, periodAt, tokensCss, type Layout, type WidgetData } from '@sofa/shared';
 import { cardOptions, setWidgetsState } from '../src/cards.ts';
 import type { RemoteEvent, RemoteKey } from '../src/keys.ts';
+import { createIcons } from '../src/icons.ts';
 import { createPhotoView } from '../src/photoview.ts';
 import { createShell } from '../src/shell.ts';
 import { initView, redrawCards, render, setFocus, updateClock } from '../src/view.ts';
@@ -75,7 +76,9 @@ const layout: Layout = {
     (window as unknown as { setDayHour: typeof setDayHour }).setDayHour = setDayHour;
   }
   cardOptions.server = '';
-  initView();
+  const icon = q.get('icons');
+  const iconPaths: Record<string, string> = { 'org.tizen.netflix-app': icon || '', 'kIciSQlYEM.plex': icon || '', 'SrAoJxGQUf.ARD': icon || '', 'com.samsung.tv.cobalt-yt': '/nowhere.png' };
+  initView(icon ? createIcons({ application: { getAppInfo: (id) => { if (id.indexOf('ZDF') >= 0) throw new Error('boom'); return { iconPath: iconPaths[id] }; } } }, (r) => console.log('icon', JSON.stringify(r))) : undefined);
   const shell = createShell({ onView: render, onFocus: setFocus });
   shell.setMode('home');
   shell.setScreen(kids ? 'kids' : 'household');

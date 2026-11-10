@@ -1,4 +1,4 @@
-import { isPhoneKey, REMOTE_KEYS, type ApiError, type ServerMessage, type TvMessage } from '@sofa/shared';
+import { isPhoneKey, REMOTE_KEYS, type ApiError, type ServerMessage } from '@sofa/shared';
 import type { WebSocket } from 'ws';
 import type { HaClient } from './ha.ts';
 import { log } from './log.ts';
@@ -7,6 +7,7 @@ import { log } from './log.ts';
 // signals Sofa Home over the WebSocket it already holds. Rules for Kids Mode are in the plan, Session 18.
 export const RATE_LIMIT = 10; // key presses per session
 export const RATE_WINDOW_MS = 1000;
+export const ICON_REPORTS = 40; // icon outcomes logged per TV socket: a TV sends each app once, so this only stops a runaway
 
 export interface PhoneRemote {
   /** Follows a Sofa Home socket: its `visible` messages say whether Sofa Home is in front, which Menu needs. */
@@ -25,12 +26,17 @@ export function createPhoneRemote(o: { ha: HaClient | null; kidsActive(): boolea
     track(ws) {
       tvs.set(ws, undefined); // unknown until Sofa Home says so
       ws.on('close', () => tvs.delete(ws));
+      let icons = 0;
       ws.on('message', (raw) => {
         try {
-          const msg = JSON.parse(String(raw)) as Partial<TvMessage>;
+          const msg = JSON.parse(String(raw)) as Record<string, unknown>; // type 'icon' (Session 30) is only logged
           if (msg.type === 'visible' && typeof msg.visible === 'boolean' && tvs.get(ws) !== msg.visible) {
             tvs.set(ws, msg.visible);
             log.info('sofa home', { visible: msg.visible });
+          } else if (msg.type === 'icon' && icons < ICON_REPORTS) {
+            icons++;
+            const cut = (v: unknown) => String(v).slice(0, 200);
+            log.info('sofa home icon', { app: cut(msg.app), outcome: cut(msg.outcome), detail: cut(msg.detail) });
           }
         } catch {
           /* ignored: the socket only signals */
