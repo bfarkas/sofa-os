@@ -39,6 +39,8 @@
 .c-fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 4px 4px 0 0; background: var(--sofa-color-sage); }
 .c-v { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 30px; font-weight: bold; }
 .c-v .u { margin-left: 3px; }
+.c.tinted { padding: 4px 2px 6px; border-radius: 12px; }
+.c-b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 26px; font-weight: bold; color: #1f6fb8; }
 .t-columns .v-note { margin-top: 2px; font-size: 22px; }
 
 /* agenda: day titles and timed events share the lines */
@@ -92,6 +94,7 @@
 .sk .c-bar { height: 64px; }
 .sk .c-l, .sk .c-n { font-size: 26px; }
 .sk .c-v { font-size: 34px; }
+.sk .c-b { font-size: 30px; }
 
 /* photo: on a tile the image fills it and the title sits on a shade at the bottom */
 .ph { display: block; width: 100%; height: 100%; object-fit: cover; }

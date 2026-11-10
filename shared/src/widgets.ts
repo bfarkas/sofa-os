@@ -24,6 +24,8 @@ export interface Column {
   unit?: string;
   note?: string; // a second, smaller line, e.g. the low of a forecast
   level?: number; // 0 to 1: draws a bar of that height, e.g. energy per hour; a missing value draws none
+  badge?: string; // a bold highlighted line under the note, e.g. the chance of rain "70 %"
+  tint?: number; // 0 to 1: tints the column's background with the highlight colour, in proportion (rain)
 }
 export interface AgendaEvent {
   time: string; // "18:00", "All day"
@@ -279,7 +281,9 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
       reading(c.value, p + '.value');
       str(c.unit, p + '.unit', SHORT, true);
       str(c.note, p + '.note', SHORT, true);
+      str(c.badge, p + '.badge', SHORT, true);
       if (c.level !== undefined && (typeof c.level !== 'number' || !(c.level >= 0 && c.level <= 1))) err(p + '.level', 'must be a number from 0 to 1');
+      if (c.tint !== undefined && (typeof c.tint !== 'number' || !(c.tint >= 0 && c.tint <= 1))) err(p + '.tint', 'must be a number from 0 to 1');
     });
   } else if (d.template === 'agenda' || d.template === 'days') {
     agendaDays(d.days, path + '.days');

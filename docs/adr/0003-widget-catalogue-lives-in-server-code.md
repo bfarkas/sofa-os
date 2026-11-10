@@ -24,6 +24,12 @@ Phase 4 added the templates a forecast, a calendar week and a power history need
 
 All three go through `validateDisplay` like the others, so a malformed one shows its widget as unavailable and never breaks the Dashboard.
 
+## Weather forecasts (Session 25, 2026-11-10)
+
+- **A second read, not a write.** The weather adapter calls `weather.get_forecasts` with `return_response`, twice (hourly and daily), the same kind of read as the calendar's `calendar.get_events`. The Server therefore does make this one service call besides the three guarded writes; it never goes through the write guard, and only `weather.*` entities are accepted.
+- **Columns gain `badge` and `tint`.** `Column.badge` is a short string drawn under the value (the rain chance or amount) and `tint` (0 to 1) shades the column behind it, so rain stands out. Home Assistant's forecast has no rain probability here, so the Server sends the precipitation amount in mm and scales the tint from it; a probability is used when an integration provides one.
+- **Failure.** Each forecast part fails alone: the card keeps today's reading and the detail drops that part (and falls back to the list of readings if both fail). A Home Assistant outage marks the widget stale like any other.
+
 Each widget sends a `card` for its tile and may send a `detail` for the read-only full-screen view. Sizes cap the rows a template may carry (`ITEM_LIMITS`), and the Server refuses an adapter result over the cap, too long, or of the wrong shape. There are no icons in v1, including weather icons: a glyph set is a template change, and words read fine at sofa distance.
 
 ## Limits on the generic entity card

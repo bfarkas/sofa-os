@@ -2,7 +2,8 @@
 // Server's Home Assistant client (REST for snapshots), so the token never leaves the Server. A Home Assistant outage throws
 // Unavailable, which the framework turns into a stale card (last data kept) rather than a zero. An entity Home Assistant
 // itself reports as unavailable or unknown is a missing reading: a dash.
-import { ENTITY_DOMAINS, MAX_CARD_ENTITIES, type Display, type Layout, type ListRow } from '@sofa/shared';
+import { ENTITY_DOMAINS, MAX_CARD_ENTITIES, type Column, type Display, type Layout, type ListRow, type StackPart } from '@sofa/shared';
+import type { HaConfig } from '../config.ts';
 import { HaHttpError } from '../ha.ts';
 import { log } from '../log.ts';
 import { Unavailable, type WidgetAdapter } from '../widgets.ts';
@@ -85,13 +86,89 @@ const CONDITIONS: Record<string, string> = {
   exceptional: 'Exceptional weather', fog: 'Fog', hail: 'Hail', rainy: 'Rain', snowy: 'Snow', sunny: 'Sunny', cloudy: 'Cloudy',
 };
 
-/** Weather from a Home Assistant weather entity: today's conditions only. Forecasts need a service call, which the Server never makes. */
-export function weatherAdapter(ha: HaReader | null): WidgetAdapter {
+/** One forecast entry as weather.get_forecasts returns it. Which keys come depends on the weather integration (measured 2026-11-10 on weather.home: no precipitation_probability, only precipitation in mm). */
+export interface ForecastItem {
+  datetime: string; // ISO with offset; a daily forecast sends midnight
+  temperature?: number | null;
+  templow?: number | null; // daily only
+  condition?: string | null;
+  precipitation?: number | null; // mm
+  precipitation_probability?: number | null; // percent
+}
+export type ForecastReader = (entity: string, type: 'hourly' | 'daily', signal: AbortSignal) => Promise<ForecastItem[]>;
+
+/** POST /api/services/weather/get_forecasts?return_response. A read, like calendar.get_events: it never goes through the write guard. */
+export function createForecastReader(ha: HaConfig, fetchFn: typeof fetch = fetch): ForecastReader {
+  return async (entity, type, signal) => {
+    if (!/^weather\.[a-z0-9_]+$/.test(entity)) throw new Error('not a weather entity: ' + entity);
+    const res = await fetchFn(ha.url + '/api/services/weather/get_forecasts?return_response', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${ha.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entity_id: entity, type }),
+      signal,
+    });
+    if (!res.ok) throw new Error(`Home Assistant weather.get_forecasts: HTTP ${res.status}`);
+    const body = (await res.json()) as { service_response?: Record<string, { forecast?: ForecastItem[] }> };
+    const list = body.service_response?.[entity]?.forecast;
+    if (!Array.isArray(list)) throw new Error('weather.get_forecasts: no forecast list for ' + entity);
+    return list;
+  };
+}
+
+const HOURS = 12;
+const DAYS = 7;
+const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) ? v : null);
+const whole = (v: number | null) => (v === null ? null : String(Math.round(v)).replace('-0', '0'));
+/** The rain figure of one forecast entry: the chance in percent when the integration has one, else the amount in mm. Dry gives no figure. */
+function rain(f: ForecastItem, mmFull: number): { badge?: string; tint: number } {
+  const tint = (x: number) => Math.round(Math.min(x, 1) * 100) / 100;
+  const p = num(f.precipitation_probability);
+  if (p !== null) return p > 0 ? { badge: Math.round(p) + ' %', tint: tint(p / 100) } : { tint: 0 };
+  const mm = num(f.precipitation);
+  return mm !== null && mm > 0 ? { badge: String(Number(mm.toFixed(1))) + ' mm', tint: tint(mm / mmFull) } : { tint: 0 };
+}
+
+/** The next hours as columns with a temperature bar and the rain figure; the day columns come from daily(). Pure: every string is formatted here. */
+export function forecastColumns(hourly: ForecastItem[], daily: ForecastItem[], now: number, timeZone: string, conditions: Record<string, string> = CONDITIONS) {
+  const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short' });
+  const today = dayFmt.format(new Date(now));
+  // An hour whose end has passed is gone; the list may still start with the current hour.
+  const hours = hourly.filter((f) => Date.parse(f.datetime) > now - 3_600_000 && num(f.temperature) !== null).slice(0, HOURS);
+  const temps = hours.map((f) => num(f.temperature) as number);
+  const lo = Math.min(...temps), hi = Math.max(...temps);
+  const hourCols: Column[] = hours.map((f, i) => ({
+    label: hourFmt.format(new Date(f.datetime)),
+    value: whole(temps[i]),
+    unit: '°',
+    level: hi === lo ? 0.5 : Math.round((0.15 + 0.85 * ((temps[i] - lo) / (hi - lo))) * 100) / 100,
+    ...rain(f, 2),
+  }));
+  // A daily entry's own date part is its day, whatever offset the integration sends.
+  const days = daily.filter((f) => typeof f.datetime === 'string' && f.datetime.slice(0, 10) >= today).slice(0, DAYS);
+  const dayCols: Column[] = days.map((f) => {
+    const key = f.datetime.slice(0, 10);
+    const low = num(f.templow);
+    return {
+      label: key === today ? 'Today' : weekday.format(new Date(key + 'T12:00:00Z')),
+      value: whole(num(f.temperature)),
+      unit: low === null ? '°' : '° / ' + whole(low) + '°',
+      ...(f.condition ? { note: conditions[f.condition] ?? formatState(f.condition) ?? undefined } : {}),
+      ...rain(f, 10),
+    };
+  });
+  const todayEntry = days.find((f) => f.datetime.slice(0, 10) === today);
+  return { hourCols, dayCols, today: todayEntry };
+}
+
+/** Weather from a Home Assistant weather entity: the current reading, plus (with a forecast reader) the day's high and low and the next hours and days. */
+export function weatherAdapter(ha: HaReader | null, deps: { forecast?: ForecastReader; timeZone?: string } = {}): WidgetAdapter {
   return {
     type: 'weather',
     title: 'Weather',
-    description: 'Current temperature and conditions from a Home Assistant weather entity.',
-    templates: ['value', 'list'],
+    description: 'Current temperature and conditions from a Home Assistant weather entity, with the next hours and days when it has a forecast.',
+    templates: ['value', 'list', 'stack'],
     sizes: ['small', 'medium', 'large'],
     defaultSize: 'small',
     defaultFreshness: 'hourly',
@@ -99,20 +176,28 @@ export function weatherAdapter(ha: HaReader | null): WidgetAdapter {
       { key: 'title', label: 'Title', kind: 'text', maxLength: 40, default: 'Weather' },
       { key: 'entity', label: 'Weather entity', kind: 'entity', domains: ['weather'], required: true },
     ],
-    async read(config) {
+    async read(config, ctx) {
       const id = String(config.entity);
-      const s = await load(ha, id);
+      const forecast = deps.forecast;
+      const [s, hourly, daily] = await Promise.all([
+        load(ha, id),
+        // A forecast that cannot be read drops only the forecast: the current reading is still shown.
+        forecast ? forecast(id, 'hourly', ctx.signal).catch((err) => (log.warn('weather: no hourly forecast', { entity: id, err: String(err) }), null)) : null,
+        forecast ? forecast(id, 'daily', ctx.signal).catch((err) => (log.warn('weather: no daily forecast', { entity: id, err: String(err) }), null)) : null,
+      ]);
       if (!s) throw new Unavailable('Weather entity ' + id + ' not found in Home Assistant');
       const a = s.attributes;
-      const num = (k: string) => (typeof a[k] === 'number' ? formatState(String(a[k])) : null);
-      const temp = num('temperature');
+      const attr = (k: string) => (typeof a[k] === 'number' ? formatState(String(a[k])) : null);
+      const temp = attr('temperature');
       const tempUnit = str(a.temperature_unit) ?? '°C';
       const missing = MISSING.indexOf(s.state) >= 0;
       const condition = missing ? null : CONDITIONS[s.state] ?? formatState(s.state);
-      const humidity = num('humidity');
-      const card: Display = { template: 'value', value: temp, unit: temp === null ? undefined : tempUnit, note: [condition ?? 'No conditions', humidity !== null ? humidity + ' % humidity' : ''].filter(Boolean).join(', ') };
-      const withUnit = (k: string, u: string | null): ListRow => ({ label: '', value: num(k), ...(u && num(k) !== null ? { unit: u } : {}) });
-      const detail: Display = {
+      const humidity = attr('humidity');
+      const f = hourly || daily ? forecastColumns(hourly ?? [], daily ?? [], ctx.now, deps.timeZone ?? 'UTC') : null;
+      const hiLo = f?.today && num(f.today.temperature) !== null ? 'H ' + whole(num(f.today.temperature)) + '° L ' + (whole(num(f.today.templow)) ?? '–') + '°' : null;
+      const card: Display = { template: 'value', value: temp, unit: temp === null ? undefined : tempUnit, note: [condition ?? 'No conditions', hiLo ?? (humidity !== null ? humidity + ' % humidity' : '')].filter(Boolean).join(', ') };
+      const withUnit = (k: string, u: string | null): ListRow => ({ label: '', value: attr(k), ...(u && attr(k) !== null ? { unit: u } : {}) });
+      const readings: Display = {
         template: 'list',
         rows: [
           { label: 'Conditions', value: condition },
@@ -123,6 +208,10 @@ export function weatherAdapter(ha: HaReader | null): WidgetAdapter {
           { ...withUnit('visibility', str(a.visibility_unit)), label: 'Visibility' },
         ],
       };
+      const parts: StackPart[] = [];
+      if (f?.hourCols.length) parts.push({ title: 'Next ' + f.hourCols.length + ' hours', display: { template: 'columns', columns: f.hourCols } });
+      if (f?.dayCols.length) parts.push({ title: 'Next ' + f.dayCols.length + ' days', display: { template: 'columns', columns: f.dayCols } });
+      const detail: Display = parts.length ? { template: 'stack', parts } : readings;
       return { title: String(config.title), card, detail };
     },
   };
@@ -180,7 +269,7 @@ export function energyAdapter(ha: HaReader | null): WidgetAdapter {
 
 export const HA_TYPES = ['ha-entities', 'weather', 'energy'];
 
-export const homeAssistantAdapters = (ha: HaReader | null): WidgetAdapter[] => [entitiesAdapter(ha), weatherAdapter(ha), energyAdapter(ha)];
+export const homeAssistantAdapters = (ha: HaReader | null, weather: { forecast?: ForecastReader; timeZone?: string } = {}): WidgetAdapter[] => [entitiesAdapter(ha), weatherAdapter(ha, weather), energyAdapter(ha)];
 
 /**
  * Subscribes to Home Assistant state changes and asks for a re-read of a widget type when one of its configured entities

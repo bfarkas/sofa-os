@@ -43,6 +43,8 @@ test('validateDisplay accepts every template and refuses malformed ones', () => 
   for (const d of good) assert.deepEqual(validateDisplay(d), [], d.template);
   assert.deepEqual(validateDisplay({ template: 'value', value: 0 }), ['display.value: must be a string of at most 40 characters']);
   assert.deepEqual(validateDisplay({ template: 'columns', columns: [{ label: 'a', value: '1', level: 2 }] }), ['display.columns[0].level: must be a number from 0 to 1']);
+  assert.deepEqual(validateDisplay({ template: 'columns', columns: [{ label: 'a', value: '1', badge: '70 %', tint: 0.7 }] }), []);
+  assert.deepEqual(validateDisplay({ template: 'columns', columns: [{ label: 'a', value: '1', tint: 2, badge: 5 }] }), ['display.columns[0].badge: must be a string of at most 40 characters', 'display.columns[0].tint: must be a number from 0 to 1']);
   assert.deepEqual(validateDisplay({ template: 'gauge' }), ['display.template: must be one of value, list, columns, agenda, photo, chart, days, stack']);
   assert.deepEqual(validateDisplay({ template: 'chart', points: [0.5, 2, 'x'] }).length, 2);
   assert.deepEqual(validateDisplay({ template: 'chart', points: new Array(97).fill(0.5) }), ['display.points: must be a list of at most 96']);

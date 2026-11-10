@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
-import type { Layout, WidgetInstance } from '@sofa/shared';
+import { validateDisplay, type Layout, type WidgetInstance } from '@sofa/shared';
 import { WebSocketServer } from 'ws';
 import type { HaConfig } from '../config.ts';
 import { createHaClient, subscribeEvents } from '../ha.ts';
 import { createWidgets } from '../widgets.ts';
-import { energyAdapter, entitiesAdapter, formatState, homeAssistantAdapters, watchHomeAssistant, weatherAdapter } from './homeassistant.ts';
+import { createForecastReader, energyAdapter, entitiesAdapter, forecastColumns, formatState, homeAssistantAdapters, watchHomeAssistant, weatherAdapter, type ForecastItem } from './homeassistant.ts';
 
 const fixtures = JSON.parse(readFileSync(new URL('../fixtures/ha-states.json', import.meta.url), 'utf8')) as Record<string, { state: string }>;
 
@@ -83,6 +83,70 @@ test('weather: real weather entity becomes temperature and conditions; missing a
   } finally {
     await f.down();
   }
+});
+
+const forecasts = JSON.parse(readFileSync(new URL('./fixtures/weather-forecasts.json', import.meta.url), 'utf8')) as { hourly: ForecastItem[]; daily: ForecastItem[] };
+const NIGHT = Date.parse('2026-11-10T22:40:00Z'); // 23:40 in Berlin on Tuesday the 10th
+
+test('forecast columns: local hours with bars, day names, high and low, rain as mm when there is no probability', () => {
+  const f = forecastColumns(forecasts.hourly, forecasts.daily, NIGHT, 'Europe/Berlin');
+  assert.equal(f.hourCols.length, 12);
+  assert.deepEqual(f.hourCols[0], { label: '00:00', value: '1', unit: '°', level: 0.15, tint: 0 });
+  assert.equal(f.hourCols[11].level, 1); // the warmest of the twelve
+  assert.deepEqual(f.dayCols[0], { label: 'Today', value: '5', unit: '° / 1°', note: 'Fog', tint: 0 });
+  assert.equal(f.dayCols[1].label, 'Wed');
+  assert.deepEqual(f.dayCols[3], { label: 'Fri', value: '8', unit: '° / 2°', note: 'Partly cloudy', badge: '0.1 mm', tint: 0.01 });
+  assert.deepEqual(f.dayCols[6], { label: 'Mon', value: '13', unit: '° / 7°', note: 'Rain', badge: '1.4 mm', tint: 0.14 });
+  assert.equal(f.today?.temperature, 5.4);
+});
+
+test('forecast columns: a rain probability wins over the amount, and hours already over are dropped', () => {
+  const hours: ForecastItem[] = [
+    { datetime: '2026-11-10T21:00:00+00:00', temperature: 9 }, // ended before now
+    { datetime: '2026-11-10T22:00:00+00:00', temperature: 4, precipitation_probability: 70, precipitation: 0 }, // the current hour
+    { datetime: '2026-11-10T23:00:00+00:00', temperature: -0.4, precipitation_probability: 0 },
+  ];
+  const f = forecastColumns(hours, [], NIGHT, 'Europe/Berlin');
+  assert.deepEqual(f.hourCols.map((c) => [c.label, c.value, c.badge, c.tint]), [['23:00', '4', '70 %', 0.7], ['00:00', '0', undefined, 0]]);
+  assert.deepEqual(forecastColumns([], [], NIGHT, 'Europe/Berlin').hourCols, []);
+});
+
+test('weather with a forecast: the card gains the high and low and the detail is hours over days', async () => {
+  const f = fakeHa();
+  await f.up();
+  try {
+    const read = async (forecast: (e: string, t: 'hourly' | 'daily') => Promise<ForecastItem[]>) =>
+      weatherAdapter(reader(f), { forecast, timeZone: 'Europe/Berlin' }).read({ title: 'Weather', entity: 'weather.home' }, { now: NIGHT, signal: new AbortController().signal });
+    const r = await read(async (_e, t) => forecasts[t]);
+    assert.ok('card' in r && r.card.template === 'value' && r.card.note === 'Cloudy, H 5° L 1°', JSON.stringify('card' in r && r.card));
+    const detail = 'detail' in r ? r.detail : undefined;
+    assert.ok(detail?.template === 'stack');
+    assert.deepEqual(detail.parts.map((p) => p.title), ['Next 12 hours', 'Next 7 days']);
+    assert.deepEqual(validateDisplay(detail, 'detail'), []);
+    // Only the hourly forecast fails: the days stay.
+    const d = await read(async (_e, t) => (t === 'hourly' ? Promise.reject(new Error('boom')) : forecasts.daily));
+    assert.ok('detail' in d && d.detail?.template === 'stack' && d.detail.parts.length === 1 && d.detail.parts[0].title === 'Next 7 days');
+    // Neither works: today's readings, as before, and the card as before.
+    const n = await read(async () => Promise.reject(new Error('boom')));
+    assert.ok('detail' in n && n.detail?.template === 'list');
+    assert.ok('card' in n && n.card.template === 'value' && n.card.note === 'Cloudy');
+  } finally {
+    await f.down();
+  }
+});
+
+test('the forecast reader asks weather.get_forecasts for a response and unwraps it; only weather entities', async () => {
+  const calls: { url: string; body: Record<string, string> }[] = [];
+  const fetchFn = (async (url: string, init: RequestInit) => {
+    calls.push({ url, body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify({ service_response: { 'weather.home': { forecast: forecasts.daily } } }));
+  }) as unknown as typeof fetch;
+  const read = createForecastReader({ url: 'http://ha.test:8123', token: 't', tvEntity: '', remoteEntity: '', notifyServices: [] }, fetchFn);
+  const got = await read('weather.home', 'daily', new AbortController().signal);
+  assert.equal(got.length, 7);
+  assert.equal(calls[0].url, 'http://ha.test:8123/api/services/weather/get_forecasts?return_response');
+  assert.deepEqual(calls[0].body, { entity_id: 'weather.home', type: 'daily' });
+  await assert.rejects(() => read('light.kitchen', 'daily', new AbortController().signal), /not a weather entity/);
 });
 
 test('energy: names its unit and period; no unit means no number', async () => {

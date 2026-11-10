@@ -736,6 +736,8 @@ Settle the look before building, from what the Dashboard does today and what the
 
 **Done when:** the detail view on the TV shows hours and days from the live entity, and a Home Assistant outage marks it stale rather than blank.
 
+**Built (2026-11-10, server code and tests; deployed and TV-checked below).** `createForecastReader` (POST `weather.get_forecasts?return_response`, `weather.*` only), `forecastColumns` (pure, tested against a trimmed real response in `server/src/adapters/fixtures/weather-forecasts.json`), the weather adapter's `stack` detail and a card note with high and low; `Column.badge` and `tint` in `shared` and drawn by `tv/src/cards.ts` (a TV change, so Sofa Home was reinstalled). Each forecast part fails alone. **Finding:** the live forecast has no `precipitation_probability`, so rain shows as mm with the tint scaled from it until the integration offers a probability. ADR 0003 and the `homeassistant.ts` comment now say the Server makes this read-only call.
+
 ### 26 · Calendar days view
 
 **Difficulty 3 · Sonnet · medium · HA**

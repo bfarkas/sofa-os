@@ -67,7 +67,8 @@ function template(d: Display, size: CardSize): HTMLElement {
     const bars = d.columns.some((c) => c.level !== undefined);
     const cols = body.appendChild(h('div', 'cols'));
     for (const c of d.columns.slice(0, ITEM_LIMITS.columns[size])) {
-      const col = cols.appendChild(h('div', 'c'));
+      const col = cols.appendChild(h('div', 'c' + (c.tint !== undefined ? ' tinted' : '')));
+      if (c.tint) col.style.backgroundColor = 'rgba(31, 111, 184, ' + (c.tint * 0.35).toFixed(2) + ')';
       col.appendChild(h('div', 'c-l', c.label));
       if (bars) {
         const bar = col.appendChild(h('div', 'c-bar')).appendChild(h('div', 'c-fill'));
@@ -75,6 +76,7 @@ function template(d: Display, size: CardSize): HTMLElement {
       }
       reading(col.appendChild(h('div', 'c-v')), '', c.value, c.unit);
       if (c.note) col.appendChild(h('div', 'c-n', c.note));
+      if (c.badge) col.appendChild(h('div', 'c-b', c.badge));
     }
     if (d.note) body.appendChild(h('div', 'v-note', d.note));
   } else if (d.template === 'agenda') {

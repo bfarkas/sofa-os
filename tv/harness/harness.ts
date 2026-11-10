@@ -33,8 +33,10 @@ const weekDays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((title,
     ...(i % 3 === 0 ? [{ time: '18:00', title: 'Football training' }, { time: '19:30', title: 'Dinner' }, { time: '21:00', title: 'Call' }, { time: '22:00', title: 'Late' }] : []),
   ],
 }));
-const hours = Array.from({ length: 12 }, (_, i) => ({ label: String((19 + i) % 24).padStart(2, '0') + ':00', value: String(4 - Math.round(i / 3)), unit: '\u00b0', level: 0.8 - i * 0.04, note: [10, 10, 20, 30, 55, 70, 60, 40, 25, 15, 10, 10][i] + ' %' }));
-const wdays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((label, i) => ({ label, value: String(6 - i % 3), unit: '\u00b0', note: '2\u00b0  ' + [10, 80, 70, 30, 5, 20, 40][i] + ' %' }));
+const rainOf = [0, 0, 0.2, 0.3, 0.55, 0.7, 0.6, 0.4, 0.25, 0.15, 0, 0];
+const hours = Array.from({ length: 12 }, (_, i) => ({ label: String((19 + i) % 24).padStart(2, '0') + ':00', value: String(4 - Math.round(i / 3)), unit: '\u00b0', level: 0.8 - i * 0.04, tint: rainOf[i], ...(rainOf[i] ? { badge: Math.round(rainOf[i] * 100) + ' %' } : {}) }));
+const rainDay = [0.1, 0.8, 0.7, 0.3, 0.05, 0.2, 0.4];
+const wdays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((label, i) => ({ label, value: String(6 - i % 3), unit: '\u00b0 / 2\u00b0', note: ['Cloudy', 'Rain', 'Rain', 'Partly cloudy', 'Sunny', 'Cloudy', 'Snow'][i], tint: rainDay[i], badge: Math.round(rainDay[i] * 100) + ' %' }));
 const stackParts: StackPart[] = [{ title: 'Next 12 hours', display: { template: 'columns', columns: hours } }, { title: 'Next 7 days', display: { template: 'columns', columns: wdays } }];
 
 const templates: [string, WidgetData][] = [
