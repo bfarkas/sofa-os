@@ -1,7 +1,7 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { applyOp, dayFootInk, dayInk, isSource, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
+import { applyOp, dayFootInk, dayInk, dayShadow, isSource, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
@@ -427,8 +427,13 @@ function paintBackground(): void {
   if (photo) stage.style.setProperty('--on-bg', 'day' in photo ? dayInk(photo.day) : '#fffdf8'); // a photo's scrim is dark; a day picture has its own measured ink
   else if (look === 'household' && bgColor && token) stage.style.setProperty('--on-bg', textOn(bgColor)); // kids: the stylesheet's ivory
   else stage.style.removeProperty('--on-bg');
-  if (photo && 'day' in photo) stage.style.setProperty('--on-foot', dayFootInk(photo.day));
-  else stage.style.removeProperty('--on-foot');
+  if (photo && 'day' in photo) {
+    stage.style.setProperty('--on-foot', dayFootInk(photo.day));
+    stage.style.setProperty('--on-shadow', dayShadow(photo.day));
+  } else {
+    stage.style.removeProperty('--on-foot');
+    stage.style.removeProperty('--on-shadow');
+  }
 }
 
 // ---- The PIN pad: an overlay over Kids Mode or the Done Screen. Arrows and OK, or the number keys. ----

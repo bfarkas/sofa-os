@@ -11,7 +11,7 @@ export const COLORS = {
   // the TV's Chromium 56 has no backdrop-filter; the wallpaper just shows through.
   glass: 'rgba(16, 24, 21, 0.66)',
   glassDim: 'rgba(16, 24, 21, 0.5)', // unavailable tiles, tab pills
-  glassFull: 'rgba(14, 20, 18, 0.9)', // the full-screen panel, which needs more body than a tile
+  glassFull: 'rgba(14, 20, 18, 0.96)', // the full-screen panel, which needs more body than a tile (at 0.9 the Dashboard behind it ghosted through)
   glassInk: '#fffdf8',
   glassMuted: 'rgba(255, 253, 248, 0.74)',
   glassLine: 'rgba(255, 255, 255, 0.2)',

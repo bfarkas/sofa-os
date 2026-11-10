@@ -7,11 +7,14 @@
 .w-body { flex: 1; min-height: 0; margin-top: 8px; overflow: hidden; }
 .w-msg { font-size: 28px; line-height: 1.3; color: var(--p-muted); }
 .w-unavailable { background: var(--p-dim); }
-.w-unavailable .w-msg { color: var(--p-warn); font-weight: bold; }
+.w-unavailable .w-msg { color: var(--p-muted); } /* calm: the dimmer glass says it, the message is plain muted text */
 .w-stale .w-when { color: var(--p-warn); font-weight: bold; }
-.w-stale .w-body { opacity: .55; }
+.w-stale .w-body { opacity: .72; } /* dimmed, not blank: the muted text still has 3.5:1 over the lightest picture */
+.w-stale-line { flex: none; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22px; font-weight: bold; color: var(--p-warn); } /* a small tile has no room beside the title: the stale mark gets its own line */
+.small.w-stale .w-body { margin-top: 4px; }
 .missing { color: var(--p-muted); }
 .u { margin-left: 6px; font-size: .6em; font-weight: normal; color: var(--p-muted); }
+.u.deg { margin-left: 0; font-size: 1em; font-weight: inherit; color: inherit; } /* a bare degree sign is part of the number, not a small unit */
 
 /* value: one large reading, its unit, a note under it */
 .v-main { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.05; }
@@ -23,6 +26,7 @@
 .t-list { display: flex; flex-direction: column; flex-wrap: wrap; }
 .r { display: flex; align-items: baseline; flex: none; height: 46px; font-size: 30px; }
 .r-l { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--p-muted); }
+.r-v .u { font-size: .75em; } /* 30 px rows: the unit stays 22 px */
 .r-v { flex: none; max-width: 62%; margin-left: 16px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: bold; }
 .small .r { display: block; height: 68px; }
 .small .r-l, .small .r-v { display: block; max-width: none; margin-left: 0; }
@@ -40,6 +44,7 @@
 .c-v { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 30px; font-weight: bold; }
 .c-v .u { margin-left: 3px; }
 .c.tinted { padding: 4px 2px 6px; border-radius: 12px; }
+.c-b.dim { opacity: .6; font-weight: normal; }
 .c-b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 26px; font-weight: bold; color: var(--rain); }
 .t-columns .v-note { margin-top: 2px; font-size: 22px; }
 
@@ -63,13 +68,16 @@
 .dy-s { font-size: 30px; font-weight: bold; line-height: 1.1; }
 .dy-e { margin-top: 6px; padding: 3px 6px; border-radius: 8px; overflow: hidden; }
 .dy-e.all { background: rgba(143, 195, 160, 0.3); }
-.dy-t { white-space: nowrap; font-size: 20px; color: var(--p-muted); }
+.dy-t { white-space: nowrap; font-size: 22px; line-height: 24px; color: var(--p-muted); }
 .dy-w { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 24px; line-height: 26px; font-weight: bold; word-wrap: break-word; }
 .dy-t:empty { display: none; }
 .dy-t:empty + .dy-w { -webkit-line-clamp: 1; font-size: 22px; line-height: 26px; font-weight: normal; color: var(--p-muted); } /* the Server's "and 3 more today" line: no time, one quiet line */
-.dy-p { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 20px; color: var(--p-muted); }
-.dy-more { padding-left: 6px; font-size: 24px; color: var(--p-muted); }
+.dy-p { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22px; color: var(--p-muted); }
+.dy-more { padding-left: 6px; font-size: 24px; line-height: 20px; color: var(--p-muted); }
+.small .dy, .medium .dy, .large .dy { padding: 2px 6px; }
 .small .dy { margin: 0; }
+.small .dy-h, .medium .dy-h, .large .dy-h { line-height: 24px; }
+.small .dy-e, .medium .dy-e, .large .dy-e { margin-top: 4px; padding: 2px 6px; } /* the stale line under the title takes 26 px of the 176: the next event and its count still fit */
 .dy-s { display: none; }
 .full .dy-s { display: block; }
 
@@ -82,7 +90,7 @@
 .ch-line { fill: none; stroke: var(--p-accent); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .ch-fill { fill: var(--p-bar); fill-opacity: .3; stroke: none; }
 .ch-now { position: absolute; width: 16px; height: 16px; margin: 0 0 -8px -8px; border-radius: 8px; background: var(--p-accent); box-shadow: 0 0 0 4px var(--p-ink); }
-.ch-x { display: flex; justify-content: space-between; margin: 6px 0 0 100px; font-size: 22px; color: var(--p-muted); }
+.ch-x { display: flex; justify-content: space-between; margin: 6px 10px 0 100px; font-size: 22px; color: var(--p-muted); }
 .t-chart .v-note { margin-top: 4px; font-size: 22px; }
 .small .ch-y, .small .ch-x, .small .t-chart .v-note { display: none; }
 .small .ch-plot { border-bottom: 0; }
@@ -91,7 +99,8 @@
 .t-stack { display: flex; flex-direction: column; }
 .sk { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .sk + .sk { margin-top: 14px; }
-.sk-t { flex: none; font-size: 22px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: var(--p-accent); }
+.full .sk + .sk { margin-top: 26px; }
+.sk-t { flex: none; font-size: 24px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; color: var(--p-accent); }
 .sk .w-body { margin-top: 4px; }
 .sk .c-bar { height: 64px; }
 .sk .c-l, .sk .c-n { font-size: 26px; }
@@ -106,15 +115,16 @@
 .tile.w-photo .w-body { position: absolute; left: 0; top: 0; right: 0; bottom: 0; margin: 0; }
 .tile.w-photo .w-head { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; height: auto; padding: 44px 24px 14px; background: linear-gradient(to bottom, rgba(31, 36, 30, 0), rgba(31, 36, 30, 0.7)); }
 .tile.w-photo .w-title, .tile.w-photo .w-when { color: #fffdf8; }
+.tile.w-photo .w-stale-line { position: absolute; left: 0; right: 0; top: 0; z-index: 1; margin: 0; padding: 14px 24px 34px; background: linear-gradient(to bottom, rgba(31, 36, 30, 0.75), rgba(31, 36, 30, 0)); }
 .tile .ph-cap { display: none; }
 
 /* The full-screen view: read-only, the detail display at its own size. Back or OK closes it. */
 #full { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: var(--sofa-color-scrim); z-index: 10; text-shadow: none; }
-#full-card { position: absolute; left: 180px; top: 100px; }
+#full-card { position: absolute; left: 180px; top: 140px; } /* below the bar (it ends at 130), so the tabs and the clock are not cut in half behind the glass */
 .full { width: 1560px; height: 760px; box-sizing: border-box; padding: 44px 60px; border-radius: 28px; display: flex; flex-direction: column; overflow: hidden;
   background: var(--p-full); color: var(--p-ink); }
-.full.w-unavailable { background: rgba(36, 42, 39, 0.92); }
-#full-foot { position: absolute; left: 0; right: 0; top: 900px; text-align: center; }
+.full.w-unavailable { background: rgba(30, 36, 33, 0.96); }
+#full-foot { position: absolute; left: 0; right: 0; top: 924px; text-align: center; }
 #full-foot .pill { display: inline-block; margin-right: 0; }
 .full .w-head { height: 70px; }
 .full .w-title { font-size: 52px; color: var(--p-ink); }
@@ -135,19 +145,22 @@
 .full .a-t { width: 170px; font-size: 32px; }
 .full .ph { height: 520px; object-fit: contain; }
 .full .t-days { height: 528px; }
-.full .dy { padding: 8px 10px; }
+.full .dy { padding: 8px 6px; }
 .full .dy-h { font-size: 26px; }
 .full .dy-s { font-size: 44px; }
-.full .dy-e { margin-top: 14px; padding: 8px 8px; }
+.full .dy-e { margin-top: 14px; padding: 8px 4px; }
 .full .dy-t { font-size: 26px; }
-.full .dy-w { font-size: 30px; line-height: 36px; }
+.full .dy-w { font-size: 28px; line-height: 34px; } /* 'Elternabend' fits a 7-day column whole (it broke mid-word at 30 px) */
 .full .dy-p { font-size: 24px; }
 .full .t-chart { height: 528px; }
 .full .ch-y { width: 140px; font-size: 28px; }
 .full .ch-x { margin-left: 150px; font-size: 28px; }
 .full .t-chart .v-note { font-size: 30px; }
-.full .t-stack { height: 528px; }
-.full .sk .c-bar { height: 96px; margin: 4px 22%; }
-.full .sk .c-l, .full .sk .c-n { font-size: 26px; }
-.full .sk .c-v { font-size: 34px; }
+.full .t-stack { height: 572px; }
+.full .sk .c-bar { height: 80px; margin: 4px 22%; }
+.full .sk .c-v .u { font-size: .75em; } /* the low of '6° / 2°' stays 28 px */
+.c-v .u.deg, .full .sk .c-v .u.deg { margin-left: 0; font-size: 1em; }
+.full .sk .c-l, .full .sk .c-n { font-size: 28px; }
+.full .sk .c-v { font-size: 38px; }
+.full .sk .c-b { font-size: 32px; }
 .full .ph-cap { margin-top: 12px; text-align: center; font-size: 30px; color: var(--p-muted); }

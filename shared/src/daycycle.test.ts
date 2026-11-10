@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dayFootInk, dayImage, dayInk, DAY_PERIODS, DAY_SKY, periodAt } from './daycycle.ts';
+import { dayFootInk, dayImage, dayInk, dayShadow, DAY_PERIODS, DAY_SKY, periodAt } from './daycycle.ts';
 import { COLORS } from './tokens.ts';
 
 test('the period of every hour: morning 6 to 10, midday 10 to 17, evening 17 to 21, night 21 to 6', () => {
@@ -20,4 +20,9 @@ test('the text on the wallpaper follows the measured sky: ink in the morning and
 
 test('each period has its picture in the package', () => {
   assert.equal(dayImage('night'), 'img/day-night.jpg');
+});
+
+test('the halo behind the wallpaper text is dark behind ivory and light behind ink', () => {
+  assert.deepEqual(DAY_PERIODS.map((p) => dayShadow(p).includes('0, 0, 0')), [false, false, true, true]);
+  assert.ok(dayShadow('midday').includes('255, 255, 255'));
 });

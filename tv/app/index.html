@@ -21,8 +21,8 @@
   #bar { display: flex; align-items: center; height: 76px; }
   #tabs { display: flex; flex: 1; }
   .pill { flex: none; box-sizing: border-box; height: 64px; padding: 0 34px; margin-right: 18px; border-radius: 32px; line-height: 64px; font-size: var(--sofa-size-text-label); font-weight: bold;
-    background: var(--p-dim); color: var(--p-ink); }
-  .pill.sel { background: var(--sofa-color-sage-deep); color: var(--sofa-color-ivory); }
+    background: var(--p-dim); color: var(--p-ink); box-shadow: inset 0 0 0 2px var(--p-line); } /* the hairline keeps a pill's shape over the night picture */
+  .pill.sel { box-shadow: none; background: var(--sofa-color-sage-deep); color: var(--sofa-color-ivory); }
   #clock { margin-left: 24px; text-align: right; line-height: 1.1; }
   #time { font-size: 56px; font-weight: bold; }
   #date { font-size: 28px; }
@@ -41,7 +41,7 @@
   .row.hello { padding-top: 30px; } /* room for the Kids Mode unicorn, which stands above its tile */
   .greet { flex: 1; min-width: 0; align-self: center; }
   #greet-hello { margin: 0; font-size: var(--sofa-size-text-hero); line-height: 1.05; }
-  #greet-date { margin: 10px 0 0; font-size: 30px; opacity: .9; }
+  #greet-date { margin: 10px 0 0; font-size: 30px; }
 
   /* Tiles are smoked glass: translucent dark, no blur (Chromium 56 has none), light text. */
   .tile { flex: none; box-sizing: border-box; height: var(--sofa-size-tile); margin-right: var(--sofa-size-gap); border-radius: var(--sofa-size-radius);
@@ -75,7 +75,7 @@
   .dashview .tile.allapps .detail { display: none; }
 
   #message { padding: 40px 4px; font-size: var(--sofa-size-text-title); }
-  #foot { color: var(--on-foot, var(--on-bg)); transition: color 2s ease-in-out; position: absolute; left: var(--sofa-size-margin-x); right: var(--sofa-size-margin-x); bottom: 26px; font-size: 16px; opacity: .55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* read at arm's length from the TV itself: small and quiet */
+  #foot { color: var(--on-foot, var(--on-bg)); transition: color 2s ease-in-out; position: absolute; left: var(--sofa-size-margin-x); right: var(--sofa-size-margin-x); bottom: 26px; font-size: 16px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* read at arm's length from the TV itself: small and quiet */
   #toast { position: absolute; left: 50%; bottom: 30px; max-width: 1300px; padding: 20px 40px; border-radius: 20px; transform: translateX(-50%);
     background: var(--sofa-color-ink); color: var(--sofa-color-ivory); font-size: 34px; font-weight: bold; z-index: 5; }
   #log { display: none; }
@@ -115,6 +115,7 @@
   .tile.kids.unavailable .label, .tile.kids.unavailable .detail { color: #6b5b7d; }
   .tile.kids.unavailable .detail { font-weight: bold; }
   .tile.kids.unavailable .uni { top: 14px; left: 30px; width: 130px; height: 123px; }
+  #stage { text-shadow: var(--on-shadow, none); } /* set with --on-bg over a day picture: a soft halo against the sky's bright patches */
   body.kids #stage { --on-bg: #fffdf8; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55); }
   #stage .pill, #stage .tile, #stage .srow, #stage .pkey, #stage #toast { text-shadow: none; }
   #kids-head { display: flex; align-items: center; height: 120px; }

@@ -26,7 +26,7 @@ function h(tag: string, cls: string, text?: string): HTMLElement {
 
 function reading(parent: HTMLElement, cls: string, value: Reading, unit?: string): HTMLElement {
   const el = parent.appendChild(h('span', cls + (value === null ? ' missing' : ''), value === null ? DASH : value));
-  if (unit) el.appendChild(h('span', 'u', unit));
+  if (unit) el.appendChild(h('span', 'u' + (unit === '\u00b0' ? ' deg' : ''), unit));
   return el;
 }
 
@@ -76,7 +76,7 @@ function template(d: Display, size: CardSize): HTMLElement {
       }
       reading(col.appendChild(h('div', 'c-v')), '', c.value, c.unit);
       if (c.note) col.appendChild(h('div', 'c-n', c.note));
-      if (c.badge) col.appendChild(h('div', 'c-b', c.badge));
+      if (c.badge) col.appendChild(h('div', 'c-b' + (c.tint !== undefined && c.tint < 0.2 ? ' dim' : ''), c.badge)); // a low chance is dimmed
     }
     if (d.note) body.appendChild(h('div', 'v-note', d.note));
   } else if (d.template === 'agenda') {
@@ -159,9 +159,11 @@ function draw(el: HTMLElement, v: CardView, size: CardSize, note: string): void 
   head.appendChild(h('div', 'w-title', v.title));
   const stale = (v.state === 'ok' || v.state === 'empty') && v.stale;
   // The stale mark says when the data is from; the full-screen view always says it.
-  let when = stale || (size === 'full' && (v.state === 'ok' || v.state === 'empty')) ? (v as { updated: string }).updated : note;
-  if (stale && size === 'small') when = when.replace('Updated ', ''); // a small tile has no room for the word and the title
-  if (when) head.appendChild(h('div', 'w-when', when));
+  const when = stale || (size === 'full' && (v.state === 'ok' || v.state === 'empty')) ? (v as { updated: string }).updated : note;
+  // A small tile has no room for the mark beside the title, so it gets a line of its own (on a photo, a shade at the top).
+  const onOwnLine = stale && size === 'small';
+  if (when && !onOwnLine) head.appendChild(h('div', 'w-when', when));
+  if (when && onOwnLine) el.appendChild(h('div', 'w-stale-line', when.replace(/^(Updated) \w{3} /, '$1 '))); // 'Updated Tue 10 Nov 21:02' loses its weekday to fit 271 px
   if (v.state === 'ok') el.appendChild(template(size === 'full' ? v.detail : v.card, size));
   else el.appendChild(h('div', 'w-body w-msg', v.state === 'loading' ? 'Loading…' : v.message));
 }

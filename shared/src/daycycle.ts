@@ -1,5 +1,5 @@
 // The `daycycle` Layout background (Session 29): one of four pictures by the TV's clock, fixed hours (decided 2026-11-10; no sun.sun).
-import { textOn } from './tokens.ts';
+import { COLORS, textOn } from './tokens.ts';
 
 export const DAY_PERIODS = ['morning', 'midday', 'evening', 'night'] as const;
 export type DayPeriod = (typeof DAY_PERIODS)[number];
@@ -26,3 +26,6 @@ export const dayInk = (p: DayPeriod): string => textOn(DAY_SKY[p]);
 
 /** The footer's colour: the water is a mid tone to dark in every period, so this is ivory throughout (the sky's ink would not read there). */
 export const dayFootInk = (p: DayPeriod): string => textOn(DAY_WATER[p]);
+
+/** A soft halo behind the text on the wallpaper (clock, date, greeting): dark behind ivory, light behind ink. The evening's glow measured 2.45:1 under ivory alone. */
+export const dayShadow = (p: DayPeriod): string => (dayInk(p) === COLORS.ivory ? '0 1px 3px rgba(0, 0, 0, 0.35), 0 2px 14px rgba(0, 0, 0, 0.55)' : '0 1px 10px rgba(255, 255, 255, 0.45)');
