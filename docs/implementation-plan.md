@@ -688,28 +688,32 @@ Added 2026-11-10 at the user's request. The cards are plain, the calendar card i
 
 ### 23 · Design direction
 
-**Difficulty 3 · Opus · high**
+**Difficulty 3 · Opus · high · done 2026-11-10 (user picked from the mockups)**
 
 Settle the look before building, from what the Dashboard does today and what the user asked for on 2026-11-10. Render the Dashboard and the three full-screen views (weather, calendar, power) at 1920 x 1080 as HTML mockups from the real tokens (`shared/src/tokens.ts`) and the real wallpapers, a few variants of each open choice, and let the user pick. Start from screenshots of today's Dashboard (camera on the TV) so the critique is of what is really drawn.
 
 **Decided (the user, 2026-11-10; mockups follow these, they do not reopen them).**
 
 - **One screen.** The whole Dashboard fits at once and the apps row at the bottom is always visible, never clipped. Budget: bar, Kids Mode tile, one widget row, apps row (about 770 of the 830 px between the bar and the footer today; a second widget row does not fit, which is why the photo widget's own row clipped).
-- **One widget row, one slot each.** Widgets are small (264 x 220) by default; photos and calendar do not need to be wide. Medium and large stay in the code but are not the default, and the editor warns when a row passes six units (the Session 14 finding).
+- **One widget row, one slot each.** Widgets are small by default; photos and calendar do not need to be wide. Medium and large stay in the code but are not the default.
 - **Real app icons** like the official apps, in place of the letter badges, on the Dashboard, All Apps and the Kids Mode grid. This is the only change to Kids Mode.
 - **The time-of-day wallpapers** (`assets/brand/v1/wallpaper/day-cycle-4k`: morning, midday, evening, night) are the Dashboard background; Kids Mode keeps its own forest.
 - **The footer line** (Server address, revision, Live) is small and quiet, since it is read from the TV's own screen at arm's length, not from the sofa.
-- **Left margin versus focus ring.** The focus ring clips on the left. Probable cause, to confirm on the TV: a focused tile scales by 1.06 and the ring adds 11 px, which for a medium or large widget grows 17 to 25 px per side, more than the row's 24 px padding; the row has `overflow: hidden`. The mockups show the fix (ring without scale on wide tiles, or more room).
+- **Left margin versus focus ring.** The focus ring clips on the left. Cause, reproduced in the mockup (confirm once on the TV): a focused tile scales by 1.06 and the ring adds 11 px, and the **700 px Kids Mode tile** grows about 21 px per side plus the ring, more than the row's 24 px padding, with `overflow: hidden` on the row. Small widgets and the 220 px app tiles do not clip.
 
-**Open choices for the mockups.**
+**Picked (the user, 2026-11-10, from the mockups at claude.ai/artifact/P19eney9gVwf5pCHoQrZP3).**
 
-- Where the Kids Mode tile sits: its own row as now, or next to the greeting over the wallpaper as in the first draft, which frees a row.
-- App tiles: icon only with the name shown on focus, or icon with a label.
-- Calendar and weather cards at one slot: what a 264 x 220 card shows (calendar: the next event with its time and how many more; weather: temperature, condition, high and low).
-- The calendar view (week of day columns, as proposed, or a month grid) and whether the weather detail stacks hours over days.
-- Text and chart colours over a dark night wallpaper (the clock and the greeting sit on the wallpaper, not on a panel), type scale at 55 inches, spacing.
+- **Layout B.** A greeting (by the clock's hour, with the date) on the left over the wallpaper, the Kids Mode tile on the right, then one widget row, then the apps row. The Kids Mode tile keeps its 700 x 190 size.
+- **Five widgets, 323 x 252 px each** (`ROW_UNITS` 6 becomes 5 units of about 323 px with the 28 px gap; small = 1 unit, medium 2, large 3). More widgets are reached through the Widgets tab. The editor warns when a row passes five units.
+- **App tiles: icon only, 176 px** (20 % smaller than 220), the name shown on focus. The All Apps tile uses the same size.
+- **Panels: smoked glass**, translucent dark with no blur (the TV's Chromium 56 has no `backdrop-filter`), light text. Over the day-cycle wallpapers; the full-screen panel stays 1560 wide.
+- **Focus: ring and 1.06 scale, slightly transparent ring** (white at 80 to 85 %, outline sage at 85 %). The fix for the clip: row side padding 24 becomes 36 px (negative margin to match), which covers the largest tile's growth.
+- **Weather view: hours over days** (a `stack` of 12 hours over 7 days). The chance of rain is prominent: a blue tint behind each column in proportion to the chance, a large percentage with a drop mark under each hour and day (dimmed under 20 %), and a headline "rain, next 12 h" figure beside wind and humidity.
+- **Calendar view: week of day columns.** The month grid is dropped. The card shows the next event (time, title) and "and N more".
+- **Power view: the line chart with min, max and average**, as drawn.
+- **Wallpapers.** The shoreline of the current day-cycle pictures cuts through the widget row. New pictures are being generated (imagegen via Codex) with the shoreline and the lower half calm, so the widget row sits on water or forest. They land in `assets/brand/v2/wallpaper/day-cycle/` (untracked; the user decides what is committed). Session 29 uses those.
 
-**Done when:** the user has picked a direction and the plan records the token changes, each template's layout, the Dashboard's vertical budget and the icon tile in a few lines.
+**Done:** the picks above. Token changes for Session 28: widget unit 323 x 252 (`SIZES`, `ROW_UNITS` 5), app tile 176, row padding 36.
 
 ### 24 · Templates: chart, days, stack
 
@@ -734,7 +738,7 @@ Settle the look before building, from what the Dashboard does today and what the
 
 **Difficulty 3 · Sonnet · medium · HA**
 
-Move the calendar to the `days` template. Card: **one slot (small, 264 x 220) is the default**, so the calendar gains the `small` size: the next event (time, title) and "and 3 more today"; medium shows today and tomorrow, large three days. Detail: the next seven days as columns, today marked, all-day events on top, long titles cut with an ellipsis. Kids Mode keeps "Something planned" and never a title or place. Fold in the open Session 13 follow-up (read `uid` and `recurrence_id` from `/api/calendars/<entity>`) only if it is a few lines.
+Move the calendar to the `days` template. Card: **one slot (small, 323 x 252) is the default**, so the calendar gains the `small` size: the next event (time, title) and "and 3 more today"; medium shows today and tomorrow, large three days. Detail: the next seven days as columns, today marked, all-day events on top, long titles cut with an ellipsis. Kids Mode keeps "Something planned" and never a title or place. Fold in the open Session 13 follow-up (read `uid` and `recurrence_id` from `/api/calendars/<entity>`) only if it is a few lines.
 
 **Done when:** the live calendar draws as day columns at both sizes and Kids Mode still shows no titles.
 
@@ -750,7 +754,7 @@ Move the calendar to the `days` template. Card: **one slot (small, 264 x 220) is
 
 **Difficulty 3 · Sonnet · high · TV**
 
-Build the chosen layout in `tv/app/index.html`, `tv/src/shell.ts` and `view.ts`. The Dashboard fits one screen with the apps row always visible (the content column pins the last row at the bottom and gives way above it, rather than clipping the bottom); one widget row of small widgets; the sample layout and the editor's defaults use `small` (`photos`, `calendar`). Fix the focus ring on the left (confirm the cause with a camera shot first). The footer is small and dim (about 16 px, low contrast) and still shows the Server, revision and Live or Offline. The live layout changes only through Companion or the layout ops, with the user's say-so.
+Build the chosen layout in `tv/app/index.html`, `tv/src/shell.ts` and `view.ts`. The Dashboard fits one screen with the apps row always visible (the content column pins the last row at the bottom and gives way above it, rather than clipping the bottom); one widget row of five small widgets (323 x 252), app tiles 176 px icon only, smoked glass panels, the greeting beside the Kids Mode tile; the sample layout and the editor's defaults use `small` (`photos`, `calendar`). Fix the focus ring on the left: keep ring and scale, widen the row's side padding to 36 px, give the ring its slight transparency (confirm with a camera shot). The footer is small and dim (about 16 px, low contrast) and still shows the Server, revision and Live or Offline. The live layout changes only through Companion or the layout ops, with the user's say-so.
 
 **Done when:** on the TV the whole Dashboard is on one screen, the first and last tile of every row show a complete ring, and the footer does not draw the eye.
 
@@ -758,7 +762,7 @@ Build the chosen layout in `tv/app/index.html`, `tv/src/shell.ts` and `view.ts`.
 
 **Difficulty 3 · Sonnet · medium · TV**
 
-The four masters are 3840 x 2160 and untracked (the user's files); the TV is 1080p, so ship 1920 x 1080 JPEGs in the package (a few hundred KB each, under the memory budget measured in Session 14) and **ask the user before committing any of `assets/brand`**. A new Layout background kind `daycycle` picks the picture from the TV's clock (morning 06 to 10, midday 10 to 17, evening 17 to 21, night 21 to 06) and cross-fades at a change; the schema, validator, Companion's Appearance control and the preview learn the kind. Over a dark night picture the text that sits on the wallpaper (clock, date, greeting) switches to the light ink (`textOn`). A solid colour, an image and the photostream slideshow stay available. **Decided 2026-11-10 (user): fixed hours**, not sunrise and sunset from `sun.sun`; revisit only if the hours feel wrong with the seasons.
+The four masters (the new set from Session 23's generation, `assets/brand/v2/wallpaper/day-cycle/`, shoreline above the widget row) are 3840 x 2160 and untracked (the user's files); the TV is 1080p, so ship 1920 x 1080 JPEGs in the package (a few hundred KB each, under the memory budget measured in Session 14) and **ask the user before committing any of `assets/brand`**. A new Layout background kind `daycycle` picks the picture from the TV's clock (morning 06 to 10, midday 10 to 17, evening 17 to 21, night 21 to 06) and cross-fades at a change; the schema, validator, Companion's Appearance control and the preview learn the kind. Over a dark night picture the text that sits on the wallpaper (clock, date, greeting) switches to the light ink (`textOn`). A solid colour, an image and the photostream slideshow stay available. **Decided 2026-11-10 (user): fixed hours**, not sunrise and sunset from `sun.sun`; revisit only if the hours feel wrong with the seasons.
 
 **Done when:** the four pictures show at their hours on the TV (test by faking the hour), the cross-fade is smooth, and the clock stays readable on the night picture.
 
