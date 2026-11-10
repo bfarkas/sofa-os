@@ -42,8 +42,14 @@ Each session is one self-contained chunk of work that ends in something testable
 | 18 | Phone Remote | 3 | 08, 16 | 2 | Sonnet | medium | HA, TV |
 | 19 | Installable PWA | 3 | 15 | 1 | Haiku | low | — |
 | 20 | Title handoff and favorites library | 3 | 09 | 4 | Sonnet | high | TV |
-| 21 | YouTube IFrame player experiment | 3 | 07 | 2 | Sonnet | medium | TV |
-| 22 | Plex episode allowance spike | 3 | 08 | 4 | Opus | high | HA, TV |
+| 21 | YouTube IFrame player experiment (dropped 2026-11-10) | 3 | 07 | 2 | Sonnet | medium | TV |
+| 22 | Plex episode allowance spike (dropped 2026-11-10) | 3 | 08 | 4 | Opus | high | HA, TV |
+| 23 | Widget design direction | 4 | 11 | 3 | Opus | high | — |
+| 24 | Templates: chart, days, stack | 4 | 23 | 4 | Opus | high | TV |
+| 25 | Weather forecast views | 4 | 24 | 3 | Sonnet | medium | HA |
+| 26 | Calendar days view | 4 | 24 | 3 | Sonnet | medium | HA |
+| 27 | Power history chart | 4 | 24 | 3 | Sonnet | medium | HA |
+| 28 | Design pass and TV walk | 4 | 25, 26, 27 | 3 | Sonnet | high | TV |
 
 ### Order and parallel lanes
 
@@ -363,7 +369,8 @@ At zero the TV may be inside a provider app, and the next power-on resumes it. M
 - **Not proven yet.**
   - D on a real power-on into a provider app (the 4-minute hold, then a launch over KiKA and the re-off). Both presses landed on Sofa Home, since A had made it the last app. This path is unit-tested only.
 - **15:09 run (2432cfd, aborted: the household needed the TV).** Enter, KiKA from the Kids tile, `minutes 6`. Launch 15:09:30.1Z, Sofa Home in front by REST 15:09:30.2Z, off 15:09:36.2Z, Home Assistant off 15:09:41Z. In standby the TV restarted Sofa Home again (`sofa home` `visible: true` at 15:10:19.6Z, dark screen). Home Assistant's false on at 15:10:31Z was logged `pending` (the REST API said `visible: false`), and nothing was launched. Kids Mode was exited at 15:10:38Z, so only 7 s of the pending on were watched: no-loop over 5 minutes, and the person's presses, are still to run. `minutes 40` restored.
-- **Next run (only for D).** Needs a power-on into a provider app at zero, for example a zero reached while the TV is off with KiKA as the last app. Expect `pending` for 4 minutes, then `sofa home brought to the front` `on at zero`, the Done Screen, and the re-off a minute later. Restore with `exit` and `minutes 40`.
+- **Dropped 2026-11-10 (user): the D run is not needed; D stays unit-tested only.**
+- **Next run (only for D, dropped).** Needs a power-on into a provider app at zero, for example a zero reached while the TV is off with KiKA as the last app. Expect `pending` for 4 minutes, then `sofa home brought to the front` `on at zero`, the Done Screen, and the re-off a minute later. Restore with `exit` and `minutes 40`.
 
 ---
 
@@ -460,6 +467,7 @@ Follow the spec's [Family calendar](Sofa.OS%20Architecture%20v0.2.md#family-cale
 - **Photostream.** Immich has no albums yet, so a photo widget, the slideshow, the ambient view and the background can use the photostream instead: the newest 300 images of the library, a random pick (spec, Immich section; ADR 0003). Household only, never Kids Mode. Companion's widget form has a source choice and Appearance a button for the photostream background.
 - **Not built.** An album picker in Companion (a typed album id remains), household album tiles, an idle-triggered ambient view, and a kids photo widget (it shows "Nothing to show" unless the layout allows the album for kids).
 - **TV pass (camera and HA remote keys).** The live layout got a `Photostream` photo widget (large, household only, in its own Dashboard row) and showed a real photo from the library. OK on it opens the ambient view (clock, picture contained, portrait pictures with side bars). Right and Left step, OK pauses ("Paused", no advance for over 20 s) and resumes, the picture advances itself every 15 s, Back closes it. A temporary photostream slideshow background (60 s per picture, scrim, tiles legible) paused while the ambient view was open and resumed after Back; the household colour background was restored. Load time 74 to 270 ms per picture, JS heap flat at 10 MB over about 8 minutes (Sofa Home now logs `photo loaded in ... ms, ..., js heap ...` per picture). The cache holds 20 pictures, 8.3 MB, largest 800 KB (spec, budget). Kids Mode was not touched; the kids guarantee is tested on the Server.
+- **Update 2026-11-10 (user).** The Immich API key is in place on rei3 and the photostream works. The household has no albums and will not for now, so album tiles, the album slideshow and the album picker stay unbuilt and unverified on purpose.
 - **Found.** A Dashboard row holds six size units (small 1, medium 2, large 3); a widget past that is clipped without a hint (a large photo widget added to the full Today row did not show). Companion should warn about it (Session 15's editor).
 - **Unproven.** The live Companion preview of the photo widget (Companion needs the password; checked on a local stack and through `/api/widgets`), Kids Mode album tiles with a real album (no albums exist), the album slideshow (8 s) on the TV, a hidden app stopping the timers, and runs of hours.
 ### 15 · Companion editor
@@ -570,6 +578,8 @@ No defect was found that needed a fix. Two behaviours you may not expect, both b
 
 **Done when:** the Phone Remote navigates Sofa Home and a provider app, and Menu opens a widget's context menu.
 
+**Update 2026-11-10 (user):** the user does the remaining TV check (media keys, Home, keys inside a provider app) themself.
+
 **Built (2026-11-09).** API: `POST /api/remote` with `{ key }`, Companion session only (the TV token and no cookie are 401). Keys: `up down left right ok back home play pause stop rewind forward` (Samsung `KEY_UP ... KEY_ENTER, KEY_RETURN, KEY_HOME, KEY_PLAY, KEY_PAUSE, KEY_STOP, KEY_REWIND, KEY_FF`) and `menu`. Answers: 200, 400 (unknown key), 403 (Kids Mode, see below), 409 (Menu while Sofa Home is not in front), 429 (more than 10 presses in 1 s per session, `Retry-After: 1`), 502 (Home Assistant failed), 503 (no Home Assistant).
 
 - **Code.** `shared/src/remote.ts` (the key table, shared by guard, Server and Companion). `server/src/remote.ts` (rate limit, ordering, Kids Mode rule, Menu). `ha.ts`: the write guard no longer accepts any `KEY_*` but only those twelve codes. `companion/src/remote.ts` and the `/remote` section in `index.html`, a link on the home page. TV: `sync.ts` `onMenu`, `shell.menuKey()`, and `main.ts` (`reportVisible`, `phoneMenu`).
@@ -609,7 +619,7 @@ Only start if the household still wants it, since only ARD reached title opened.
 
 **Done when:** an ARD favorite opens its series page from Kids Mode, and a broken recipe shows unavailable without deleting the favorite.
 
-### 21 · YouTube IFrame player experiment
+### 21 · YouTube IFrame player experiment (dropped 2026-11-10: no go; the result below stays as a record)
 
 **Difficulty 2 · Sonnet · medium · TV**
 
@@ -626,7 +636,7 @@ The one provider experiment the spec lists that has not run: the IFrame player i
 - **Not proven:** unmuted autoplay without a gesture (kept silent); an embed-restricted video (error 101/150 path; the invalid-ID error 100 and the restricted case were not exercised); the HTTPS Server origin and a signed-out versus signed-in difference; Kids Mode filtering of what may be played; sustained playback beyond about 2 minutes. A fresh install while the probe was running once killed the app back to Smart Hub (probe tooling, not the player).
 - **Decision:** no product code. If the user wants YouTube in Sofa Home, build a Server-served relay page with `postMessage` key forwarding and a curated video list, and first re-test over HTTPS from the Server.
 
-### 22 · Plex episode allowance spike
+### 22 · Plex episode allowance spike (dropped 2026-11-10: no go; the result below stays as a record)
 
 **Difficulty 4 · Opus · high · HA, TV**
 
@@ -664,3 +674,62 @@ Entity `media_player.plex_plex_for_samsung_tv_2018` (the TV's Plex client; its n
 - Status for Companion and the Done Screen: episodes watched and allowed today.
 
 **Not proven:** turning the TV off inside the 17 s gap (not tried at midnight: the TV could not be switched back on from the Mac); the whole flow through the Server (no code); a series finale with no next episode; shows whose credits marker starts Up Next early; seeking backward; long pauses (whether the entity goes `unavailable` while paused); other Plex users or profiles on the TV.
+
+## Phase 4: Widget design and detail views
+
+Added 2026-11-10 at the user's request. The cards are plain, the calendar card is badly laid out, and OK on a widget opens a full-screen view that today carries little more than the card (weather and energy show a list of readings). Wanted: weather with the next hours and the week, the calendar with the next days laid out as days, power with a graph of the last few hours, and a more considered look overall.
+
+**What is already there.** Every widget may send a `detail` display that Sofa Home draws full screen (`WidgetData.detail`, `tv/src/cards.ts`, `#full-card` in `tv/app/cards.css`, 1560 x 760 px). The `columns` template already draws a row of columns with bars (`level`), up to 12 at full size. Neither the forecast nor history is read yet: weather gives only the current state (`homeassistant.ts`), power gives only the current reading.
+
+**What is new, and why it costs a Sofa Home release.** A line graph and a day-by-day grid are not expressible in the five templates (ADR 0003), so Phase 4 adds templates. That means one new signed package and one reinstall; 24 therefore builds all of them together and everything after it is Server-only.
+
+### 23 · Widget design direction
+
+**Difficulty 3 · Opus · high**
+
+Settle the look before building. Render the Dashboard and the three full-screen views (weather, calendar, power) at 1920 x 1080 as HTML mockups from the real tokens (`shared/src/tokens.ts`), a few variants each, and let the user pick. Cover: the card header (title, stale mark), type scale for TV distance, spacing, how a card shows "next up" versus a list, the calendar card, colours for chart and bars. Decide the calendar view (week of day columns, as proposed, or a month grid) and whether the weather detail stacks hours over days.
+
+**Done when:** the user has picked a direction and the plan records the token changes and each template's layout in a few lines.
+
+### 24 · Templates: chart, days, stack
+
+**Difficulty 4 · Opus · high · TV**
+
+- `chart`: one series over time, drawn as an inline SVG line with a soft fill, a min and max label, time-axis labels and an optional "now" mark. The Server sends already bucketed points (at most 96) and every label as a string, so the TV does no date or number formatting (ADR 0003).
+- `days`: day columns with timed events (the calendar view): `{ days: [{ title, subtitle?, today?, events: [{ time, title }] }] }`. Sofa Home fits as many columns as the size allows.
+- `stack`: two displays one above the other in the full-screen view, so a widget can show hours over days.
+- Validation, `ITEM_LIMITS`, Companion's preview and tests for each; Kids Mode strips still go through `forKids`. Chromium 56 limits apply (no grid, no flex gap; SVG is fine).
+
+**Done when:** each template draws from a fixture on the TV at card and full size, an unknown or malformed display shows the widget as unavailable instead of breaking the Dashboard, and Sofa Home is reinstalled.
+
+### 25 · Weather forecast views
+
+**Difficulty 3 · Sonnet · medium · HA**
+
+`weather.home` reports `supported_features` 3 (daily and hourly forecasts). Read them with `weather.get_forecasts` and `return_response`, the same kind of read as the calendar's `calendar.get_events` (not one of the three writes, so the write guard is unchanged; the "Server never makes a service call" line in `homeassistant.ts` and ADR 0003 gets corrected). Detail: a `stack` of the next 12 hours (temperature bars, rain chance in the note) over the next 7 days (high, low, condition). The card keeps today's reading and gains the high and low. A forecast failure keeps the current reading and drops only the forecast.
+
+**Done when:** the detail view on the TV shows hours and days from the live entity, and a Home Assistant outage marks it stale rather than blank.
+
+### 26 · Calendar days view
+
+**Difficulty 3 · Sonnet · medium · HA**
+
+Move the calendar to the `days` template. Card: today and tomorrow with the next event emphasised (large), or three days (medium). Detail: the next seven days as columns, today marked, all-day events on top, long titles cut with an ellipsis. Kids Mode keeps "Something planned" and never a title or place. Fold in the open Session 13 follow-up (read `uid` and `recurrence_id` from `/api/calendars/<entity>`) only if it is a few lines.
+
+**Done when:** the live calendar draws as day columns at both sizes and Kids Mode still shows no titles.
+
+### 27 · Power history chart
+
+**Difficulty 3 · Sonnet · medium · HA**
+
+`sensor.powerfox_aktuell` samples about every 10 seconds (1839 states in 6 hours). Read `/api/history/period/<start>?filter_entity_id=...&minimal_response&no_attributes` and average into 5 minute buckets (about 72 points for 6 hours). Detail: a `chart` of the last 6 hours with min, max and average, and the current reading as the headline. Config: hours to show (2 to 24, default 6). Cache the history for the freshness interval, so a 30 second live read does not pull the history each time. Missing stretches draw as a gap, never as zero.
+
+**Done when:** the detail view on the TV shows the last 6 hours from the live sensor, and an energy sensor with no history shows the reading alone.
+
+### 28 · Design pass and TV walk
+
+**Difficulty 3 · Sonnet · high · TV**
+
+Apply the chosen direction to the cards, the headers, the Dashboard rows and the full-screen frame, then walk the whole Dashboard on the TV with the camera: every widget at every size, stale and unavailable states, the three detail views, Kids Mode. Fix what the camera shows (clipping, contrast, text too small at 3 m).
+
+**Done when:** the user has seen it on the TV and accepts the look.
