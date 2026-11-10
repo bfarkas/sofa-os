@@ -49,7 +49,10 @@ Each session is one self-contained chunk of work that ends in something testable
 | 25 | Weather forecast views | 4 | 24 | 3 | Sonnet | medium | HA |
 | 26 | Calendar days view | 4 | 24 | 3 | Sonnet | medium | HA |
 | 27 | Power history chart | 4 | 24 | 3 | Sonnet | medium | HA |
-| 28 | Design pass and TV walk | 4 | 25, 26, 27 | 3 | Sonnet | high | TV |
+| 28 | Dashboard layout, focus and footer | 4 | 23 | 3 | Sonnet | high | TV |
+| 29 | Time-of-day backgrounds | 4 | 23 | 3 | Sonnet | medium | TV |
+| 30 | App icons | 4 | 23 | 3 | Sonnet | medium | TV |
+| 31 | Design pass and TV walk | 4 | 25, 26, 27, 28, 29, 30 | 3 | Sonnet | high | TV |
 
 ### Order and parallel lanes
 
@@ -677,19 +680,36 @@ Entity `media_player.plex_plex_for_samsung_tv_2018` (the TV's Plex client; its n
 
 ## Phase 4: Widget design and detail views
 
-Added 2026-11-10 at the user's request. The cards are plain, the calendar card is badly laid out, and OK on a widget opens a full-screen view that today carries little more than the card (weather and energy show a list of readings). Wanted: weather with the next hours and the week, the calendar with the next days laid out as days, power with a graph of the last few hours, and a more considered look overall.
+Added 2026-11-10 at the user's request. The cards are plain, the calendar card is badly laid out, and OK on a widget opens a full-screen view that today carries little more than the card (weather and energy show a list of readings). Wanted: weather with the next hours and the week, the calendar with the next days laid out as days, power with a graph of the last few hours, and a more considered look overall (the Dashboard on one screen, real app icons, the time-of-day wallpapers). Kids Mode looks right to the user and only gets the app icons.
 
 **What is already there.** Every widget may send a `detail` display that Sofa Home draws full screen (`WidgetData.detail`, `tv/src/cards.ts`, `#full-card` in `tv/app/cards.css`, 1560 x 760 px). The `columns` template already draws a row of columns with bars (`level`), up to 12 at full size. Neither the forecast nor history is read yet: weather gives only the current state (`homeassistant.ts`), power gives only the current reading.
 
 **What is new, and why it costs a Sofa Home release.** A line graph and a day-by-day grid are not expressible in the five templates (ADR 0003), so Phase 4 adds templates. That means one new signed package and one reinstall; 24 therefore builds all of them together and everything after it is Server-only.
 
-### 23 · Widget design direction
+### 23 · Design direction
 
 **Difficulty 3 · Opus · high**
 
-Settle the look before building. Render the Dashboard and the three full-screen views (weather, calendar, power) at 1920 x 1080 as HTML mockups from the real tokens (`shared/src/tokens.ts`), a few variants each, and let the user pick. Cover: the card header (title, stale mark), type scale for TV distance, spacing, how a card shows "next up" versus a list, the calendar card, colours for chart and bars. Decide the calendar view (week of day columns, as proposed, or a month grid) and whether the weather detail stacks hours over days.
+Settle the look before building, from what the Dashboard does today and what the user asked for on 2026-11-10. Render the Dashboard and the three full-screen views (weather, calendar, power) at 1920 x 1080 as HTML mockups from the real tokens (`shared/src/tokens.ts`) and the real wallpapers, a few variants of each open choice, and let the user pick. Start from screenshots of today's Dashboard (camera on the TV) so the critique is of what is really drawn.
 
-**Done when:** the user has picked a direction and the plan records the token changes and each template's layout in a few lines.
+**Decided (the user, 2026-11-10; mockups follow these, they do not reopen them).**
+
+- **One screen.** The whole Dashboard fits at once and the apps row at the bottom is always visible, never clipped. Budget: bar, Kids Mode tile, one widget row, apps row (about 770 of the 830 px between the bar and the footer today; a second widget row does not fit, which is why the photo widget's own row clipped).
+- **One widget row, one slot each.** Widgets are small (264 x 220) by default; photos and calendar do not need to be wide. Medium and large stay in the code but are not the default, and the editor warns when a row passes six units (the Session 14 finding).
+- **Real app icons** like the official apps, in place of the letter badges, on the Dashboard, All Apps and the Kids Mode grid. This is the only change to Kids Mode.
+- **The time-of-day wallpapers** (`assets/brand/v1/wallpaper/day-cycle-4k`: morning, midday, evening, night) are the Dashboard background; Kids Mode keeps its own forest.
+- **The footer line** (Server address, revision, Live) is small and quiet, since it is read from the TV's own screen at arm's length, not from the sofa.
+- **Left margin versus focus ring.** The focus ring clips on the left. Probable cause, to confirm on the TV: a focused tile scales by 1.06 and the ring adds 11 px, which for a medium or large widget grows 17 to 25 px per side, more than the row's 24 px padding; the row has `overflow: hidden`. The mockups show the fix (ring without scale on wide tiles, or more room).
+
+**Open choices for the mockups.**
+
+- Where the Kids Mode tile sits: its own row as now, or next to the greeting over the wallpaper as in the first draft, which frees a row.
+- App tiles: icon only with the name shown on focus, or icon with a label.
+- Calendar and weather cards at one slot: what a 264 x 220 card shows (calendar: the next event with its time and how many more; weather: temperature, condition, high and low).
+- The calendar view (week of day columns, as proposed, or a month grid) and whether the weather detail stacks hours over days.
+- Text and chart colours over a dark night wallpaper (the clock and the greeting sit on the wallpaper, not on a panel), type scale at 55 inches, spacing.
+
+**Done when:** the user has picked a direction and the plan records the token changes, each template's layout, the Dashboard's vertical budget and the icon tile in a few lines.
 
 ### 24 · Templates: chart, days, stack
 
@@ -714,7 +734,7 @@ Settle the look before building. Render the Dashboard and the three full-screen 
 
 **Difficulty 3 · Sonnet · medium · HA**
 
-Move the calendar to the `days` template. Card: today and tomorrow with the next event emphasised (large), or three days (medium). Detail: the next seven days as columns, today marked, all-day events on top, long titles cut with an ellipsis. Kids Mode keeps "Something planned" and never a title or place. Fold in the open Session 13 follow-up (read `uid` and `recurrence_id` from `/api/calendars/<entity>`) only if it is a few lines.
+Move the calendar to the `days` template. Card: **one slot (small, 264 x 220) is the default**, so the calendar gains the `small` size: the next event (time, title) and "and 3 more today"; medium shows today and tomorrow, large three days. Detail: the next seven days as columns, today marked, all-day events on top, long titles cut with an ellipsis. Kids Mode keeps "Something planned" and never a title or place. Fold in the open Session 13 follow-up (read `uid` and `recurrence_id` from `/api/calendars/<entity>`) only if it is a few lines.
 
 **Done when:** the live calendar draws as day columns at both sizes and Kids Mode still shows no titles.
 
@@ -726,10 +746,34 @@ Move the calendar to the `days` template. Card: today and tomorrow with the next
 
 **Done when:** the detail view on the TV shows the last 6 hours from the live sensor, and an energy sensor with no history shows the reading alone.
 
-### 28 · Design pass and TV walk
+### 28 · Dashboard layout, focus and footer
 
 **Difficulty 3 · Sonnet · high · TV**
 
-Apply the chosen direction to the cards, the headers, the Dashboard rows and the full-screen frame, then walk the whole Dashboard on the TV with the camera: every widget at every size, stale and unavailable states, the three detail views, Kids Mode. Fix what the camera shows (clipping, contrast, text too small at 3 m).
+Build the chosen layout in `tv/app/index.html`, `tv/src/shell.ts` and `view.ts`. The Dashboard fits one screen with the apps row always visible (the content column pins the last row at the bottom and gives way above it, rather than clipping the bottom); one widget row of small widgets; the sample layout and the editor's defaults use `small` (`photos`, `calendar`). Fix the focus ring on the left (confirm the cause with a camera shot first). The footer is small and dim (about 16 px, low contrast) and still shows the Server, revision and Live or Offline. The live layout changes only through Companion or the layout ops, with the user's say-so.
+
+**Done when:** on the TV the whole Dashboard is on one screen, the first and last tile of every row show a complete ring, and the footer does not draw the eye.
+
+### 29 · Time-of-day backgrounds
+
+**Difficulty 3 · Sonnet · medium · TV**
+
+The four masters are 3840 x 2160 and untracked (the user's files); the TV is 1080p, so ship 1920 x 1080 JPEGs in the package (a few hundred KB each, under the memory budget measured in Session 14) and **ask the user before committing any of `assets/brand`**. A new Layout background kind `daycycle` picks the picture from the TV's clock (suggested: morning 06 to 10, midday 10 to 17, evening 17 to 21, night 21 to 06) and cross-fades at a change; the schema, validator, Companion's Appearance control and the preview learn the kind. Over a dark night picture the text that sits on the wallpaper (clock, date, greeting) switches to the light ink (`textOn`). A solid colour, an image and the photostream slideshow stay available. Open question for the user: fixed hours, or sunrise and sunset from Home Assistant's `sun.sun`.
+
+**Done when:** the four pictures show at their hours on the TV (test by faking the hour), the cross-fade is smooth, and the clock stays readable on the night picture.
+
+### 30 · App icons
+
+**Difficulty 3 · Sonnet · medium · TV**
+
+The tiles show a letter badge today. First a spike: the package already holds the `application.info` privilege, so try `tizen.application.getAppInfo(id).iconPath` on the TV for each app (Netflix, YouTube, Plex, ARD, ZDF, KiKA) and see whether an `<img>` may load it. If it can, the icons are the real ones with nothing to ship or license. If not: icon files bundled in the package (`tv/app/img/apps/<id>.png`, supplied or approved by the user, since they are trademarks and the repository may be public), or uploaded through Companion and served by the Server so they stay out of git; the letter badge remains the fallback for an app with no icon. Rounded-square icons at the tile size, also in All Apps and the Kids Mode grid.
+
+**Done when:** every app on the Dashboard, in All Apps and in Kids Mode shows its own icon on the TV, and an app without one still shows its letter.
+
+### 31 · Design pass and TV walk
+
+**Difficulty 3 · Sonnet · high · TV**
+
+Apply the chosen direction to what the earlier sessions left: the cards, the headers and the full-screen frame. Then walk the whole Dashboard on the TV with the camera: every widget, stale and unavailable states, the three detail views, the wallpapers at their hours, the icons, Kids Mode. Fix what the camera shows (clipping, contrast, text too small at 55 inches from a normal distance).
 
 **Done when:** the user has seen it on the TV and accepts the look.
