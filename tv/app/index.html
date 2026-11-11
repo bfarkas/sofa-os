@@ -12,7 +12,7 @@
     /* Panel colours (tiles, pills, the full-screen view): smoked glass, light text. Kids Mode and the overlays on ivory take other values below. */
     --p-bg: var(--sofa-color-glass); --p-dim: var(--sofa-color-glass-dim); --p-full: var(--sofa-color-glass-full); --p-ink: var(--sofa-color-glass-ink); --p-muted: var(--sofa-color-glass-muted);
     --p-line: var(--sofa-color-glass-line); --p-soft: var(--sofa-color-glass-soft); --p-accent: var(--sofa-color-glass-accent); --p-bar: var(--sofa-color-glass-bar); --p-warn: var(--sofa-color-glass-warn);
-    --rain: var(--sofa-color-rain); --edge: var(--sofa-color-focus-edge); }
+    --rain: var(--sofa-color-rain); --edge: transparent; } /* the white ring alone is the focus mark over glass and wallpapers */
   body.kids #stage { --p-bg: var(--sofa-color-panel); --p-dim: var(--sofa-color-panel-dim); --p-ink: var(--sofa-color-ink); --p-muted: var(--sofa-color-ink-muted); --p-line: rgba(43, 47, 42, 0.16);
     --p-soft: rgba(43, 47, 42, 0.08); --p-accent: var(--sofa-color-sage-deep); --p-bar: var(--sofa-color-sage); --p-warn: var(--sofa-color-warn); }
   #settings-panel, #menu-panel, #pin-panel { --edge: var(--sofa-color-sage-deep); } /* ivory panels: the deep outline reads there, the light one does not */
@@ -25,7 +25,6 @@
   .pill.sel { box-shadow: none; background: var(--sofa-color-sage-deep); color: var(--sofa-color-ivory); }
   #clock { margin-left: 24px; text-align: right; line-height: 1.1; }
   #time { font-size: 56px; font-weight: bold; }
-  #date { font-size: 28px; }
 
   /* Focus: a slightly transparent ring in the page colour with a sage outline around it, readable over any background. The tile also
      scales by 1.06; a row's side padding (--sofa-size-row-pad, 36) is room for both, so the first and last tile of a row are never clipped. */
@@ -35,6 +34,9 @@
   /* The content column: 150 to 980. The Dashboard pins its last row (the apps) to the bottom; rows that do not all fit give way above it. */
   #content { position: absolute; left: calc(var(--sofa-size-margin-x) - var(--sofa-size-row-pad)); right: calc(var(--sofa-size-margin-x) - var(--sofa-size-row-pad)); top: 150px; bottom: 100px; padding: 0 var(--sofa-size-row-pad); overflow: hidden; }
   #dash { display: flex; flex-direction: column; justify-content: flex-end; min-height: 100%; }
+  /* The Dashboard (layout B, as in the mockup): the greeting row stays up top, the widgets and the apps sit low (content ends at 1018), and the wallpaper's shoreline (y 466 to 468) runs through the gap between them. */
+  #content.dashview { bottom: 62px; }
+  .dashview #dash > .section:first-child { margin-bottom: auto; }
   .section { margin-bottom: 22px; }
   .section:last-child { margin-bottom: 0; }
   .row { display: flex; padding: 20px var(--sofa-size-row-pad); margin: 0 calc(0px - var(--sofa-size-row-pad)); overflow: hidden; }
@@ -166,7 +168,7 @@
   <div id="bar" hidden>
     <div id="tabs"></div>
     <div class="pill" id="bar-settings">Settings</div>
-    <div id="clock"><div id="time"></div><div id="date"></div></div>
+    <div id="clock"><div id="time"></div></div>
   </div>
   <div id="signin" hidden>
     <div id="signin-text">

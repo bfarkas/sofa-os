@@ -25,7 +25,6 @@ export const COLORS = {
   sage: '#8aa58d', // muted sage: accents and the app letter badge
   sageDeep: '#2f5d46', // focus outline, selected tab
   focusRing: 'rgba(255, 253, 248, 0.8)', // inner focus ring, separates the outline from any background; slightly transparent
-  focusEdge: 'rgba(143, 195, 160, 0.85)', // the outline around it on the Dashboard (over glass and wallpapers); overlays on ivory use sageDeep
   warn: '#a3352b', // errors and "unavailable"
   scrim: 'rgba(31, 36, 30, 0.72)', // behind overlays
 } as const;

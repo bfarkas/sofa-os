@@ -1,7 +1,6 @@
 // App icons (Session 30). The TV already knows each installed app's icon: tizen.application.getAppInfo(id).iconPath. Whether an <img>
 // may load that path is only known on the TV, so everything here is defensive: no API, an error, no path or an <img> that fails all
 // leave the tile with its letter badge. The answer is cached per app id for the session, and each app reports its outcome once.
-import { APP_ID_ALIASES } from './launch.ts';
 
 /** The subset of the Tizen Application API used here. */
 export interface TizenAppInfoApi {
@@ -21,6 +20,13 @@ export function iconCandidates(path: unknown): string[] {
   if (!p) return [];
   return p.charAt(0) === '/' && p.charAt(1) !== '/' ? [p, 'file://' + p] : [p];
 }
+
+/** Pictures packaged with the app, tried instead of the TV's own: the TV's Netflix icon is an old logo and it has none for YouTube (Cobalt). The mockup's marks. */
+const BUNDLED: Record<string, string> = {
+  'org.tizen.netflix-app': 'img/icon-netflix.svg',
+  'RN1MCdNq8t.Netflix': 'img/icon-netflix.svg',
+  'com.samsung.tv.cobalt-yt': 'img/icon-youtube.svg',
+};
 
 export interface Icons {
   /** What to try as the tile's <img> source now, or undefined for the letter badge. Looks the app up once. */
@@ -43,17 +49,14 @@ export function createIcons(api: TizenAppInfoApi | undefined, report: (r: IconRe
   const cache: Record<string, Entry> = {};
 
   function lookup(appId: string): Entry {
+    if (BUNDLED[appId]) return { path: BUNDLED[appId], tries: [BUNDLED[appId]], at: 0, state: 'trying' };
     let error = api && api.application ? 'no iconPath' : 'no Tizen API';
-    // The Netflix store id launches through an alias (launch.ts); ask the TV about the one that exists, then the id we hold.
-    const ids = APP_ID_ALIASES[appId] ? [APP_ID_ALIASES[appId], appId] : [appId];
-    for (const id of ids) {
-      try {
-        const info = api && api.application ? api.application.getAppInfo(id) : null;
-        const tries = iconCandidates(info && info.iconPath);
-        if (tries.length) return { path: String(info!.iconPath), tries, at: 0, state: 'trying' };
-      } catch (e) {
-        error = String((e && ((e as { name?: string }).name || (e as { message?: string }).message)) || 'error');
-      }
+    try {
+      const info = api && api.application ? api.application.getAppInfo(appId) : null;
+      const tries = iconCandidates(info && info.iconPath);
+      if (tries.length) return { path: String(info!.iconPath), tries, at: 0, state: 'trying' };
+    } catch (e) {
+      error = String((e && ((e as { name?: string }).name || (e as { message?: string }).message)) || 'error');
     }
     report({ app: appId, outcome: 'none', detail: error.slice(0, 80) });
     return { path: '', tries: [], at: 0, state: 'none' };

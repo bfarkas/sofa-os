@@ -2,7 +2,7 @@
 import { drawCard } from './cards.ts';
 import type { Icons } from './icons.ts';
 import { PAD_ROWS } from './kids.ts';
-import { clockText, dateText, greetingText, longDateText, TABS, type Tile, type View } from './shell.ts';
+import { clockText, greetingText, longDateText, TABS, type Tile, type View } from './shell.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 function h(tag: string, cls: string, text?: string): HTMLElement {
@@ -150,7 +150,6 @@ export function redrawCards(): void {
 
 export function updateClock(d: Date): void {
   $('time').textContent = clockText(d);
-  $('date').textContent = dateText(d);
   const hello = document.getElementById('greet-hello'), day = document.getElementById('greet-date');
   if (hello && day) {
     hello.textContent = greetingText(d);

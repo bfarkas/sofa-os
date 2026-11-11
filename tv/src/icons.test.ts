@@ -63,11 +63,12 @@ test('no API, a throwing API, no iconPath: the letter stays and the reason is re
   assert.equal(boom.icons.failed('x.App', 'whatever'), undefined);
 });
 
-test('the Netflix store id is looked up by the id that launches, then by its own', () => {
-  const { icons, asked } = fake((id) => (id === 'org.tizen.netflix-app' ? { iconPath: '/n.png' } : undefined));
-  assert.equal(icons.src('RN1MCdNq8t.Netflix'), '/n.png');
-  assert.deepEqual(asked, ['org.tizen.netflix-app']);
-  const second = fake((id) => (id === 'RN1MCdNq8t.Netflix' ? { iconPath: '/s.png' } : undefined));
-  assert.equal(second.icons.src('RN1MCdNq8t.Netflix'), '/s.png');
-  assert.deepEqual(second.asked, ['org.tizen.netflix-app', 'RN1MCdNq8t.Netflix']);
+test('Netflix (either id) and YouTube show the packaged marks and the TV is not asked', () => {
+  const { icons, asked, reports } = fake(() => ({ iconPath: '/old.png' }));
+  assert.equal(icons.src('org.tizen.netflix-app'), 'img/icon-netflix.svg');
+  assert.equal(icons.src('RN1MCdNq8t.Netflix'), 'img/icon-netflix.svg');
+  assert.equal(icons.src('com.samsung.tv.cobalt-yt'), 'img/icon-youtube.svg');
+  assert.deepEqual(asked, []);
+  icons.loaded('org.tizen.netflix-app', 'img/icon-netflix.svg');
+  assert.deepEqual(reports, [{ app: 'org.tizen.netflix-app', outcome: 'loaded', detail: 'img/icon-netflix.svg' }]);
 });
