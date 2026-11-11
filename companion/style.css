@@ -83,8 +83,9 @@ select.compact { width: auto; max-width: 96px; flex: none; margin: 0 6px 0 0; pa
 #remote-pad button { height: 64px; padding: 0; font-size: 24px; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 #remote-pad button:active:not(:disabled) { filter: brightness(1.25); }
 #remote-pad .gap { visibility: hidden; }
-.rtop, .rpad, .rmedia { display: grid; gap: 10px; margin: 0 0 16px; }
-.rtop { grid-template-columns: repeat(3, 1fr); }
+.rtop, .rpad, .rvol, .rmedia { display: grid; gap: 10px; margin: 0 0 16px; }
+.rtop, .rvol { grid-template-columns: repeat(3, 1fr); }
+.rvol button { font-size: 20px; }
 .rpad { grid-template-columns: repeat(3, 1fr); }
 .rpad button { height: 84px; }
 .rmedia { grid-template-columns: repeat(5, 1fr); }

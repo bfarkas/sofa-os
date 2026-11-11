@@ -125,6 +125,8 @@
   #kids-head { display: flex; align-items: center; height: 120px; }
   #kids-head img { width: 95px; height: 100px; margin-right: 24px; }
   #kids-title { flex: 1; font-size: var(--sofa-size-text-hero); font-weight: bold; }
+  #kids-left { flex: none; margin-right: 36px; font-size: var(--sofa-size-text-title); font-weight: bold; } /* plain text like the title, so it does not look like a button */
+  #kids-left:empty { display: none; }
   #content.kidsview { top: 220px; }
   .kidsview .tile.app, .kidsview .tile.album { width: 300px; height: 300px; border-radius: 34px; }
   .kidsview .tile .badge { width: 150px; height: 150px; margin-bottom: 20px; border-radius: 75px; font-size: 84px; line-height: 150px; }
@@ -185,6 +187,7 @@
   <div id="kids-head" hidden>
     <img src="img/unicorn-welcome.png" alt="">
     <div id="kids-title">Kids Mode</div>
+    <div id="kids-left"></div>
     <div class="pill" id="kids:exit">Adults</div>
   </div>
   <div id="content" hidden></div>

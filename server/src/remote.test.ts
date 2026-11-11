@@ -38,7 +38,7 @@ test('every key maps to its Samsung code and is forwarded', async () => {
   const phone = createPhoneRemote({ ha, kidsActive: () => false, now: () => (t += RATE_WINDOW_MS) });
   for (const key of Object.keys(REMOTE_KEYS)) assert.equal((await phone.press('s', { key })).status, 200);
   assert.deepEqual(keys, Object.values(REMOTE_KEYS));
-  assert.ok(!keys.some((k) => /POWER|VOL|MUTE|SOURCE|CH/.test(k)));
+  assert.ok(!keys.some((k) => /POWER|SOURCE|CH/.test(k))); // the Watch Allowance owns power; volume and mute were allowed 2026-11-11
 });
 
 test('unknown keys and bad bodies are 400 and reach nothing', async () => {
@@ -89,9 +89,9 @@ test('Kids Mode: navigation and media keys work, Home and Menu are refused', asy
   const phone = createPhoneRemote({ ha, kidsActive: () => true });
   const tv = tvSocket(phone);
   tv.emit('message', JSON.stringify({ type: 'visible', visible: true }));
-  for (const key of ['up', 'ok', 'back', 'pause', 'forward']) assert.equal((await phone.press('s', { key })).status, 200);
+  for (const key of ['up', 'ok', 'back', 'pause', 'forward', 'volup', 'voldown', 'mute']) assert.equal((await phone.press('s', { key })).status, 200);
   for (const key of ['home', 'menu']) assert.equal((await phone.press('s', { key })).status, 403);
-  assert.deepEqual(keys, ['KEY_UP', 'KEY_ENTER', 'KEY_RETURN', 'KEY_PAUSE', 'KEY_FF']);
+  assert.deepEqual(keys, ['KEY_UP', 'KEY_ENTER', 'KEY_RETURN', 'KEY_PAUSE', 'KEY_FF', 'KEY_VOLUP', 'KEY_VOLDOWN', 'KEY_MUTE']);
   assert.deepEqual(tv.sent, []);
 });
 

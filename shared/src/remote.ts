@@ -1,6 +1,6 @@
 // Phone Remote (Session 18). The keys Companion may send and the Samsung key code each one forwards.
-// The write guard in server/src/ha.ts allows exactly these codes. Power, volume, mute, source and channel keys are left out
-// on purpose: the Watch Allowance owns power, and the TV's volume is not a Phone Remote job (a new key needs a decision).
+// The write guard in server/src/ha.ts allows exactly these codes. Power, source and channel keys are left out on purpose: the
+// Watch Allowance owns power. Volume and mute were added 2026-11-11 (the user's decision, Session 33).
 export const REMOTE_KEYS = {
   up: 'KEY_UP',
   down: 'KEY_DOWN',
@@ -14,6 +14,9 @@ export const REMOTE_KEYS = {
   stop: 'KEY_STOP',
   rewind: 'KEY_REWIND',
   forward: 'KEY_FF',
+  volup: 'KEY_VOLUP',
+  voldown: 'KEY_VOLDOWN',
+  mute: 'KEY_MUTE',
 } as const;
 
 export type RemoteKey = keyof typeof REMOTE_KEYS;

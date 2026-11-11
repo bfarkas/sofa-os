@@ -144,6 +144,11 @@ export function render(v: View): void {
   setFocus(focusId);
 }
 
+/** The time-left pill in Kids Mode's header; empty hides it. */
+export function setKidsLeft(text: string): void {
+  $('kids-left').textContent = text;
+}
+
 /** Draws the widget cards again in place (new data, or time made one stale); focus and scroll stay. */
 export function redrawCards(): void {
   for (const id in cards) drawCard(tiles[id], id.slice(7), cards[id].label, cards[id].size || 'medium', cards[id].detail);

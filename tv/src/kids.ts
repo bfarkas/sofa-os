@@ -19,6 +19,12 @@ export function screenFor(s: KidsStatus | null): Screen {
   return s.remainingSeconds <= 0 ? 'done' : 'kids';
 }
 
+/** The pill in Kids Mode's header: whole minutes left, rounded up; the last minute says so (the Server's clock decides the rest). */
+export function leftText(seconds: number): string {
+  const m = Math.ceil(seconds / 60);
+  return m <= 1 ? 'Last minute' : m + ' min left';
+}
+
 export interface KidsState {
   status: KidsStatus | null; // the last answer
   reachable: boolean; // the last request got an answer; false until the first one

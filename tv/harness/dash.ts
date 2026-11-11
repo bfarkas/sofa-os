@@ -9,7 +9,7 @@ import type { RemoteEvent, RemoteKey } from '../src/keys.ts';
 import { createIcons } from '../src/icons.ts';
 import { createPhotoView } from '../src/photoview.ts';
 import { createShell } from '../src/shell.ts';
-import { initView, redrawCards, render, setFocus, updateClock } from '../src/view.ts';
+import { initView, redrawCards, render, setFocus, setKidsLeft, updateClock } from '../src/view.ts';
 import { parseWidgets } from '../src/widgets.ts';
 
 const q = new URLSearchParams(location.search);
@@ -119,6 +119,7 @@ const layout: Layout = {
   shell.setLayout(layout);
   redrawCards();
   updateClock(new Date());
+  if (kids) setKidsLeft(q.get('left') || '25 min left'); // ?left=<text> to try other wordings
   document.getElementById('foot')!.textContent = 'Server sofa.familie-farkas.de   ·   Revision 46   ·   Live';
   const tab = q.get('tab');
   if (tab === 'apps' || tab === 'widgets') shell.focus.focus('tab:' + tab);

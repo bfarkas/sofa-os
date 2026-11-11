@@ -6,12 +6,12 @@ import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { currentPeriod, fakeHour } from './daycycle.ts';
-import { createKids, createPad, forestFor, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
+import { createKids, createPad, forestFor, leftText, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
 import { drawQr } from './qr.ts';
 import { createShell, type Activation, type Tab } from './shell.ts';
 import { dashed, normalizeServer, SERVER_KEY, startSignIn, TOKEN_KEY, type SignInState } from './signin.ts';
 import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
-import { initView, redrawCards, render, renderPad, setFocus, updateClock } from './view.ts';
+import { initView, redrawCards, render, renderPad, setFocus, setKidsLeft, updateClock } from './view.ts';
 import { cardOptions, drawCard, setWidgetsState, viewFor } from './cards.ts';
 import { albumOfCard, authedGet, backgroundImage, fetchImages, startAlbums } from './photos.ts';
 import { createPhotoView } from './photoview.ts';
@@ -383,12 +383,20 @@ const kidsCtl = createKids({
       });
   },
   onChange: (k: KidsState) => {
+    kidsLeft = k.status ? { seconds: k.status.remainingSeconds, at: Date.now() } : null;
+    paintKidsLeft();
     kidsTileOk = tileAvailable(k);
     updateKidsTile();
     showScreen(screenFor(k.status));
   },
   onUnauthorized: tokenRefused,
 });
+
+// The pill counts down on this page's clock from the last answer; resume and Top-up signals fetch a fresh one.
+let kidsLeft: { seconds: number; at: number } | null = null;
+function paintKidsLeft(): void {
+  setKidsLeft(kidsLeft ? leftText(kidsLeft.seconds - (Date.now() - kidsLeft.at) / 1000) : '');
+}
 
 // Unavailable while the Server has not answered, and while the layout sync is failing: the Server is gone.
 function updateKidsTile(): void {
@@ -674,6 +682,7 @@ function onRemote(e: RemoteEvent): void {
 setInterval(() => {
   updateClock(new Date());
   paintBackground(); // the forest and the day cycle change with the hour
+  paintKidsLeft();
 }, 10_000);
 start();
 

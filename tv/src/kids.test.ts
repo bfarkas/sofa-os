@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { KidsStatus } from '@sofa/shared';
-import { createKids, createPad, forestFor, screenFor, tileAvailable, type KidsState, type Send } from './kids.ts';
+import { createKids, createPad, forestFor, leftText, screenFor, tileAvailable, type KidsState, type Send } from './kids.ts';
+
+test('the time-left pill rounds up to whole minutes and says "Last minute" for the final one', () => {
+  assert.deepEqual([2400, 601, 600, 61, 60, 1, 0, -5].map(leftText), ['40 min left', '11 min left', '10 min left', '2 min left', 'Last minute', 'Last minute', 'Last minute', 'Last minute']);
+});
 
 const status = (over: Partial<KidsStatus> = {}): KidsStatus => ({
   active: true, tv: 'on', dailySeconds: 2400, topUpSeconds: 0, usedSeconds: 0, remainingSeconds: 600, donePending: false, resetsAt: '2026-11-10T03:00:00.000Z', pinSet: true,

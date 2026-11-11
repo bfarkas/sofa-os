@@ -10,6 +10,7 @@ const PAD: [PhoneKey | '', string, string][] = [
   ['', '', ''], ['down', '▼', 'Down'], ['', '', ''],
 ];
 const TOP: [PhoneKey, string, string][] = [['back', '↩', 'Back'], ['home', '⌂', 'Home'], ['menu', '☰', 'Menu']];
+const VOL: [PhoneKey, string, string][] = [['voldown', 'Vol −', 'Volume down'], ['mute', 'Mute', 'Mute'], ['volup', 'Vol +', 'Volume up']];
 const MEDIA: [PhoneKey, string, string][] = [['rewind', '⏪', 'Rewind'], ['play', '▶', 'Play'], ['pause', '⏸', 'Pause'], ['stop', '⏹', 'Stop'], ['forward', '⏩', 'Forward']];
 const KIDS_OFF: PhoneKey[] = ['home', 'menu']; // the Server refuses these in Kids Mode (server/src/remote.ts)
 
@@ -30,6 +31,7 @@ export function startRemote(call: Call): void {
     };
     make(TOP, 'rtop');
     make(PAD, 'rpad');
+    make(VOL, 'rvol');
     make(MEDIA, 'rmedia');
     host.addEventListener('click', async (e) => {
       const key = (e.target as HTMLElement).closest('button')?.dataset.key as PhoneKey | undefined;
