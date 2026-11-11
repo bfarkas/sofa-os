@@ -22,7 +22,7 @@ test('each period has its picture in the package', () => {
   assert.equal(dayImage('night'), 'img/day-night.jpg');
 });
 
-test('the halo behind the wallpaper text is dark behind ivory and light behind ink', () => {
+test('the halo behind the wallpaper text is dark behind ivory and none behind ink', () => {
   assert.deepEqual(DAY_PERIODS.map((p) => dayShadow(p).includes('0, 0, 0')), [false, false, true, true]);
-  assert.ok(dayShadow('midday').includes('255, 255, 255'));
+  assert.equal(dayShadow('midday'), 'none');
 });

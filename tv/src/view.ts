@@ -60,6 +60,7 @@ function showIcon(badge: HTMLElement, appId: string): void {
     badge.textContent = '';
     badge.appendChild(img);
     badge.className += ' icon';
+    if (badge.parentElement) badge.parentElement.className += ' iconed';
   };
   img.onerror = () => {
     const next = icons!.failed(appId, img.getAttribute('src') || '');
