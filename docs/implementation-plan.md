@@ -56,6 +56,7 @@ Each session is one self-contained chunk of work that ends in something testable
 | 32 | Design critique: Sofa Home | 4 | 31 | 3 | Sonnet | high | TV |
 | 33 | Design critique: Companion | 4 | 31 | 3 | Sonnet | high | — |
 | 34 | Waste collection widget | 4 | 24 | 4 | Sonnet | high | HA, TV |
+| 35 | Weather widget rework | 4 | 24 | 4 | Sonnet | high | HA, TV |
 
 ### Order and parallel lanes
 
@@ -886,3 +887,35 @@ Added 2026-11-11 at the user's request. Home Assistant now has the Waste Collect
 **Tests.** A pure `wasteRows` (days, sorting, "today", past dates dropped) against a fixture trimmed from the real sensors in `server/src/adapters/fixtures/`; `validateDisplay` with and without `tone`; `tv/src/cards.test.ts` for the filled card and the tile; a harness fixture for both sizes and for Today, Tomorrow and six days.
 
 **Done when:** the card and the full view draw live data on the TV in the right colours, the evening before a pickup shows "1 day" (or "Tomorrow" in the full view), one failing sensor drops only its bin, and Sofa Home is reinstalled.
+
+### 35 · Weather widget rework
+
+**Difficulty 4 · Sonnet · high · HA, TV**
+
+Added 2026-11-11 at the user's request. The small weather card used its space badly (one number and one line), the full-screen view was hard to read at 3 m, and the per-hour bars (temperature drawn as bar height, `Column.level`) said nothing, because they stretch whatever 12 hours it is to full height.
+
+**Picked (the user, 2026-11-11, from five mockups at claude.ai/artifact/1gKucV6eRK6WcxeSNjvHam, private).** The card from variant 2 (headline and two lines) with the full view from variant 4 (a tall temperature line with rain bars on a second y-axis at the right, over the day columns). The other pieces stay as fallbacks: variant 1 (two-column card, 3-hour columns; Server and CSS only), variant 3 (colour-filled card and daypart tiles; needs `tone` from Session 34 plus a navy), variant 5 (same line, rain as a separate chart below the time axis). Card and full view are separate displays, so they can be swapped without redoing the other.
+
+**What Home Assistant has (measured 2026-11-11 on `weather.home`).** The current state carries temperature, wind speed and bearing only: no humidity, pressure or feels-like. The hourly forecast has `apparent_temperature`, `wind_gust_speed`, `precipitation` (mm) and a condition per hour for about five days; the daily forecast has high, low, wind and rain. There is **no rain probability**, so rain is an amount, and "Light rain" below 0.3 mm. Condition text at night says "sunny" and the daily entry for today can contradict the hours (fog and dry at 23:17, "rain" in the daily row), so the Server corrects both as below. Datetimes arrive in UTC; the Server formats in Europe/Berlin.
+
+**Server (`server/src/adapters/homeassistant.ts`, `weatherAdapter`).**
+
+- *Card* (a `value` display): the value is the whole-degree temperature with its degree sign ("3°", no separate unit), the note is the condition, and two `lines`: `Feels 1° · E 3 km/h` (feels-like from the current hour of the hourly forecast, wind from the live state, compass from the bearing) and the rain outlook, which is the bold one: `Light rain until 11:00` while it rains, `Light rain Fri 08:00` (day name only when it is not today) for the next rain, `Dry for N days` when none is in the forecast horizon, N counted from the horizon. If the forecast fails the lines are left out and the card is today's: value, unit, "Condition, H x° L y°".
+- *Condition text:* "Sunny" becomes "Clear" between 17:00 and 07:00 (shortcut: fixed hours, not the sun entity; upgrade if the swap looks wrong in December or June).
+- *Full view* (a `stack` as today): a `chart` over the next 24 hours from the current hour, then the day `columns`. Temperature `points` use an integer axis, floor(min) - 1 to ceil(max) + 1 widened to an even span, so the axis labels are honest and the middle label is a whole number. `max` and `min` carry the top and bottom labels, `axis` the Berlin 00:00, 06:00, 12:00, 18:00 labels at their hours. The chart's `note` is one line: `Now 3°, feels 1° · wind E 3 km/h, gusts to 29 · 7.8 mm rain, 14:00 to 21:00, peak 17:00` (or "no rain in the next 24 hours").
+- *Rain on the chart:* a new series, below. The scale tops out at the first of 0.5, 1, 2, 3, 5, 10 mm that holds the largest hour, so a nearly dry day still reads.
+- *Day columns:* as today (high / low, condition, rain mm with the blue tint), except no bars (`level` is no longer set) and after 21:00 the list starts tomorrow. The feed gives seven days from today, so the list is six after 21:00.
+- The old 12-hour bars column stack is removed, not kept as an option. `ITEM_LIMITS` for columns is unchanged.
+
+**Display and TV cost (a new signed package and a Sofa Home reinstall, so Session 35 is not Server-only; ADR 0003 gets a line for each).**
+
+1. `value` gets an optional `lines?: string[]`, at most 2 on a small card (the Server may send more; the rest is cut, as for the other templates). Each line is one row of 24 px muted type, ellipsised; the last line is drawn bold in the ink colour. `validateDisplay` rejects a non-array or a non-string.
+2. `chart` gets an optional second series: `bars?: (number | null)[]` (0 to 1, one per point, drawn as translucent blue columns behind the line in the same plot, `--rain`) and `barMax?: Reading` (the label of the top of that scale, as `max` is for the line; the half and zero labels are computed by Sofa Home as a number half and 0). Axis labels at the right in the rain blue. A `null` bar draws nothing. `validateDisplay` checks the two lengths agree and values are within 0 to 1.
+3. A taller full panel for this display: the weather full view is 960 px high on the 1080 px screen (the standard full panel is 760). Open choice, to decide in the build: make the panel as tall as its content up to 960 px for all widgets (check each full view in the harness), or key it to a stack that contains a chart. Either way it is CSS, not a new field.
+4. The chart's grid (three horizontal lines, vertical lines at the labelled hours) is drawn by Sofa Home from the axis labels it gets; no new field.
+
+Chromium 56 limits apply (flexbox, no grid, no flex gap, no backdrop-filter); the mockup's SVG chart with `vector-effect: non-scaling-stroke` is supported there. No icons (ADR 0003).
+
+**Tests.** Pure functions in the adapter, against a fixture trimmed from the real `weather.home` hourly and daily responses in `server/src/adapters/fixtures/`: the rain outlook (raining now, rain tomorrow, none), the night "Clear" swap, the axis (floor, ceil, even span), the rain scale choice, the day list at 22:00 vs 10:00, and the card's fallback when the forecast fails. `validateDisplay` with and without `lines` and `bars`, and with a mismatched length. `tv/src/cards.test.ts` for the lines on a small card and the chart with a second series. A harness fixture: card in three situations (night fog, sunny afternoon, rain until 11:00) and the full view with live data and with a rainy day.
+
+**Done when:** the card shows the whole-degree temperature, condition, the feels-like and wind line, and the rain line on the TV; the full view shows a tall temperature line with rain bars and a right axis in mm over the day columns, readable from the sofa; a failed forecast still gives the old card; and Sofa Home is reinstalled.
