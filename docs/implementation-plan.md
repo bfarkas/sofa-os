@@ -57,6 +57,7 @@ Each session is one self-contained chunk of work that ends in something testable
 | 33 | Design critique: Companion | 4 | 31 | 3 | Sonnet | high | — |
 | 34 | Waste collection widget | 4 | 24 | 4 | Sonnet | high | HA, TV |
 | 35 | Weather widget rework | 4 | 24 | 4 | Sonnet | high | HA, TV |
+| 36 | Calendar widget rework | 4 | 26 | 4 | Sonnet | high | HA, TV |
 
 ### Order and parallel lanes
 
@@ -919,3 +920,33 @@ Chromium 56 limits apply (flexbox, no grid, no flex gap, no backdrop-filter); th
 **Tests.** Pure functions in the adapter, against a fixture trimmed from the real `weather.home` hourly and daily responses in `server/src/adapters/fixtures/`: the rain outlook (raining now, rain tomorrow, none), the night "Clear" swap, the axis (floor, ceil, even span), the rain scale choice, the day list at 22:00 vs 10:00, and the card's fallback when the forecast fails. `validateDisplay` with and without `lines` and `bars`, and with a mismatched length. `tv/src/cards.test.ts` for the lines on a small card and the chart with a second series. A harness fixture: card in three situations (night fog, sunny afternoon, rain until 11:00) and the full view with live data and with a rainy day.
 
 **Done when:** the card shows the whole-degree temperature, condition, the feels-like and wind line, and the rain line on the TV; the full view shows a tall temperature line with rain bars and a right axis in mm over the day columns, readable from the sofa; a failed forecast still gives the old card; and Sofa Home is reinstalled.
+
+### 36 · Calendar widget rework
+
+**Difficulty 4 · Sonnet · high · HA, TV**
+
+Added 2026-11-12 at the user's request. Session 26's card showed one event and "and 3 more today" with no times for the rest, and its full view was seven columns of about 190 px: titles wrapped, empty days took a whole column, a three-day trip read "All day" three times, and the time was the smallest type on the screen.
+
+**Picked (the user, 2026-11-12, from three mockups at claude.ai/artifact/4NE58AEmZJJorA8bfcwPkx, private).** The card from variant 1 (agenda: the rest of today as timed rows, then the next day that has something) with the full view from variant 3 (week board: seven day columns with a big date, trips as one bar across the days, free days named). Fallbacks kept: variant 2 (a big next time, a strip of the day, an hour axis in the full view; a new `timeline` template, weakest fit because this calendar has two or three events a day) and variant 3's card (a seven-day strip with dots; a new small `week` card). Card and full view are separate displays, so they can be swapped without redoing the other.
+
+**What the calendar gives (Session 26 and the recorded sample).** One entity (`calendar.family`), events with start, end, title, place and all-day or timed; no person, colour or category, so colour only separates all-day from timed. The Server already spreads an all-day event over its days. Freshness `hourly` refreshes every 10 minutes (`FRESHNESS_POLICY`), so "ended" and "now" lag by up to 10 minutes; kept as is.
+
+**Server (`server/src/adapters/calendar.ts`).**
+
+- *Card (small, an `agenda` display instead of `days`):* two day groups. Today: the events that have not ended, at most 3 rows (more than 3: two rows and "and N more"), or one quiet line "Nothing more today" (a row with an empty time). Then, when a header and a row still fit, the next day with something ("Tomorrow", or "Sat 14"); with room for one row only and more events, the header's `note` says "+N more". The budget is 168 px: header 26, row 40, quiet line 34. An all-day event never takes a row: it goes in the day's `note` ("Trip away", "+1" for more). An event that is on now is flagged `now` (its time is drawn in the accent colour). Medium and large were not mocked: they keep today's `days` columns with the new day styling below.
+- *Detail (a `days` display, seven days or fewer if `days` is lower):* `time` is the range "15:30–16:15"; `detail` the place; `now` and `past` flags (past only for today's ended events); a day with nothing gets one quiet event `{ time: '', title: 'Free' }`. All-day and multi-day events leave `events` and go into `spans`, one per event, clipped to the window: `title` is the whole label ("Trip away · day 3 of 3" for a trip that began before today, counted at the first visible column; "Trip away · 3 days" for one that starts inside the window; the bare title when only one column shows), `from` and `to` are column indices, `lane` is assigned greedily by the Server (no overlapping bars in one lane), and `clipStart` and `clipEnd` say the bar continues beyond the window. The window starts today; there is no evening shift.
+- *Kids Mode:* unchanged in effect. The card keeps its groups with every row "Something planned" and its time, an all-day event is a row "All day / Something planned", the `note` and `spans` are dropped, and there is still no detail view. The existing `forKids` test is extended so no title, place, note or span title reaches the kids payload.
+
+**Display and TV cost (a new signed package and a Sofa Home reinstall, so Session 36 is not Server-only; ADR 0003 gets a line for each).**
+
+1. `AgendaDay.note?: string`: muted text at the right of the day header on an `agenda` card, ellipsised.
+2. `AgendaEvent.now?` and `past?: boolean`: `now` draws the time in the accent colour on a card and the event card lit (accent tint, "Now–09:30") on the week board; `past` fades it to 42 %.
+3. `days` displays get `spans?: { title: string; from: number; to: number; lane: number; clipStart?: boolean; clipEnd?: boolean }[]`, at most 8. `validateDisplay` rejects indices outside the days, `from` > `to`, a negative or fractional lane, and more than 8.
+4. `ITEM_LIMITS.agenda.small` rises from 2 to 6 lines (headers count); the Server sends only what fits and the tile clips the rest. A row with an empty time draws as one quiet muted line, as the `days` count line does today.
+5. CSS in `tv/app/cards.css`. *Agenda card:* day header 22 px caps in the accent colour with the note right-aligned; rows 40 px, time 22 px muted in a 74 px column, title 26 px bold. *Week board (`.full .dy`):* header 92 px with the weekday in caps (24 px) and the date numeral at 46 px, today's header filled with the bar colour and dark ink, a faint tint behind today's whole column; events as cards with a 5 px left border, time 26 px muted, title 30 px bold up to two lines, place 24 px up to two lines; the quiet "Free" line centred; the span lane 46 px per lane (a 40 px bar, 24 px bold text), placed with `calc()` from the column index (the columns are flex items with a 10 px margin, no grid), square ends where clipped, and a spacer under the headers as tall as the lanes. The standard 760 px panel is enough.
+
+Chromium 56 limits apply (flexbox, no grid, no flex gap, no backdrop-filter, `calc()` is fine). No icons (ADR 0003). Sizes at least 22 px on the card and 24 px on the full view.
+
+**Tests.** Pure functions in the adapter against the recorded sample (`fixtures/calendar-family.json`): the card at Wed 11 Nov 21:30 (nothing more today, then tomorrow), Thu 12 Nov 14:20 (two rows, then Saturday with the count in the note), Thu 19 Nov 08:45 (the trip in the note, the Dentist `now`, no next-day group) and a day with four events ("and 2 more"); the detail's ranges, "Free" days, spans with their labels, lanes and clip flags, and `past` and `now`. `validateDisplay` with and without `spans`, `note`, `now`, `past`, and with bad indices. `tv/src/cards.test.ts` for the agenda note and quiet line, the span bar and the faded and lit events. Harness fixtures for the card in the three situations and the full view at Wed 11 Nov 21:30 and Thu 19 Nov 08:45.
+
+**Done when:** the card shows the rest of today with times (and the next day when there is room) on the TV, the full view shows seven day columns with the trip as one bar and free days named, readable from the sofa, Kids Mode still shows no titles, and Sofa Home is reinstalled.
