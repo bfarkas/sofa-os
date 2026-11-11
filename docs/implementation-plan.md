@@ -55,6 +55,7 @@ Each session is one self-contained chunk of work that ends in something testable
 | 31 | Design pass and TV walk | 4 | 25, 26, 27, 28, 29, 30 | 3 | Sonnet | high | TV |
 | 32 | Design critique: Sofa Home | 4 | 31 | 3 | Sonnet | high | TV |
 | 33 | Design critique: Companion | 4 | 31 | 3 | Sonnet | high | — |
+| 34 | Waste collection widget | 4 | 24 | 4 | Sonnet | high | HA, TV |
 
 ### Order and parallel lanes
 
@@ -861,3 +862,27 @@ From the same critique, run against the built Companion with a stub Server at 39
 **Done when:** the Remote has the keys the user wants (or says why not), Home shows status, the editor's controls fit a phone, and the Kids page wording is plain. Tests: wording in `kids-view.test.ts` and the pure helpers; look at it at 390 px with a stub or the real Server.
 
 **Decided 2026-11-11 (user):** add Remote volume and mute (power stays with the Watch Allowance), and show the Kids time left on the TV as a small readout (built, see Session 32 item 1).
+
+### 34 · Waste collection widget
+
+**Difficulty 4 · Sonnet · high · HA, TV**
+
+Added 2026-11-11 at the user's request. Home Assistant now has the Waste Collection Schedule integration (Zweckverband Abfallwirtschaft Region Hannover). The widget says which bin is next and in how many days, and its full-screen view shows every bin with its due date.
+
+**Picked (the user, 2026-11-11, from three mockups at claude.ai/artifact/4MsN1puyBUHbHH127xXtGR, private).** Variant C, bin colours. The other two were A (a big count, list for the full view) and B (columns with bars), both Server-only; they stay as the fallback if the Sofa Home release is not wanted, and card and full view are separate displays so they can be mixed.
+
+**What Home Assistant has.** `sensor.kitchen_waste_collection_schedule_bioabfall`, `_leichtverpackungen`, `_restabfall` and `_papier`, plus one `calendar.kitchen_waste_collection_schedule_zweckverband_abfallwirtschaft_region_hannover`. Each sensor's state is text ("on Tue, 17.11.2026", do not parse it) and its attributes are keys `YYYY-MM-DD` mapping to the bin name, three or four upcoming dates, which is all the Server needs. `HaReader` already returns attributes. **Open question:** at 22:42 on 2026-11-11 the calendar listed Papier for that day while the Papier sensor already showed 25 Nov, so a sensor drops a pickup at some point on the day. Look at the sensors on 17 Nov (Bioabfall, morning and evening) and 18 Nov (Leichtverpackungen) to learn when. If a sensor drops a pickup before the household would want "Today", read today's pickups from the calendar entity too.
+
+**Server.** A new widget type and adapter in `server/src/adapters/waste.ts`, a read of entity states only (no new kind of call). Config: `entities` (sensors, at most 6), `title`, and an optional text field of display names such as `Leichtverpackungen=Gelber Sack`, since the German names are long and "Leichtverpackungen" is cut on a small card and a full-screen tile. Days are counted in Europe/Berlin from the date keys. Bins are sorted by next date. Freshness `hourly`; sizes: `small` only (medium and large were not mocked). Each sensor fails alone: it drops out and the rest show; none readable shows the widget as unavailable. No `forKids`: household only, so "Allow in Kids Mode" stays off. Companion's form comes from `/api/widget-types`, so Companion needs no change. A bin's colour comes from keywords in its name (rest, bio, papier, leicht/verpack/gelb); an unknown bin has no colour and draws as plain glass. **Shortcut:** keywords, not a per-bin setting; upgrade when a second household needs other bins.
+
+**Display.**
+
+- *Card (small):* a `value` card filled with the next bin's colour: the count and "days" (or "Today"), the bin name as the note. "Tomorrow" is wider than a 323 px card at 60 px, so the card says "1" and "day"; the full view spells the word out.
+- *Full view:* a `columns` display, one column per bin, drawn as a tile when the column has a colour: a lid in the bin's colour carrying its name, the count large (the word "Today" or "Tomorrow" at a smaller size), the date, and a quiet footer with the pickups after it. The first column's lid also reads "Next". The footer text comes from the Server in `badge` ("Then 1 Dec · 15 Dec"); Sofa Home adds no words (ADR 0003).
+- *Palette (my guess from the usual Hannover bins; the user to confirm against the real ones):* grey `#5f666b`, brown `#86613f`, blue `#3a74b8` with light text, yellow `#e6c04a` with dark ink. These are fixed names in `shared/src/tokens.ts`, like the rain blue; the Server sends only the name.
+
+**What it costs on the TV, and why.** One optional `tone` field on `value` and on `Column` (names `grey`, `brown`, `blue`, `yellow`), checked by `validateDisplay` (an unknown name is a malformed display, so the widget shows unavailable, never a broken Dashboard), drawn by `tv/src/cards.ts` and `tv/app/cards.css`. That is a new signed package and one more reinstall, which breaks the "everything after Session 24 is Server-only" promise once; ADR 0003 gets a short section. A colour is not a glyph, so the "no icons in v1" line stands. Chromium 56 limits apply (flexbox, no grid, no flex gap).
+
+**Tests.** A pure `wasteRows` (days, sorting, "today", past dates dropped) against a fixture trimmed from the real sensors in `server/src/adapters/fixtures/`; `validateDisplay` with and without `tone`; `tv/src/cards.test.ts` for the filled card and the tile; a harness fixture for both sizes and for Today, Tomorrow and six days.
+
+**Done when:** the card and the full view draw live data on the TV in the right colours, the evening before a pickup shows "1 day" (or "Tomorrow" in the full view), one failing sensor drops only its bin, and Sofa Home is reinstalled.
