@@ -1,0 +1,109 @@
+{
+  "frame": [
+    1920,
+    1080
+  ],
+  "method": "Final PNG downscaled to 1920x1080. Shoreline: strongest full-width mean absolute 3-row luminance gradient, rows425:475. Levelness: same gradient in 12 strips. Peak: uppermost strong sky/land edge in x830:890,y255:300, approximate within 2-3px. Contrast: mean 15x15 local standard deviation of Rec709 luma 0..255 in rows481:1080. Same v1 region includes land; not water-only comparison.",
+  "images": {
+    "morning": {
+      "shoreline_y": 468,
+      "shoreline_strip_rows": [
+        468,
+        467,
+        467,
+        468,
+        468,
+        468,
+        467,
+        468,
+        468,
+        468,
+        468,
+        469
+      ],
+      "peak_xy": [
+        854,
+        274
+      ],
+      "mean_15px_local_luminance_std_y_gt_480": 0.985,
+      "v1_same_region": 4.529,
+      "contrast_reduction_percent": 78.2,
+      "mean_water_luminance_0_255": 105.4
+    },
+    "midday": {
+      "shoreline_y": 467,
+      "shoreline_strip_rows": [
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        468
+      ],
+      "peak_xy": [
+        856,
+        273
+      ],
+      "mean_15px_local_luminance_std_y_gt_480": 0.897,
+      "v1_same_region": 8.303,
+      "contrast_reduction_percent": 89.2,
+      "mean_water_luminance_0_255": 115.2
+    },
+    "evening": {
+      "shoreline_y": 467,
+      "shoreline_strip_rows": [
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        467,
+        468
+      ],
+      "peak_xy": [
+        859,
+        274
+      ],
+      "mean_15px_local_luminance_std_y_gt_480": 0.904,
+      "v1_same_region": 3.439,
+      "contrast_reduction_percent": 73.7,
+      "mean_water_luminance_0_255": 74.3
+    },
+    "night": {
+      "shoreline_y": 466,
+      "shoreline_strip_rows": [
+        469,
+        466,
+        466,
+        466,
+        466,
+        466,
+        466,
+        466,
+        466,
+        466,
+        466,
+        469
+      ],
+      "peak_xy": [
+        855,
+        272
+      ],
+      "mean_15px_local_luminance_std_y_gt_480": 0.699,
+      "v1_same_region": 3.063,
+      "contrast_reduction_percent": 77.2,
+      "mean_water_luminance_0_255": 32.3
+    }
+  }
+}
