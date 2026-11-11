@@ -53,6 +53,8 @@ Each session is one self-contained chunk of work that ends in something testable
 | 29 | Time-of-day backgrounds | 4 | 23 | 3 | Sonnet | medium | TV |
 | 30 | App icons | 4 | 23 | 3 | Sonnet | medium | TV |
 | 31 | Design pass and TV walk | 4 | 25, 26, 27, 28, 29, 30 | 3 | Sonnet | high | TV |
+| 32 | Design critique: Sofa Home | 4 | 31 | 3 | Sonnet | high | TV |
+| 33 | Design critique: Companion | 4 | 31 | 3 | Sonnet | high | — |
 
 ### Order and parallel lanes
 
@@ -827,3 +829,35 @@ Apply the chosen direction to what the earlier sessions left: the cards, the hea
 5. Anything that clips: the full-screen calendar week with a real long title and the stack with real rain figures; real calendar and weather text is longer than the fixtures.
 
 **TV walk, 2026-11-11 (user at home; Photo Booth camera, HA keys).** Seen on the TV: icons load for Netflix, Plex, ZDF, ARD and KiKA (the TV has no `iconPath` for YouTube, and its Netflix icon is an old logo); the focus ring is complete on the Kids Mode tile and widgets; the weather stack and the calendar week fit with real data; the four wallpapers read well except the evening greeting (halo made stronger, ee6b333). The live layout was changed to one widget row of five small widgets (revision 49). Not seen: Kids Mode itself, stale/unavailable states. User notes, done the same day: no date under the clock (the greeting carries it); Netflix and YouTube use the mockup's marks, packaged as `img/icon-netflix.svg` and `img/icon-youtube.svg` and tried before the TV's own icon (`BUNDLED` in `tv/src/icons.ts`); the greeting and Kids Mode row sits at the top and the widget and apps rows sit lower (content ends at y 1018, as in the mockup), so the shoreline falls in a clear gap; the focus outline is the white ring alone (`--edge` is transparent except on the ivory panels).
+
+### 32 · Design critique: Sofa Home
+
+**Difficulty 3 · Sonnet · high · TV**
+
+From a heuristic design critique on 2026-11-11 (desktop harness at 1920 x 1080: Dashboard at evening, midday and night, stale and unavailable, Kids Mode, calendar detail, Apps and Widgets tabs). **Not seen on the real TV**: items 5 and 6 are checks, not fixes. The users sit about 3 m away with a remote of arrows and OK. Ordered by priority; severity is Nielsen's 0 to 4.
+
+1. **Kids Mode does not show the remaining time (severity 3).** The Watch Allowance is the point of the feature, yet the Kids screen has no minutes left and no progress cue, so the switch-off at zero is abrupt for a child. Add a quiet pill ("25 min left", or a sun/moon bar, no countdown clock) by the Adults pill in `#kids-head`. Check where the TV gets the figure (the Server's `KidsStatus`), and whether the warning art (`unicorn-warning`) is shown at the warning point at all; if not, that is the same gap.
+2. **Kids grid (severity 2 to 3).** The first tile was not focused on load in the harness: set initial focus in Kids Mode. 300 px tiles wrap six approved apps onto a second row and leave the lower half empty: size the tiles to fill one row (about five, then scroll).
+3. **Widgets tab (severity 2).** The "On Dashboard" badge truncates the names ("Calen...", "Summ...", "Living ..."), and one row of five small widgets leaves about 60 % of the screen empty with no hint of what can be done (move, remove, add). Put the status on its own line or as a small mark, and add a hint line like the lift hint.
+4. **App icons (severity 2).** In the harness every app is a letter circle, and several share a letter. On the real TV Netflix and YouTube are bundled; ARD, ZDF and KiKA depend on the TV's `iconPath`. If any of them is missing or inconsistent, bundle marks the user approves (trademarks).
+5. **Check, do not guess: prominence of the Kids Mode tile.** It is the brightest, most saturated object and competes with the greeting, and its lavender is the only second palette on the Dashboard. Fine if Kids Mode is the main action; for adults it is rare. Look at it from the sofa. The 16 px footer is quiet by design; decide whether adults need it at all.
+6. **Check: midday and night on the TV itself.** The harness draws the clock from the computer and the wallpaper from `?day=`, so they disagree (22:50 over the midday picture). Compare the glass over the light sky and the night picture on the panel.
+7. **Settings (severity 1 to 2).** Typing the Server address with the remote is the one long task on the TV. It is once only; a code or QR for it would save the most effort if it ever comes up again.
+
+**Done when:** the Kids screen shows the time left and starts focused, the Widgets tab reads without truncation, and the user has looked at items 4 to 6 on the TV.
+
+### 33 · Design critique: Companion
+
+**Difficulty 3 · Sonnet · high**
+
+From the same critique, run against the built Companion with a stub Server at 390 x 844 and 1280 x 800 (home, Kids, Remote, editor). The real Server was not used. Ordered by priority.
+
+1. **Phone Remote has no volume, mute or power (severity 3).** The pad has Back, Home, Menu, arrows, OK and playback. Volume is the first thing someone with a lost remote needs. If that is deliberate (the TV is kept silent), say so on the page; otherwise add Volume +/-, Mute and Power through `REMOTE_KEYS`, keeping Home and Menu off in Kids Mode. Also: the media row uses colour emoji while the other buttons are text glyphs (use one set), and the page is vertically centred while Kids and the editor start at the top, so the buttons jump between pages.
+2. **Home is four equal buttons and "Signed in." (severity 2 to 3).** Show status first: TV on or off, Kids Mode state and minutes left, revision. Then two main actions (Top-up, Remote) and the rest lower. Keep the outage banner on top. The data is already in `/api/kids` and `/api/system`.
+3. **Editor on a phone (severity 2 to 3).** The sticky 16:9 preview plus the sticky Publish bar leave about half of 844 px for editing: make the preview collapsible. A row has up to eleven controls (title, up, down, remove; per item name, left, right, row select, remove): a tap-to-select item with arrows would match the TV's lift-and-move (H4). Validation text is developer language ("widgets[1] (w2): calendars: is required"): say "Calendar widget: choose at least one calendar" and point at the field. "Allow in Kids Mode" can be ticked though the TV shows no widgets in Kids Mode yet: disable it until it works. Typed Immich album ids, entity ids and Tizen app ids (already marked as shortcuts in the code) become pickers when this is next touched.
+4. **Kids page (severity 2).** "20:00 of 45 min left" mixes a clock with minutes: say "20 min left of 45 today". Save and publish belongs to the apps list but the Daily minutes field above reads as if it saves alone, and a Kids setting that publishes a layout revision is a surprise: say so on the button or text. "Exit Kids Mode" is styled like every other button; use the danger style and say what it does ("Turn off Kids Mode on the TV").
+5. **Small (severity 1).** The editor's Back link relies on `beforeunload`, which iOS Safari often ignores for unpublished changes. The sign-in form has a password field and a button with no hint which password it is.
+
+**Done when:** the Remote has the keys the user wants (or says why not), Home shows status, the editor's controls fit a phone, and the Kids page wording is plain. Tests: wording in `kids-view.test.ts` and the pure helpers; look at it at 390 px with a stub or the real Server.
+
+**Decisions for the user:** (a) Remote volume, mute and power: wanted, or kept off on purpose? (b) Kids remaining time on the TV: a pill, a sun/moon bar, or nothing (the unicorn warning only)?
