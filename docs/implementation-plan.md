@@ -58,6 +58,7 @@ Each session is one self-contained chunk of work that ends in something testable
 | 34 | Waste collection widget | 4 | 24 | 4 | Sonnet | high | HA, TV |
 | 35 | Weather widget rework | 4 | 24 | 4 | Sonnet | high | HA, TV |
 | 36 | Calendar widget rework | 4 | 26 | 4 | Sonnet | high | HA, TV |
+| 37 | Colour schemes | 4 | 28, 29 | 3 | Sonnet | high | TV |
 
 ### Order and parallel lanes
 
@@ -950,3 +951,42 @@ Chromium 56 limits apply (flexbox, no grid, no flex gap, no backdrop-filter, `ca
 **Tests.** Pure functions in the adapter against the recorded sample (`fixtures/calendar-family.json`): the card at Wed 11 Nov 21:30 (nothing more today, then tomorrow), Thu 12 Nov 14:20 (two rows, then Saturday with the count in the note), Thu 19 Nov 08:45 (the trip in the note, the Dentist `now`, no next-day group) and a day with four events ("and 2 more"); the detail's ranges, "Free" days, spans with their labels, lanes and clip flags, and `past` and `now`. `validateDisplay` with and without `spans`, `note`, `now`, `past`, and with bad indices. `tv/src/cards.test.ts` for the agenda note and quiet line, the span bar and the faded and lit events. Harness fixtures for the card in the three situations and the full view at Wed 11 Nov 21:30 and Thu 19 Nov 08:45.
 
 **Done when:** the card shows the rest of today with times (and the next day when there is room) on the TV, the full view shows seven day columns with the trip as one bar and free days named, readable from the sofa, Kids Mode still shows no titles, and Sofa Home is reinstalled.
+
+### 37 · Colour schemes
+
+**Difficulty 3 · Sonnet · high · TV**
+
+Added 2026-11-12 at the user's request. With the day-cycle wallpapers and the smoked-glass panels in place, the sage green of the glass accents sits badly against the blue and plum skies. Four new schemes were drawn on the real wallpapers (mockup at claude.ai/artifact/AtnuXnMMp6WVQkKAXzb9pa, private), with today's sage kept as a fifth. **Picked (the user, 2026-11-12): all four.** The household chooses one in Companion's Appearance; it is a setting, not tied to the hour.
+
+**The schemes.** Glass is the panel tint at the existing 66 % (`glassDim` 50 %, `glassFull` 96 %); `Selected` is the fill of the selected tab pill and the lifted tile; the rest feed `glassAccent`, `glassBar`, `glassWarn` and `rain`. Text on glass (`glassInk`, `glassMuted`, the lines) does not change. Contrast was measured against the brightest 3 % of each wallpaper's widget band after the glass is laid over it: text at least 9.5:1, accents at least 5.8:1, bars at least 3.9:1 (all four pass; the lowest bar is Plum Dusk).
+
+| Name (id) | Glass | Full-screen glass | Accent | Bar | Warn | Rain | Selected |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Sage (`sage`, today, the default) | 16, 24, 21 | 14, 20, 18 | `#b5dcc0` | `#8fc3a0` | `#ffb4aa` | `#8cc4f5` | `#2f5d46` |
+| Lake Slate (`slate`) | 13, 24, 38 | 11, 20, 32 | `#a8cdf0` | `#7aaedc` | `#ffb4aa` | `#78d9d0` | `#2f5a85` |
+| Lamplight (`lamplight`) | 27, 20, 16 | 24, 18, 14 | `#f1cb8e` | `#e0a458` | `#ff9f93` | `#8cc4f5` | `#8a5a14` |
+| Plum Dusk (`plum`) | 28, 18, 34 | 24, 15, 30 | `#dcc2f0` | `#b494d8` | `#ffb0a8` | `#8cc4f5` | `#5b3a86` |
+| Graphite & Coral (`graphite`) | 19, 20, 22 | 16, 17, 19 | `#efe9dd` | `#f08a6e` | `#ffd479` | `#8cc4f5` | `#b5482e` |
+
+Ideas, so the build keeps their intent: Lake Slate is tone on tone with the lake (rain is teal so it does not blend into the blue bars); Lamplight is the one warm hue against cool water; Plum Dusk picks up the evening sky and the Kids Mode tile's lavender; Graphite & Coral is neutral with one coral, and "unavailable" is amber so it never matches the bars.
+
+**What the mockup got wrong.** It drew a coloured focus outline. On the Dashboard the focus mark is the white ring alone (`--edge` is transparent, Session 28), and that stays: the scheme's last colour only drives `.pill.sel`, the lifted tile (today a hard-coded `rgba(47, 93, 70, 0.9)`) and, for the ivory Settings, Menu and PIN panels, their outline. Whether a coloured outline helps is a question for the TV walk, not for this session.
+
+**Shared (`shared/src/tokens.ts`, `layout.ts`).**
+
+- `SCHEMES`: the table above as data, keyed by id, each a set of overrides of the existing glass names (`glass`, `glassDim`, `glassFull`, `glassAccent`, `glassBar`, `glassWarn`, `rain`, plus a new `selected`). `COLORS` keeps today's values, which are the `sage` scheme; `sage` therefore has no override. A pure `schemeCss(id)` returns the overrides as one rule, in the style of `tokensCss`; an unknown id gives the default.
+- `Layout.scheme?: 'sage' | 'slate' | 'lamplight' | 'plum' | 'graphite'`. **Optional, absent means `sage`, so `LAYOUT_SCHEMA` does not change** and every stored snapshot stays valid. `validateLayout` rejects any other value and names the allowed ones. The Server stores the layout as it does today; nothing else on the Server changes.
+
+**TV (a new signed package and a Sofa Home reinstall).**
+
+- `index.html` defines `--p-*` on `#stage` from `--sofa-color-glass*`; Sofa Home applies the chosen scheme's overrides there from the snapshot (a style element or a class, builder's choice), so every panel, card and tab follows, and `rain` and `selected` get variables the way `--rain` already is. Kids Mode redefines `--p-*` for its ivory grid and must stay exactly as it is (check in the harness that no scheme leaks into it, in particular the lifted tile and the selected pill).
+- A change of scheme in the snapshot repaints without a restart, like a background change. Chromium 56 supports custom properties; no new CSS feature is needed.
+
+**Companion.**
+
+- Appearance gets a "Colour scheme" choice above the background: five buttons, each with its glass and bar colours as a small swatch and the name as the label, the current one marked. An edit function `setScheme(layout, id)` next to `setBackground*` in `companion/src/edit.ts`.
+- The TV preview applies `schemeCss` the same way, so it shows the chosen scheme over the chosen background.
+
+**Tests.** `tokens.test.ts`: every scheme names all keys, every colour is valid, an unknown id gives the default, and a contrast check that text, accent and bar clear 4.5:1 (text, accent) and 3:1 (bar) over the four wallpaper bands (the measured bands are fixed numbers in the test). `layout` validator: each id accepted, absent accepted, an unknown name rejected with the list. `edit.test.ts`: `setScheme` changes only `scheme`. A harness fixture of the Dashboard in every scheme at 8, 12, 19 and 23 hours, and Kids Mode in each scheme to prove it does not change.
+
+**Done when:** the user picks each scheme in Companion and the TV changes within a few seconds without a restart, every scheme is readable (clock aside) over all four wallpapers on the TV, the Weather, Calendar, Power and Waste widgets and an unavailable widget look right in each, Kids Mode is unchanged in each, and Sofa Home is reinstalled. If a scheme turns out wrong on the real TV, it is changed or dropped from `SCHEMES` and the table above, not worked around.
