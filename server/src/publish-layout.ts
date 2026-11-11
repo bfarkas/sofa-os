@@ -30,9 +30,9 @@ function sample(): Layout {
   return {
     schema: 1,
     apps,
-    widgets: [widget('weather', 'small', both, { entity: 'weather.home' }), widget('calendar', 'small', ['household']), widget('energy', 'small', ['household'], { entity: 'sensor.powerfox_aktuell', period: 'now' }), widget('photos', 'small'), widget('home', 'small', ['household'])], // the Dashboard's widget row holds five small ones
+    widgets: [widget('weather', 'small', both, { entity: 'weather.home' }), widget('calendar', 'small', ['household']), widget('energy', 'small', ['household'], { entity: 'sensor.powerfox_aktuell', period: 'now' }), widget('photo', 'small', ['household'], { source: 'photostream' }), widget('status', 'small', ['household'])], // the Dashboard's widget row holds five small ones
     rows: [
-      { id: 'today', title: 'Today (published ' + new Date().toLocaleTimeString('en-GB') + ')', items: ['weather', 'calendar', 'energy'].map((id) => ({ kind: 'widget' as const, id })) },
+      { id: 'today', title: 'Today (published ' + new Date().toLocaleTimeString('en-GB') + ')', items: ['weather', 'calendar', 'energy', 'photo', 'status'].map((id) => ({ kind: 'widget' as const, id })) },
       { id: 'apps', title: 'My Apps', items: apps.map((a) => ({ kind: 'app' as const, id: a.id })) },
     ],
     background: { kind: 'color', color: '#f6f1e7' },

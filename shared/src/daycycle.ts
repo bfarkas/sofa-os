@@ -27,5 +27,5 @@ export const dayInk = (p: DayPeriod): string => textOn(DAY_SKY[p]);
 /** The footer's colour: the water is a mid tone to dark in every period, so this is ivory throughout (the sky's ink would not read there). */
 export const dayFootInk = (p: DayPeriod): string => textOn(DAY_WATER[p]);
 
-/** A soft halo behind the text on the wallpaper (clock, date, greeting): dark behind ivory, light behind ink. The evening's glow measured 2.45:1 under ivory alone. */
-export const dayShadow = (p: DayPeriod): string => (dayInk(p) === COLORS.ivory ? '0 1px 3px rgba(0, 0, 0, 0.35), 0 2px 14px rgba(0, 0, 0, 0.55)' : '0 1px 10px rgba(255, 255, 255, 0.45)');
+/** A soft halo behind the text on the wallpaper (clock, date, greeting): dark behind ivory, light behind ink. The evening's glow measured 2.45:1 under ivory alone, and the first halo still left the date line faint on the TV (2026-11-11), so it is stronger now. */
+export const dayShadow = (p: DayPeriod): string => (dayInk(p) === COLORS.ivory ? '0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.7), 0 0 28px rgba(0, 0, 0, 0.5)' : '0 1px 10px rgba(255, 255, 255, 0.45)');
