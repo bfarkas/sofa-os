@@ -93,11 +93,15 @@ function template(d: Display, size: CardSize): HTMLElement {
     // Day titles and events share the lines; a day title with no event after it is dropped.
     const lines: HTMLElement[] = [];
     for (const day of d.days) {
-      if (!day.events.length) continue;
-      lines.push(h('div', 'a-day', day.title));
+      if (!day.events.length && !day.note) continue; // a day with only a note (an all-day event, "+2 more") still has its header
+      const head = h('div', 'a-day' + (day.note ? ' has-note' : ''));
+      head.appendChild(h('span', 'a-dt', day.title));
+      if (day.note) head.appendChild(h('span', 'a-dn', day.note));
+      lines.push(head);
       for (const e of day.events) {
-        const line = h('div', 'a-ev');
-        line.appendChild(h('span', 'a-t', e.time));
+        // An event with no time is the Server's own quiet line ("Nothing more today", "and 2 more"); `now` lights the time, `past` fades the row.
+        const line = h('div', 'a-ev' + (e.time ? '' : ' q') + (e.now ? ' now' : '') + (e.past ? ' past' : ''));
+        if (e.time) line.appendChild(h('span', 'a-t', e.time));
         const what = line.appendChild(h('span', 'a-w', e.title));
         if (e.detail && size !== 'small') what.appendChild(h('span', 'a-d', '  ' + e.detail));
         lines.push(line);
@@ -107,20 +111,33 @@ function template(d: Display, size: CardSize): HTMLElement {
     if (shown.length && shown[shown.length - 1].className === 'a-day') shown.pop();
     for (const l of shown) body.appendChild(l);
   } else if (d.template === 'days') {
-    for (const day of d.days.slice(0, ITEM_LIMITS.days[size])) {
+    const shownDays = d.days.slice(0, ITEM_LIMITS.days[size]);
+    const spans = (d.spans ?? []).filter((b) => b.from < shownDays.length);
+    const lanes = spans.reduce((m, b) => Math.max(m, b.lane + 1), 0);
+    for (const day of shownDays) {
       const col = body.appendChild(h('div', 'dy' + (day.today ? ' today' : '')));
-      col.appendChild(h('div', 'dy-h', day.title));
-      if (day.subtitle) col.appendChild(h('div', 'dy-s', day.subtitle));
+      const hd = col.appendChild(h('div', 'dy-hd'));
+      hd.appendChild(h('div', 'dy-h', day.title));
+      if (day.subtitle) hd.appendChild(h('div', 'dy-s', day.subtitle));
+      if (lanes) col.appendChild(h('div', 'dy-sp')).style.height = lanes * 46 + 6 + 'px'; // room for the bars that cross the columns (drawn below, over this)
       const cap = ITEM_LIMITS.dayEvents[size];
       // All-day events first, as the Server may send them in start order.
       const events = day.events.filter((e) => e.allDay).concat(day.events.filter((e) => !e.allDay));
       for (const e of events.slice(0, cap < events.length ? cap - 1 : cap)) {
-        const ev = col.appendChild(h('div', 'dy-e' + (e.allDay ? ' all' : '')));
+        const ev = col.appendChild(h('div', 'dy-e' + (e.allDay ? ' all' : '') + (e.time ? '' : ' q') + (e.now ? ' now' : '') + (e.past ? ' past' : '')));
         ev.appendChild(h('div', 'dy-t', e.time));
         ev.appendChild(h('div', 'dy-w', e.title));
         if (e.detail && (size === 'full' || size === 'large')) ev.appendChild(h('div', 'dy-p', e.detail));
       }
       if (events.length > cap) col.appendChild(h('div', 'dy-more', '\u2026'));
+    }
+    // Bars across the columns: a column is (100% + 8px) / n wide including its 8 px margin, so the position is a calc() on the index.
+    for (const b of spans) {
+      const bar = body.appendChild(h('div', 'dy-bar' + (b.clipStart ? ' clip-s' : '') + (b.clipEnd ? ' clip-e' : ''), b.title));
+      const to = Math.min(b.to, shownDays.length - 1);
+      bar.style.left = 'calc(' + b.from + ' * (100% + 8px) / ' + shownDays.length + ')';
+      bar.style.width = 'calc(' + (to - b.from + 1) + ' * (100% + 8px) / ' + shownDays.length + ' - 8px)';
+      bar.style.top = 98 + b.lane * 46 + 'px';
     }
   } else if (d.template === 'chart') {
     const wrap = body.appendChild(h('div', 'ch'));

@@ -37,11 +37,23 @@ export interface AgendaEvent {
   title: string;
   detail?: string; // a place or note; the Server leaves it out for Kids Mode
   allDay?: boolean; // the `days` template sets an all-day event apart (and lists it first)
+  now?: boolean; // it is on right now: its time is drawn in the accent colour (a card) or the event is lit (the week board)
+  past?: boolean; // it is over (today only): drawn faded
+}
+/** One bar across day columns (an all-day or multi-day event); `from` and `to` are column indices, `lane` the row it sits in so no two bars in a lane overlap. */
+export interface DaySpan {
+  title: string;
+  from: number;
+  to: number;
+  lane: number;
+  clipStart?: boolean; // it began before the first column
+  clipEnd?: boolean; // it goes on after the last column
 }
 export interface AgendaDay {
   title: string; // "Today", "Tue 10 Nov"
   subtitle?: string; // `days` only: a second line under the title, e.g. the date number "11"
   today?: boolean; // `days` only: the column is marked
+  note?: string; // `agenda` only: muted text at the right of the day's header (an all-day event, or "+2 more")
   events: AgendaEvent[];
 }
 export interface StackPart {
@@ -61,13 +73,13 @@ export interface StackPart {
  *   stack    two or three of the above, one over the other, in the full-screen view (hours over days); a card shows the first only
  */
 export type Leaf =
-  | { template: 'value'; value: Reading; unit?: string; note?: string; lines?: string[]; tone?: Tone } // lines: short rows under the note, the last one bold (a card shows at most ITEM_LIMITS.lines); tone: the whole card is filled with that colour
+  | { template: 'value'; value: Reading; unit?: string; note?: string; lines?: string[]; tone?: Tone } // lines: short rows under the note, (a card shows at most ITEM_LIMITS.lines); tone: the whole card is filled with that colour
   | { template: 'list'; rows: ListRow[] }
   | { template: 'columns'; columns: Column[]; note?: string }
   | { template: 'agenda'; days: AgendaDay[] }
   | { template: 'photo'; image: string; caption?: string } // image: a path on the Server, loadable without headers
   | { template: 'chart'; points: (number | null)[]; max?: Reading; min?: Reading; axis?: string[]; now?: boolean; note?: string; bars?: (number | null)[]; barMax?: Reading } // max, min: the labels of the top and bottom of the scale; axis: labels spread under the line, with a grid line at each; now: marks the last point; bars: a second series, one per point (0 to 1, translucent columns behind the line, e.g. rain) on its own scale at the right whose top label is barMax
-  | { template: 'days'; days: AgendaDay[] };
+  | { template: 'days'; days: AgendaDay[]; spans?: DaySpan[] }; // spans: bars across the columns, at most 8
 export type Display = Leaf | { template: 'stack'; parts: StackPart[] };
 
 /** A card's size, or the full-screen view. */
@@ -77,7 +89,7 @@ export type CardSize = WidgetSize | 'full';
 export const ITEM_LIMITS: Record<'list' | 'columns' | 'agenda' | 'days' | 'dayEvents' | 'lines', Record<CardSize, number>> = {
   list: { small: 2, medium: 3, large: 6, full: 16 },
   columns: { small: 2, medium: 4, large: 6, full: 12 },
-  agenda: { small: 2, medium: 3, large: 6, full: 16 },
+  agenda: { small: 6, medium: 3, large: 6, full: 16 },
   days: { small: 1, medium: 2, large: 3, full: 7 }, // day columns; each shows at most `dayEvents` events, the rest is cut with an ellipsis
   dayEvents: { small: 2, medium: 2, large: 2, full: 4 },
   lines: { small: 2, medium: 3, large: 3, full: 4 }, // the extra rows of a value card
@@ -258,6 +270,7 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
       if (!isObj(day)) return err(p, 'must be an object');
       str(day.title, p + '.title', SHORT);
       str(day.subtitle, p + '.subtitle', SHORT, true);
+      str(day.note, p + '.note', SHORT, true);
       if (day.today !== undefined && typeof day.today !== 'boolean') err(p + '.today', 'must be true or false');
       list(day.events, p + '.events', 30).forEach((e, j) => {
         const q = p + '.events[' + j + ']';
@@ -266,6 +279,7 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
         str(e.title, q + '.title', TEXT);
         str(e.detail, q + '.detail', TEXT, true);
         if (e.allDay !== undefined && typeof e.allDay !== 'boolean') err(q + '.allDay', 'must be true or false');
+        for (const k of ['now', 'past'] as const) if (e[k] !== undefined && typeof e[k] !== 'boolean') err(q + '.' + k, 'must be true or false');
       });
     });
   const one = (d: Obj, path: string, nested: boolean): void => {
@@ -299,6 +313,18 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
     });
   } else if (d.template === 'agenda' || d.template === 'days') {
     agendaDays(d.days, path + '.days');
+    if (d.template === 'days' && d.spans !== undefined) {
+      const n = Array.isArray(d.days) ? d.days.length : 0;
+      list(d.spans, path + '.spans', 8).forEach((b, i) => {
+        const p = path + '.spans[' + i + ']';
+        if (!isObj(b)) return err(p, 'must be an object');
+        str(b.title, p + '.title', TEXT);
+        const index = (v: unknown, k: string) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) < n ? true : (err(p + '.' + k, 'must be a whole number from 0 to ' + (n - 1)), false));
+        if (index(b.from, 'from') && index(b.to, 'to') && (b.from as number) > (b.to as number)) err(p + '.to', 'must not be before from');
+        if (!Number.isInteger(b.lane) || (b.lane as number) < 0) err(p + '.lane', 'must be a whole number, 0 or more');
+        for (const k of ['clipStart', 'clipEnd'] as const) if (b[k] !== undefined && typeof b[k] !== 'boolean') err(p + '.' + k, 'must be true or false');
+      });
+    }
   } else if (d.template === 'photo') {
     if (typeof d.image !== 'string' || !IMAGE.test(d.image)) err(path + '.image', 'must be a path on the Server, like /api/media/1.jpg');
     str(d.caption, path + '.caption', TEXT, true);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { validateDisplay, type AgendaDay, type Layout, type WidgetInstance, type WidgetSize } from '@sofa/shared';
+import { validateDisplay, type AgendaDay, type DaySpan, type Layout, type WidgetInstance, type WidgetSize } from '@sofa/shared';
 import { createWidgets } from '../widgets.ts';
 import { calendarAdapter, createCalendarReader, type RawEvent } from './calendar.ts';
 
@@ -17,60 +17,96 @@ const ctx = { now: NOW, signal };
 const CONFIG = { calendar: 'calendar.family', days: 7 };
 async function read(raw: RawEvent[], o: { now?: number; size?: WidgetSize; config?: Record<string, unknown> } = {}) {
   const r = await adapter(raw).read(o.config ?? CONFIG, { now: o.now ?? NOW, signal, size: o.size });
-  assert.ok('card' in r && r.card.template === 'days', JSON.stringify(r));
-  const problems = [...validateDisplay(r.card), ...validateDisplay(r.detail)];
-  assert.deepEqual(problems, []);
-  return r as { card: { template: 'days'; days: AgendaDay[] }; detail: { template: 'days'; days: AgendaDay[] } };
+  assert.ok('card' in r, JSON.stringify(r));
+  assert.deepEqual([...validateDisplay(r.card), ...validateDisplay(r.detail)], []);
+  assert.ok(r.card.template === 'days' || r.card.template === 'agenda');
+  assert.ok(r.detail?.template === 'days');
+  return { card: r.card, detail: r.detail };
 }
-/** The full-screen view: seven day columns from today. */
+/** The full-screen view: seven day columns from today, and the bars across them. */
 const week = async (raw: RawEvent[], now = NOW) => (await read(raw, { now })).detail.days;
+const bars = async (raw: RawEvent[], now = NOW): Promise<DaySpan[] | undefined> => (await read(raw, { now })).detail.spans;
 const card = async (raw: RawEvent[], size: WidgetSize, now = NOW) => (await read(raw, { now, size })).card.days;
-const flat = (d: AgendaDay[]) => d.map((x) => [x.title + (x.subtitle ? ' ' + x.subtitle : '') + (x.today ? '*' : ''), ...x.events.map((e) => `${e.time} ${e.title}`.trim())]);
+const flat = (d: AgendaDay[]) => d.map((x) => [x.title + (x.subtitle ? ' ' + x.subtitle : '') + (x.today ? '*' : '') + (x.note ? ' (' + x.note + ')' : ''), ...x.events.map((e) => `${e.time} ${e.title}`.trim())]);
+const timed = (d: AgendaDay[]) => d.reduce((n, x) => n + x.events.filter((e) => e.time).length, 0);
 
-test('the detail is seven day columns from today, today marked, in start order whatever order Home Assistant sent', async () => {
+test('the detail is seven day columns from today with time ranges, free days named and the trip as a bar', async () => {
   assert.equal(events[0].summary, 'Choir practice'); // the fixture lists series by series, as Home Assistant did
   assert.deepEqual(flat(await week(events)), [
-    ['Today 11*', '07:45 Cleaner'],
-    ['Thu 12', '15:30 Dance class', '16:15 Choir practice'],
-    ['Fri 13'],
-    ['Sat 14', '11:45 Haircut', '14:00 Open day'],
-    ['Sun 15'],
-    ['Mon 16', '16:45 Music class'],
-    ['Tue 17', 'All day Trip away'],
+    ['Today 11*', '07:45–10:45 Cleaner'],
+    ['Thu 12', '15:30–16:15 Dance class', '16:15–17:00 Choir practice'],
+    ['Fri 13', 'Free'],
+    ['Sat 14', '11:45–12:45 Haircut', '14:00–17:00 Open day'],
+    ['Sun 15', 'Free'],
+    ['Mon 16', '16:45–17:30 Music class'],
+    ['Tue 17'], // the trip starts here: a bar over the column, not a free day
   ]);
+  assert.deepEqual(await bars(events), [{ title: 'Trip away', from: 6, to: 6, lane: 0, clipEnd: true }]);
+  const d = await week(events);
+  assert.equal(d[1].events[1].detail, 'Room 1'); // the place
 });
 
-test('sorting happens before the limit, so the limit keeps the soonest events', async () => {
+test('now and past: the event on now reads "Now–end", ended ones of today are faded, later days never', async () => {
+  const d = await week(events, at('2026-11-19T07:45:00Z')); // Thu 19 08:45, the Dentist (08:30 to 09:30) is on
+  assert.deepEqual(d[0].events.map((e) => [e.time, !!e.now, !!e.past]), [['Now–09:30', true, false], ['15:30–16:15', false, false], ['17:00–17:45', false, false]]);
+  const after = await week(events, at('2026-11-19T10:00:00Z')); // 11:00: the Dentist is over
+  assert.deepEqual(after[0].events.map((e) => [e.time, !!e.now, !!e.past]), [['08:30–09:30', false, true], ['15:30–16:15', false, false], ['17:00–17:45', false, false]]);
+  assert.ok(after.slice(1).every((x) => x.events.every((e) => !e.past && !e.now)));
+});
+
+test('a day holds at most 30 events, and an event on another day still shows', async () => {
   const late = { uid: 'late', start: '2026-11-17T10:00:00+01:00', end: '2026-11-17T11:00:00+01:00', summary: 'Late' };
   const soon = Array.from({ length: 40 }, (_, i) => ({ uid: 's' + i, start: '2026-11-12T10:00:00+01:00', end: '2026-11-12T11:00:00+01:00', summary: 'Soon ' + i }));
   const d = await week([late, ...soon]);
-  assert.equal(d[1].events.length, 30); // a column holds at most 30
-  assert.equal(d[6].events.length, 0); // the later event, listed first, is what the limit of 40 drops
+  assert.equal(d[1].events.length, 30);
+  assert.deepEqual(flat(d)[6], ['Tue 17', '10:00–11:00 Late']);
 });
 
 test('a moved occurrence keeps its identity and is shown once at its new time', async () => {
-  assert.deepEqual(flat(await week(events, at('2026-11-19T05:00:00Z')))[0], ['Today 19*', 'All day Trip away', '08:30 Dentist', '15:30 Dance class', '17:00 Choir practice']);
+  const d = await week(events, at('2026-11-19T05:00:00Z'));
+  assert.deepEqual(flat(d)[0], ['Today 19*', '08:30–09:30 Dentist', '15:30–16:15 Dance class', '17:00–17:45 Choir practice']);
 });
 
 test('occurrences of one series are told apart by uid plus recurrence_id, and the same one twice counts once', async () => {
   const one = events[0];
-  const count = async (raw: RawEvent[]) => (await week(raw)).reduce((n, x) => n + x.events.length, 0);
+  const count = async (raw: RawEvent[]) => timed(await week(raw));
   assert.equal(await count([one, one]), 1); // e.g. two overlapping queries
   assert.equal(await count([one, { ...one, recurrence_id: '2026-11-12 10:00:00+01:00' }]), 2); // same uid and start, other recurrence_id
 });
 
-test('date-only events: exclusive end, multi-day spans every day, one-day ends the next day', async () => {
-  const d = await week(events, at('2026-11-17T05:00:00Z'));
+test('date-only events: exclusive end, a multi-day one is a bar with its length, a one-day one a bar of one column', async () => {
+  const now = at('2026-11-17T05:00:00Z');
+  const d = await week(events, now);
   assert.deepEqual(flat(d), [
-    ['Today 17*', 'All day Trip away'],
-    ['Wed 18', 'All day Trip away', '07:45 Cleaner'],
-    ['Thu 19', 'All day Trip away', '08:30 Dentist', '15:30 Dance class', '17:00 Choir practice'],
-    ['Fri 20', 'All day School closed'], // "Trip away" ends exclusively on the 20th
-    ['Sat 21'],
-    ['Sun 22'],
-    ['Mon 23', '16:45 Music class'],
+    ['Today 17*'],
+    ['Wed 18', '07:45–10:45 Cleaner'],
+    ['Thu 19', '08:30–09:30 Dentist', '15:30–16:15 Dance class', '17:00–17:45 Choir practice'],
+    ['Fri 20'], // "School closed"
+    ['Sat 21', 'Free'],
+    ['Sun 22', 'Free'],
+    ['Mon 23', '16:45–17:30 Music class'],
   ]);
-  assert.ok(d[0].events[0].allDay && !d[1].events[1].allDay);
+  // "Trip away" ends exclusively on the 20th; both bars share lane 0 as they do not overlap.
+  assert.deepEqual(await bars(events, now), [{ title: 'Trip away · 3 days', from: 0, to: 2, lane: 0 }, { title: 'School closed', from: 3, to: 3, lane: 0 }]);
+});
+
+test('bars: "day 3 of 4" for a trip already under way, clip flags, overlapping bars in their own lanes, at most 8', async () => {
+  const trips: RawEvent[] = [
+    { uid: 't', start: '2026-11-10', end: '2026-11-14', summary: 'Trip' },
+    { uid: 'u', start: '2026-11-12', end: '2026-11-16', summary: 'Camp' },
+    { uid: 'v', start: '2026-11-15', end: '2026-11-18', summary: 'Visit' },
+  ];
+  assert.deepEqual(await bars(trips, at('2026-11-12T06:00:00Z')), [
+    { title: 'Camp · 4 days', from: 0, to: 3, lane: 0 },
+    { title: 'Trip · day 3 of 4', from: 0, to: 1, lane: 1, clipStart: true },
+    { title: 'Visit · 3 days', from: 3, to: 5, lane: 1 },
+  ]);
+  // A trip that runs past the window is clipped at the right; one that began long before and ends today shows its bare title.
+  assert.deepEqual(await bars([{ uid: 'l', start: '2026-11-12', end: '2026-11-30', summary: 'Long' }], at('2026-11-12T06:00:00Z')), [{ title: 'Long · 18 days', from: 0, to: 6, lane: 0, clipEnd: true }]);
+  assert.deepEqual(await bars([{ uid: 'e', start: '2026-11-09', end: '2026-11-13', summary: 'Ending' }], at('2026-11-12T06:00:00Z')), [{ title: 'Ending', from: 0, to: 0, lane: 0, clipStart: true }]);
+  const many = Array.from({ length: 10 }, (_, i) => ({ uid: 'm' + i, start: '2026-11-12', end: '2026-11-13', summary: 'M' + i }));
+  assert.equal((await bars(many, at('2026-11-12T06:00:00Z')))?.length, 8);
+  assert.equal(await bars([events[0]]), undefined); // no all-day event: no spans at all
 });
 
 test('the REST string form and the object form of start and end give the same days', async () => {
@@ -78,15 +114,17 @@ test('the REST string form and the object form of start and end give the same da
     const f = (v: string) => (/^\d{4}-\d\d-\d\d$/.test(v) ? { date: v } : { dateTime: v });
     return { ...e, start: f(e.start as string), end: f(e.end as string) };
   });
-  for (const now of [NOW, at('2026-11-17T05:00:00Z')]) assert.deepEqual(await week(wrapped, now), await week(events, now));
+  for (const now of [NOW, at('2026-11-17T05:00:00Z')]) assert.deepEqual(await read(wrapped, { now }), await read(events, { now }));
 });
 
-test('a timed event past midnight continues on the next day; one ending at midnight does not', async () => {
+test('a timed event past midnight stays one row on its start day; one ending at midnight ends there', async () => {
   const d = await week([
     { uid: 'a', start: '2026-11-11T22:00:00+01:00', end: '2026-11-12T01:30:00+01:00', summary: 'Late' },
     { uid: 'b', start: '2026-11-12T20:00:00+01:00', end: '2026-11-13T00:00:00+01:00', summary: 'Early' },
   ]);
-  assert.deepEqual(flat(d).slice(0, 3), [['Today 11*', '22:00 Late'], ['Thu 12', 'Until 01:30 Late', '20:00 Early'], ['Fri 13']]);
+  assert.deepEqual(flat(d).slice(0, 3), [['Today 11*', '22:00–01:30 Late'], ['Thu 12', '20:00–00:00 Early'], ['Fri 13', 'Free']]);
+  // Over 24 hours it is a bar.
+  assert.equal((await bars([{ uid: 'c', start: '2026-11-11T20:00:00+01:00', end: '2026-11-13T09:00:00+01:00', summary: 'Camp' }]))?.[0].title, 'Camp · 3 days');
 });
 
 test('nothing in range is an empty widget, and the window stops after the configured days', async () => {
@@ -97,20 +135,29 @@ test('nothing in range is an empty widget, and the window stops after the config
   assert.deepEqual((await read(events, { config: { calendar: 'calendar.family', days: 3 } })).detail.days.length, 3);
 });
 
-test('small card: the next event with its time and title, and how many more that day', async () => {
-  // 07:00 Wednesday: the cleaner (07:45 to 10:45) is the only event today.
-  assert.deepEqual(flat(await card(events, 'small')), [['Today*', '07:45 Cleaner']]); // the small card shows one day, titled, with no date number
-  // Tomorrow has two events; with nothing today (cleaner over) the card moves on and says so.
-  assert.deepEqual(flat(await card(events, 'small', at('2026-11-11T10:00:00Z'))), [['Tomorrow', '15:30 Dance class', 'and 1 more tomorrow']]);
+test('small card: the rest of today with its times, then the next day when a header and a row still fit', async () => {
+  const note = (d: AgendaDay[]) => d.map((x) => x.note ?? null);
+  // Wed 07:00: one event today (26 + 40), and room for a header and one row, so tomorrow's first and the count in the note.
+  const wed = await card(events, 'small');
+  assert.deepEqual(flat(wed), [['Today*', '07:45 Cleaner'], ['Tomorrow (+1 more)', '15:30 Dance class']]);
+  assert.equal((await read(events)).card.template, 'agenda'); // no size given reads as small
+  // Wed 21:30: the cleaner is over: the quiet line, then tomorrow with both events.
+  assert.deepEqual(flat(await card(events, 'small', at('2026-11-11T20:30:00Z'))), [['Today*', 'Nothing more today'], ['Tomorrow', '15:30 Dance class', '16:15 Choir practice']]);
+  // Thu 14:20: two rows today fill the budget; the next day with something is Saturday, whose count goes in the note.
+  assert.deepEqual(flat(await card(events, 'small', at('2026-11-12T13:20:00Z'))), [['Today*', '15:30 Dance class', '16:15 Choir practice'], ['Sat 14 (+2 more)']]);
+  // Thu 19 08:45: the trip is the header's note, the Dentist is on now, three rows leave no room for another day.
+  const thu = await card(events, 'small', at('2026-11-19T07:45:00Z'));
+  assert.deepEqual(flat(thu), [['Today* (Trip away)', '08:30 Dentist', '15:30 Dance class', '17:00 Choir practice']]);
+  assert.ok(thu[0].events[0].now && !thu[0].events[1].now);
+  // Four events today: two rows and "and 2 more"; an event that is over drops off the card but not the detail.
   const day = [1, 2, 3, 4].map((i) => ({ uid: 'x' + i, start: `2026-11-11T1${i}:00:00+01:00`, end: `2026-11-11T1${i}:30:00+01:00`, summary: 'E' + i }));
-  assert.deepEqual(flat(await card(day, 'small')), [['Today*', '11:00 E1', 'and 3 more today']]);
-  // An event that is over drops off the card but not the detail.
-  assert.deepEqual(flat(await card(day, 'small', at('2026-11-11T10:45:00Z'))), [['Today*', '12:00 E2', 'and 2 more today']]);
-  assert.equal((await week(day, at('2026-11-11T10:45:00Z')))[0].events.length, 4);
-  // All day events are not "next" while a timed one is on; on their own they are.
-  const mixed = [{ uid: 'a', start: '2026-11-11', end: '2026-11-12', summary: 'Birthday' }, day[0]];
-  assert.deepEqual(flat(await card(mixed, 'small')), [['Today*', '11:00 E1', 'and 1 more today']]);
-  assert.deepEqual(flat(await card([mixed[0]], 'small')), [['Today*', 'All day Birthday']]);
+  assert.deepEqual(flat(await card(day, 'small')), [['Today*', '11:00 E1', '12:00 E2', 'and 2 more']]);
+  assert.deepEqual(flat(await card(day, 'small', at('2026-11-11T10:45:00Z'))), [['Today*', '12:00 E2', '13:00 E3', '14:00 E4']]);
+  assert.equal(timed(await week(day, at('2026-11-11T10:45:00Z'))), 4);
+  // An all-day event never takes a row; with more than one the note counts the rest.
+  const two = [{ uid: 'a', start: '2026-11-11', end: '2026-11-12', summary: 'Birthday' }, { uid: 'b', start: '2026-11-11', end: '2026-11-12', summary: 'Holiday' }, day[0]];
+  assert.deepEqual(flat(await card(two, 'small')), [['Today* (Birthday +1)', '11:00 E1']]);
+  assert.deepEqual(note(await card([two[0]], 'small')), ['Birthday']);
   // Nothing left today and nothing later in the window.
   assert.deepEqual(flat(await card([day[0]], 'small', at('2026-11-11T12:00:00Z'))), [['Today*', 'Nothing more today']]);
 });
@@ -118,8 +165,6 @@ test('small card: the next event with its time and title, and how many more that
 test('medium shows today and tomorrow, large three days, each a day column', async () => {
   assert.deepEqual(flat(await card(events, 'medium')), [['Today 11*', '07:45 Cleaner'], ['Thu 12', '15:30 Dance class', '16:15 Choir practice']]);
   assert.deepEqual(flat(await card(events, 'large')).map((x) => x[0]), ['Today 11*', 'Thu 12', 'Fri 13']);
-  // No size given reads as small (the default size).
-  assert.equal((await read(events)).card.days.length, 1);
   // Nothing in the first days: the card shows the next event instead of empty columns.
   assert.deepEqual(flat(await card(events, 'large', at('2026-11-13T06:00:00Z'))), [['Today 13*'], ['Sat 14', '11:45 Haircut', '14:00 Open day'], ['Sun 15']]);
   // Nothing in the first days: the card shows the next event, with its day, instead of empty columns.
@@ -159,14 +204,15 @@ test("the Server's own calendar.get_events response (no uid, no recurrence_id) s
   assert.ok(raw.every((e) => !('uid' in e)));
   const d = await week([...raw, raw[0]], at('2026-11-16T06:00:00Z'));
   assert.deepEqual(flat(d), [
-    ['Today 16*', '16:45 Music class'],
-    ['Tue 17', 'All day Trip away'],
-    ['Wed 18', 'All day Trip away', '07:45 Cleaner'],
-    ['Thu 19', 'All day Trip away', '08:30 Dentist', '15:30 Dance class', '16:15 Choir practice'],
-    ['Fri 20', 'All day School closed', '15:15 Gymnastics'],
-    ['Sat 21'],
-    ['Sun 22'],
+    ['Today 16*', '16:45–17:30 Music class'],
+    ['Tue 17'],
+    ['Wed 18', '07:45–10:45 Cleaner'],
+    ['Thu 19', '08:30–09:30 Dentist', '15:30–16:15 Dance class', '16:15–17:00 Choir practice'],
+    ['Fri 20', '15:15–16:00 Gymnastics'],
+    ['Sat 21', 'Free'],
+    ['Sun 22', 'Free'],
   ]);
+  assert.deepEqual((await bars([...raw, raw[0]], at('2026-11-16T06:00:00Z')))?.map((b) => b.title), ['Trip away · 3 days', 'School closed']);
 });
 
 // ---- Kids Mode: nothing about an event but that it exists ----
@@ -201,4 +247,17 @@ test('kids small card keeps only the count line, never a title', () => {
   const sneaky = { card: { template: 'days' as const, days: [{ title: 'Today', events: [{ time: '', title: 'Dentist' }] }] } };
   assert.equal(JSON.stringify(a.forKids!(sneaky)).includes('Dentist'), false);
   assert.deepEqual(a.forKids!({ empty: 'No events today' }), { empty: 'No events today' });
+});
+
+test('kids small agenda card: groups and times stay, no title, note or span title; an all-day event is a row', async () => {
+  const small = (await adapter(events).read(CONFIG, { now: at('2026-11-19T07:45:00Z'), signal, size: 'small' })) as { card: never; detail: never };
+  assert.equal((small.card as { template: string }).template, 'agenda');
+  const kids = adapter(events).forKids!(small as never);
+  const json = JSON.stringify(kids);
+  for (const s of SECRETS) assert.ok(!json.includes(s), s);
+  assert.ok(!json.includes('"note"') && !json.includes('"detail"') && !json.includes('spans'));
+  assert.deepEqual(flat((kids as { card: { days: AgendaDay[] } }).card.days), [['Today*', 'All day Something planned', '08:30 Something planned', '15:30 Something planned', '17:00 Something planned']]);
+  // A "+N more" note is a count, not an event: it is dropped, not turned into a row.
+  const counted = adapter(events).forKids!({ card: { template: 'agenda', days: [{ title: 'Sat 14', note: '+2 more', events: [] }] } });
+  assert.deepEqual(counted, { card: { template: 'agenda', days: [{ title: 'Sat 14', events: [] }] } });
 });

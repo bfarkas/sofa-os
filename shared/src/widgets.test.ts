@@ -92,3 +92,16 @@ test('checkWidgets names the widget, the field and a size its type does not offe
     'widgets[2] (c): entities: must be at most 2 different entities of sensor',
   ]);
 });
+
+test('validateDisplay checks a day\'s note, an event\'s now and past, and the spans of a days display', () => {
+  const days = [{ title: 'Today', events: [{ time: '08:30–09:30', title: 'Dentist', now: true }, { time: '07:00', title: 'Run', past: true }], note: 'Trip away' }, { title: 'Fri', events: [] }];
+  assert.deepEqual(validateDisplay({ template: 'days', days, spans: [{ title: 'Trip away · 3 days', from: 0, to: 1, lane: 0, clipEnd: true }] }), []);
+  assert.deepEqual(validateDisplay({ template: 'agenda', days }), []);
+  const bad = (spans: unknown) => validateDisplay({ template: 'days', days, spans } as never);
+  assert.deepEqual(bad([{ title: 'x', from: 0, to: 2, lane: 0 }]), ['display.spans[0].to: must be a whole number from 0 to 1']);
+  assert.deepEqual(bad([{ title: 'x', from: 1, to: 0, lane: 0 }]), ['display.spans[0].to: must not be before from']);
+  assert.deepEqual(bad([{ title: 'x', from: 0, to: 0, lane: -1 }]), ['display.spans[0].lane: must be a whole number, 0 or more']);
+  assert.deepEqual(bad([{ title: 'x', from: 0.5, to: 1, lane: 0 }]).length, 1);
+  assert.deepEqual(bad(Array.from({ length: 9 }, () => ({ title: 'x', from: 0, to: 0, lane: 0 }))), ['display.spans: must be a list of at most 8']);
+  assert.deepEqual(validateDisplay({ template: 'agenda', days: [{ title: 'Today', events: [{ time: '1', title: 't', now: 'yes' }] }] } as never), ['display.days[0].events[0].now: must be true or false']);
+});

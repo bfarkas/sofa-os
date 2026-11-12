@@ -83,7 +83,17 @@
 .a-t { flex: none; width: 110px; overflow: hidden; font-size: 24px; color: var(--p-muted); }
 .a-w { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: bold; }
 .a-d { font-weight: normal; color: var(--p-muted); }
-.small .a-t { width: 80px; font-size: 22px; }
+.small .a-t { width: 74px; font-size: 22px; }
+/* Session 36: the small calendar card is an agenda in a 168 px body: header 26, row 40, quiet line 34 (the Server counts with the same numbers) */
+.a-day { display: flex; }
+.a-dt { flex: none; }
+.a-dn { flex: 1; min-width: 0; margin-left: 10px; overflow: hidden; text-overflow: ellipsis; text-align: right; font-weight: normal; letter-spacing: 0; text-transform: none; color: var(--p-muted); }
+.small .a-day { height: 26px; line-height: 26px; }
+.small .a-ev { height: 40px; font-size: 26px; }
+.a-ev.q { height: 34px; font-size: 24px; color: var(--p-muted); }
+.a-ev.q .a-w { font-weight: normal; }
+.a-ev.now .a-t { font-weight: bold; color: var(--p-accent); }
+.a-ev.past { opacity: .42; }
 .large .t-agenda { height: 140px; }
 .large .a-day, .large .a-ev { width: 47%; margin-right: 6%; }
 
@@ -92,6 +102,12 @@
 .dy { flex: 1; min-width: 0; margin-right: 8px; padding: 4px 6px; border-radius: 12px; overflow: hidden; }
 .dy:last-child { margin-right: 0; }
 .dy.today { background: var(--p-soft); }
+.dy-sp { flex: none; }
+.dy-e.past { opacity: .42; }
+.dy-e.now .dy-t { font-weight: bold; color: var(--p-accent); }
+.dy-bar { position: absolute; box-sizing: border-box; height: 40px; padding: 0 12px; border-radius: 10px; background: var(--p-bar); color: #14201b; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 24px; line-height: 40px; font-weight: bold; }
+.dy-bar.clip-s { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.dy-bar.clip-e { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .dy-h { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: var(--p-accent); }
 .dy-s { font-size: 30px; font-weight: bold; line-height: 1.1; }
 .dy-e { margin-top: 6px; padding: 3px 6px; border-radius: 8px; overflow: hidden; }
@@ -182,11 +198,18 @@
 .full .a-t { width: 170px; font-size: 32px; }
 .full .ph { height: 520px; object-fit: contain; }
 .full .t-days { height: 528px; }
-.full .dy { padding: 8px 6px; }
-.full .dy-h { font-size: 26px; }
-.full .dy-s { font-size: 44px; }
-.full .dy-e { margin-top: 14px; padding: 8px 4px; }
+.full .dy { padding: 0 6px 8px; }
+.full .dy-hd { height: 92px; margin: 0 -6px; padding: 0 6px; border-radius: 12px 12px 0 0; }
+.full .dy.today .dy-hd { background: var(--p-bar); color: #14201b; } /* today's header filled, dark ink */
+.full .dy.today .dy-h { color: #14201b; }
+.full .dy-h { height: 38px; line-height: 38px; font-size: 24px; }
+.full .dy-s { height: 54px; line-height: 54px; font-size: 46px; }
+.full .dy-e { margin-top: 10px; padding: 6px 10px; border-left: 5px solid var(--p-bar); border-radius: 8px; background: var(--p-soft); }
+.full .dy-e.now { background: rgba(143, 195, 160, 0.3); }
+.full .dy-e.q { border-left: 0; background: none; text-align: center; }
+.full .dy-e.q .dy-w { font-size: 26px; }
 .full .dy-t { font-size: 26px; }
+.full .dy-bar { font-size: 24px; }
 .full .dy-w { font-size: 28px; line-height: 34px; } /* 'Elternabend' fits a 7-day column whole (it broke mid-word at 30 px) */
 .full .dy-p { font-size: 24px; }
 .full .t-chart { height: 528px; }

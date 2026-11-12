@@ -2,7 +2,7 @@
 // fixture widget data (no Server, no TV). The arrow keys, Enter and Escape drive it like the remote. Not part of the signed package.
 //   npm run harness -w tv, serve tv/ (python3 -m http.server 8077 -d tv), open /harness/dash.html at 1920 x 1080.
 // Query: ?tab=apps|widgets, ?focus=<id> (kids, widget:weather, app:org.tizen.netflix-app, allapps), ?screen=kids, ?apps=N (more apps),
-//   ?icons=<image url> (Session 30: Netflix, Plex and ARD get that picture as their icon, YouTube a path that does not load, ZDF an API error and KiKA none: the letter stays), ?day=H (0 to 23: the day-cycle background as at that hour, through the real photoview; setDayHour(h) in the console changes it), ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable|mixed (one stale, one unavailable, one empty), ?still (no transitions, for screenshots), ?full=weather|calendar|energy|home (the full-screen view open, as OK on that widget does).
+//   ?icons=<image url> (Session 30: Netflix, Plex and ARD get that picture as their icon, YouTube a path that does not load, ZDF an API error and KiKA none: the letter stays), ?day=H (0 to 23: the day-cycle background as at that hour, through the real photoview; setDayHour(h) in the console changes it), ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable|mixed (one stale, one unavailable, one empty), ?still (no transitions, for screenshots), ?cal=now|night|busy (the calendar card in three situations), ?full=weather|calendar|energy|home (the full-screen view open, as OK on that widget does).
 import { dayFootInk, dayInk, dayShadow, periodAt, tokensCss, type Layout, type WidgetData } from '@sofa/shared';
 import { cardOptions, drawCard, setWidgetsState } from '../src/cards.ts';
 import type { RemoteEvent, RemoteKey } from '../src/keys.ts';
@@ -24,17 +24,28 @@ const wdays = ['Today', 'Fri', 'Sat', 'Sun', 'Mon'].map((label, i) => ({ label, 
 // Session 35: 25 hourly temperatures from 13:00, rain per hour as a share of 2 mm.
 const temps = Array.from({ length: 25 }, (_, i) => Math.round((0.45 + 0.35 * Math.sin((i - 4) / 3.8)) * 1000) / 1000);
 const rainBars = [0, 0, 0, 0, 0, 0, 0, 0.1, 0.25, 0.6, 0.9, 0.5, 0.3, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-const weekDays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((title, i) => ({
-  title,
-  subtitle: String(11 + i),
-  today: i === 0,
-  events: [
-    ...(i === 1 ? [{ time: 'All day', title: "St. Martin's Day", allDay: true }] : []),
-    { time: '09:15', title: i === 2 ? 'Elternabend der Klasse 2b mit dem langen Titel' : 'Dentist', detail: i === 2 ? 'Schule' : undefined },
-    { time: '16:30', title: 'Piano lesson' },
-    ...(i % 3 === 0 ? [{ time: '18:00', title: 'Football training' }, { time: '19:30', title: 'Dinner' }, { time: '21:00', title: 'Call' }, { time: '22:00', title: 'Late' }] : []),
-  ],
-}));
+// Session 36: the week board (Thu 19 Nov 08:45: the trip began on the 17th, the Dentist is on) and the small card in three situations (?cal=night|busy|now).
+const ev = (time: string, title: string, o: object = {}) => ({ time, title, ...o });
+const weekDays = [
+  { title: 'Today', subtitle: '19', today: true, events: [ev('Now\u201309:30', 'Dentist', { now: true, detail: 'Dr. Sample, Sample Street 1' }), ev('15:30\u201316:15', 'Dance class'), ev('17:00\u201317:45', 'Choir practice', { detail: 'Room 1' }), ev('19:00\u201321:00', 'Elternabend der Klasse 2b mit dem langen Titel', { detail: 'Schule' })] },
+  { title: 'Fri', subtitle: '20', events: [] },
+  { title: 'Sat', subtitle: '21', events: [ev('', 'Free')] },
+  { title: 'Sun', subtitle: '22', events: [ev('', 'Free')] },
+  { title: 'Mon', subtitle: '23', events: [ev('16:45\u201317:30', 'Music class')] },
+  { title: 'Tue', subtitle: '24', events: [ev('', 'Free')] },
+  { title: 'Wed', subtitle: '25', events: [ev('07:45\u201310:45', 'Cleaner')] },
+];
+const weekSpans = [
+  { title: 'Trip away', from: 0, to: 0, lane: 0, clipStart: true },
+  { title: 'School closed', from: 1, to: 1, lane: 0 },
+  { title: 'Grandparents visit \u00b7 4 days', from: 3, to: 6, lane: 0, clipEnd: true },
+];
+const calCards = {
+  night: { template: 'agenda' as const, days: [{ title: 'Today', today: true, events: [ev('', 'Nothing more today')] }, { title: 'Tomorrow', events: [ev('15:30', 'Dance class'), ev('16:15', 'Choir practice')] }] },
+  busy: { template: 'agenda' as const, days: [{ title: 'Today', today: true, events: [ev('15:30', 'Dance class'), ev('16:15', 'Choir practice')] }, { title: 'Sat 14', note: '+2 more', events: [] }] },
+  now: { template: 'agenda' as const, days: [{ title: 'Today', today: true, note: 'Trip away', events: [ev('08:30', 'Dentist', { now: true }), ev('15:30', 'Dance class'), ev('17:00', 'Choir practice')] }] },
+};
+const calCard = calCards[(q.get('cal') ?? 'now') as keyof typeof calCards] ?? calCards.now;
 const power = Array.from({ length: 72 }, (_, i) => Math.min(1, 0.15 + 0.12 * Math.sin(i / 5) + (i % 23 === 0 ? 0.6 : 0) + (i > 50 ? 0.25 : 0)));
 const widgets: WidgetData[] = [
   w('weather', 'Weather', {
@@ -45,8 +56,8 @@ const widgets: WidgetData[] = [
     ] },
   }),
   w('calendar', 'Calendar', {
-    card: { template: 'days', days: [{ title: 'Today', today: true, events: [{ time: '16:30', title: 'Elternabend der Klasse 2b mit dem langen Titel, der abgeschnitten wird' }, { time: '', title: 'and 3 more today' }] }] },
-    detail: { template: 'days', days: weekDays },
+    card: calCard,
+    detail: { template: 'days', days: weekDays, spans: weekSpans },
   }),
   w('energy', 'Power', {
     card: { template: 'value', value: '1807', unit: 'W', note: 'Right now' },
