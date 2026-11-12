@@ -1,7 +1,7 @@
 // Draws widget cards and the full-screen view from the display templates (ADR 0003). No decisions are made here: widgets.ts
 // says what a card shows, this file lays it out. Text goes in with textContent only. A card that fails to draw shows as
 // unavailable, so one bad widget never breaks the Dashboard.
-import { DASH, ITEM_LIMITS, type CardSize, type Display, type Reading } from '@sofa/shared';
+import { DASH, ITEM_LIMITS, TONES, type CardSize, type Column, type Display, type Reading } from '@sofa/shared';
 
 const SVG = 'http://www.w3.org/2000/svg';
 import { cardView, emptyState, type CardView, type WidgetsState } from './widgets.ts';
@@ -51,6 +51,14 @@ export function chartPaths(points: (number | null)[]): { line: string; fill: str
   return { line, fill };
 }
 
+/** A column's classes. A tone makes it a tile with a lid in that colour; a word ("Today") is drawn smaller than a count. */
+export function columnClass(c: Column): string {
+  return 'c' + (c.tint !== undefined ? ' tinted' : '') + (c.tone ? ' toned tone-' + c.tone : '') + (c.tone && c.value !== null && !/^\d+$/.test(c.value) ? ' word' : '');
+}
+
+/** The class that fills a whole card with a bin colour, or '' (only a `value` display has a tone). */
+export const toneClass = (d: Display): string => (d.template === 'value' && d.tone ? 'tone-' + d.tone : '');
+
 function template(d: Display, size: CardSize): HTMLElement {
   if (d.template === 'stack' && size !== 'full') return template(d.parts[0].display, size); // a card has room for the first part only
   const body = h('div', 'w-body t-' + d.template);
@@ -67,7 +75,8 @@ function template(d: Display, size: CardSize): HTMLElement {
     const bars = d.columns.some((c) => c.level !== undefined);
     const cols = body.appendChild(h('div', 'cols'));
     for (const c of d.columns.slice(0, ITEM_LIMITS.columns[size])) {
-      const col = cols.appendChild(h('div', 'c' + (c.tint !== undefined ? ' tinted' : '')));
+      // A tone makes the column a tile with a lid in that colour; a word ("Today") is drawn smaller than a count.
+      const col = cols.appendChild(h('div', columnClass(c)));
       if (c.tint) col.style.backgroundColor = 'rgba(110, 175, 240, ' + (c.tint * 0.42).toFixed(2) + ')';
       col.appendChild(h('div', 'c-l', c.label));
       if (bars) {
@@ -168,7 +177,7 @@ function draw(el: HTMLElement, v: CardView, size: CardSize, note: string): void 
   else el.appendChild(h('div', 'w-body w-msg', v.state === 'loading' ? 'Loading…' : v.message));
 }
 
-const STATES = ['w-ok', 'w-empty', 'w-unavailable', 'w-loading', 'w-stale', 'w-photo'];
+const STATES = ['w-ok', 'w-empty', 'w-unavailable', 'w-loading', 'w-stale', 'w-photo'].concat(TONES.map((t) => 'tone-' + t));
 
 /** Fills a widget tile (or the full-screen panel) with its card. `note` shows in the corner when nothing more urgent does. */
 export function drawCard(el: HTMLElement, id: string, fallbackTitle: string, size: CardSize, note = ''): void {
@@ -182,5 +191,9 @@ export function drawCard(el: HTMLElement, id: string, fallbackTitle: string, siz
   }
   el.classList.add('w-' + v.state);
   if ((v.state === 'ok' || v.state === 'empty') && v.stale) el.classList.add('w-stale');
-  if (v.state === 'ok' && (size === 'full' ? v.detail : v.card).template === 'photo') el.classList.add('w-photo');
+  if (v.state === 'ok') {
+    const d = size === 'full' ? v.detail : v.card;
+    if (d.template === 'photo') el.classList.add('w-photo');
+    if (toneClass(d)) el.classList.add(toneClass(d));
+  }
 }

@@ -20,6 +20,11 @@ export const COLORS = {
   glassBar: '#8fc3a0', // bars and fills on glass
   glassWarn: '#ffb4aa', // "unavailable" and stale marks on glass
   rain: '#8cc4f5', // the chance of rain on glass
+  // Bin colours (Session 34), named in the display model as `tone`. Yellow carries dark ink, the others light.
+  toneGrey: '#5f666b',
+  toneBrown: '#86613f',
+  toneBlue: '#3a74b8',
+  toneYellow: '#e6c04a',
   ink: '#2b2f2a', // text on panels and on light backgrounds
   inkMuted: '#4f5a4d', // secondary text on panels (above 6:1 on ivory)
   sage: '#8aa58d', // muted sage: accents and the app letter badge

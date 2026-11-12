@@ -51,6 +51,16 @@ const widgets: WidgetData[] = [
   w('photos', 'Summer 2026', { card: { template: 'photo', image: '/app/img/kids-tile-forest.jpg', caption: 'Forest walk' } }),
   w('home', 'Living room', { card: { template: 'list', rows: [{ label: 'Temperature', value: '21.5', unit: '°C' }, { label: 'Humidity', value: '48', unit: '%' }, { label: 'CO2', value: '640', unit: 'ppm' }] } }),
 ];
+// ?waste=5|1|0 (days to the next pickup: six days, tomorrow, today) swaps the last card for the waste widget, ?full=waste opens its tiles.
+if (q.has('waste')) {
+  const n = Number(q.get('waste'));
+  const word = (d: number) => (d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : String(d));
+  const bins: [string, string, number, 'brown' | 'yellow' | 'grey' | 'blue', string][] = [['Bioabfall', 'Tue 17 Nov', n, 'brown', 'Then 1 Dec \u00b7 15 Dec'], ['Gelber Sack', 'Wed 18 Nov', n + 1, 'yellow', 'Then 2 Dec \u00b7 16 Dec'], ['Restabfall', 'Tue 24 Nov', n + 7, 'grey', 'Then 8 Dec \u00b7 21 Dec'], ['Papier', 'Wed 25 Nov', n + 8, 'blue', 'Then 9 Dec \u00b7 22 Dec']];
+  widgets[4] = w('waste', 'Waste', {
+    card: { template: 'value', value: word(n), ...(n === 0 ? {} : { unit: n === 1 ? 'day' : 'days' }), note: bins[0][0], tone: bins[0][3] },
+    detail: { template: 'columns', columns: bins.map(([label, note, d, tone, badge], i) => ({ label: (i === 0 ? 'Next \u00b7 ' : '') + label, value: word(d), ...(d > 1 ? { unit: 'days' } : {}), note, badge, tone })) },
+  });
+}
 if (down) for (const x of widgets) Object.assign(x, { status: 'unavailable', message: 'Home Assistant is not reachable', updatedAt: null, card: undefined });
 if (stale) for (const x of widgets) Object.assign(x, { updatedAt: ago(3 * 3600) });
 if (mixed) {

@@ -43,6 +43,11 @@ All three go through `validateDisplay` like the others, so a malformed one shows
 - **Gaps are never zero.** A bucket mostly covered by `unavailable`, `unknown` or no data is `null`. If the history read fails, is empty or the sensor has no unit, the detail stays the list of readings and the widget is not marked stale for it.
 - **Config and cost.** `hours` (2 to 24, default 6) is an ordinary `number` field, so Companion's form shows it. Histories are cached per entity and hours for 5 minutes (one bucket), because the 30 second live read and the state-change refreshes would otherwise pull 120 to 490 KB each time.
 
+## Waste collection and bin colours (Session 34, 2026-11-12)
+
+- **`tone` is the one new display field.** `value` and `Column` take an optional `tone` of `grey`, `brown`, `blue` or `yellow`; `validateDisplay` rejects any other name, so a bad one makes that widget unavailable, never a broken Dashboard. The Server sends the name, Sofa Home owns the colour (`COLORS.tone*`, yellow carries dark ink). A filled card and a column drawn as a tile with a coloured lid need a new signed package, which breaks the "everything after Session 24 is Server-only" promise once. A colour is not a glyph, so the no-icons rule stands.
+- **Bins and keywords.** The waste adapter reads the Waste Collection Schedule sensors' date attributes (never the state text) and counts days in the household's zone. A bin's colour comes from keywords in its name (rest, bio, papier, leicht/verpack/gelb), not from a setting; upgrade when another household needs other bins. The integration moves a sensor on to its next pickup at its own day switch time (10:00 by default, to be checked on a pickup day), so "Today" shows until then.
+
 Each widget sends a `card` for its tile and may send a `detail` for the read-only full-screen view. Sizes cap the rows a template may carry (`ITEM_LIMITS`), and the Server refuses an adapter result over the cap, too long, or of the wrong shape. There are no icons in v1, including weather icons: a glyph set is a template change, and words read fine at sofa distance.
 
 ## Limits on the generic entity card

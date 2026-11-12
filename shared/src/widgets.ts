@@ -9,6 +9,10 @@ import { UUID } from './photos.ts';
 export const TEMPLATES = ['value', 'list', 'columns', 'agenda', 'photo', 'chart', 'days', 'stack'] as const;
 export type TemplateName = (typeof TEMPLATES)[number];
 
+/** The fixed colour names a card or column may be filled with (the waste bins, Session 34). The Server sends the name, Sofa Home owns the colour (tokens.ts `tone*`). */
+export const TONES = ['grey', 'brown', 'blue', 'yellow'] as const;
+export type Tone = (typeof TONES)[number];
+
 /** A reading as the Server formats it ("21.5", "Closed", "3 h 12 min"). null is a missing reading: Sofa Home shows a dash, never 0. */
 export type Reading = string | null;
 export const DASH = '\u2013';
@@ -26,6 +30,7 @@ export interface Column {
   level?: number; // 0 to 1: draws a bar of that height, e.g. energy per hour; a missing value draws none
   badge?: string; // a bold highlighted line under the note, e.g. the chance of rain "70 %"
   tint?: number; // 0 to 1: tints the column's background with the highlight colour, in proportion (rain)
+  tone?: Tone; // draws the column as a tile with a lid in this colour carrying the label
 }
 export interface AgendaEvent {
   time: string; // "18:00", "All day"
@@ -56,7 +61,7 @@ export interface StackPart {
  *   stack    two or three of the above, one over the other, in the full-screen view (hours over days); a card shows the first only
  */
 export type Leaf =
-  | { template: 'value'; value: Reading; unit?: string; note?: string }
+  | { template: 'value'; value: Reading; unit?: string; note?: string; tone?: Tone } // tone: the whole card is filled with that colour
   | { template: 'list'; rows: ListRow[] }
   | { template: 'columns'; columns: Column[]; note?: string }
   | { template: 'agenda'; days: AgendaDay[] }
@@ -236,6 +241,9 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
   const reading = (v: unknown, p: string) => {
     if (v !== null) str(v, p, SHORT);
   };
+  const tone = (v: unknown, p: string) => {
+    if (v !== undefined && (TONES as readonly unknown[]).indexOf(v) < 0) err(p, 'must be one of ' + TONES.join(', '));
+  };
   const list = (v: unknown, p: string, max: number): unknown[] => {
     if (!Array.isArray(v) || v.length > max) {
       err(p, 'must be a list of at most ' + max);
@@ -264,6 +272,7 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
     reading(d.value, path + '.value');
     str(d.unit, path + '.unit', SHORT, true);
     str(d.note, path + '.note', TEXT, true);
+    tone(d.tone, path + '.tone');
   } else if (d.template === 'list') {
     list(d.rows, path + '.rows', 24).forEach((r, i) => {
       const p = path + '.rows[' + i + ']';
@@ -284,6 +293,7 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
       str(c.badge, p + '.badge', SHORT, true);
       if (c.level !== undefined && (typeof c.level !== 'number' || !(c.level >= 0 && c.level <= 1))) err(p + '.level', 'must be a number from 0 to 1');
       if (c.tint !== undefined && (typeof c.tint !== 'number' || !(c.tint >= 0 && c.tint <= 1))) err(p + '.tint', 'must be a number from 0 to 1');
+      tone(c.tone, p + '.tone');
     });
   } else if (d.template === 'agenda' || d.template === 'days') {
     agendaDays(d.days, path + '.days');

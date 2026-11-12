@@ -3,6 +3,7 @@
 import { calendarAdapter, type CalendarReader } from './adapters/calendar.ts';
 import { homeAssistantAdapters, type ForecastReader, type HaReader, type HistoryReader } from './adapters/homeassistant.ts';
 import { photoAdapter, type PhotoDeps } from './adapters/photo.ts';
+import { wasteAdapter } from './adapters/waste.ts';
 import { statusAdapter, type StatusDeps } from './adapters/status.ts';
 import { Unavailable, type WidgetAdapter } from './widgets.ts';
 
@@ -13,6 +14,7 @@ export function createCatalogue(deps: CatalogueDeps): WidgetAdapter[] {
     statusAdapter(deps),
     calendarAdapter({ read: deps.calendar ?? (() => Promise.reject(new Unavailable('Home Assistant is not set up'))), timeZone: deps.timeZone }),
     ...homeAssistantAdapters(deps.ha ?? null, { forecast: deps.forecast, history: deps.history, timeZone: deps.timeZone }),
+    wasteAdapter(deps.ha ?? null, { timeZone: deps.timeZone }),
     photoAdapter(deps),
   ];
 }

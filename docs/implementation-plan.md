@@ -888,6 +888,8 @@ Added 2026-11-11 at the user's request. Home Assistant now has the Waste Collect
 
 **Tests.** A pure `wasteRows` (days, sorting, "today", past dates dropped) against a fixture trimmed from the real sensors in `server/src/adapters/fixtures/`; `validateDisplay` with and without `tone`; `tv/src/cards.test.ts` for the filled card and the tile; a harness fixture for both sizes and for Today, Tomorrow and six days.
 
+**Built 2026-11-12 (desktop harness and tests only, NOT yet seen on the TV).** `TONES`/`Tone`, `tone` on `value` and `Column`, `COLORS.toneGrey/Brown/Blue/Yellow`; `server/src/adapters/waste.ts` (`wasteRows`, `displayNames`, `toneOf`, the adapter; the column label of the first bin reads `Next · <name>`, the footer `Then 1 Dec · 15 Dec`); fixture `fixtures/waste-sensors.json` recorded from the live sensors; `columnClass` and `toneClass` in `tv/src/cards.ts`; harness `?waste=5|1|0` and `?full=waste`. The open question: the integration's sensors switch at its day switch time (10:00 by default), so "Today" shows until then; calendar entity not read. Check on 17 Nov.
+
 **Done when:** the card and the full view draw live data on the TV in the right colours, the evening before a pickup shows "1 day" (or "Tomorrow" in the full view), one failing sensor drops only its bin, and Sofa Home is reinstalled.
 
 ### 35 · Weather widget rework

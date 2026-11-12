@@ -57,6 +57,13 @@ test('validateDisplay accepts every template and refuses malformed ones', () => 
   for (const image of ['https://evil.example/x.jpg', '//evil.example/x.jpg', 'x.jpg', '/a b.jpg']) assert.equal(validateDisplay({ template: 'photo', image }).length, 1, image);
 });
 
+test('validateDisplay accepts a tone on a value and a column, and refuses an unknown colour', () => {
+  assert.deepEqual(validateDisplay({ template: 'value', value: '3', unit: 'days', note: 'Restabfall', tone: 'grey' }), []);
+  assert.deepEqual(validateDisplay({ template: 'columns', columns: [{ label: 'Papier', value: '5', tone: 'blue' }, { label: 'Bio', value: '1' }] }), []);
+  assert.deepEqual(validateDisplay({ template: 'value', value: '3', tone: 'pink' }), ['display.tone: must be one of grey, brown, blue, yellow']);
+  assert.deepEqual(validateDisplay({ template: 'columns', columns: [{ label: 'a', value: '1', tone: 1 }] }), ['display.columns[0].tone: must be one of grey, brown, blue, yellow']);
+});
+
 test('validateWidgetData checks what Sofa Home receives', () => {
   const ok = { id: 'w', title: 'Weather', status: 'ok', card: { template: 'value', value: '12', unit: '°C' }, updatedAt: '2026-11-09T10:00:00.000Z', failing: false, staleAfterSeconds: 180 };
   assert.deepEqual(validateWidgetData(ok), []);

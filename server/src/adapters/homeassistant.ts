@@ -12,13 +12,13 @@ export interface HaReader {
   getState(entityId: string): Promise<unknown>;
 }
 
-interface HaState {
+export interface HaState {
   state: string;
   attributes: Record<string, unknown>;
 }
 
 /** The state of an entity; null if Home Assistant does not know it. Throws Unavailable if Home Assistant cannot be asked. */
-async function load(ha: HaReader | null, id: string): Promise<HaState | null> {
+export async function load(ha: HaReader | null, id: string): Promise<HaState | null> {
   if (!ha) throw new Unavailable('Home Assistant is not set up');
   try {
     const s = (await ha.getState(id)) as Partial<HaState> | null;
