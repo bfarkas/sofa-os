@@ -890,6 +890,8 @@ Added 2026-11-11 at the user's request. Home Assistant now has the Waste Collect
 
 **Built 2026-11-12 (desktop harness and tests only, NOT yet seen on the TV).** `TONES`/`Tone`, `tone` on `value` and `Column`, `COLORS.toneGrey/Brown/Blue/Yellow`; `server/src/adapters/waste.ts` (`wasteRows`, `displayNames`, `toneOf`, the adapter; the column label of the first bin reads `Next · <name>`, the footer `Then 1 Dec · 15 Dec`); fixture `fixtures/waste-sensors.json` recorded from the live sensors; `columnClass` and `toneClass` in `tv/src/cards.ts`; harness `?waste=5|1|0` and `?full=waste`. The open question: the integration's sensors switch at its day switch time (10:00 by default), so "Today" shows until then; calendar entity not read. Check on 17 Nov.
 
+**Installed and placed 2026-11-12.** Server deployed (rei3 at 419c1cc), Sofa Home reinstalled and launched with `sdb shell 0 was_execute sofahome01.SofaHome`, and the widget added to the live Dashboard (layout revision 52): `waste`, small, household only, in the Today row before the photo stream, sensors restabfall, bioabfall, papier, leichtverpackungen, name `Leichtverpackungen=Gelber Sack`. The Server returns live data (Bioabfall 5 days). Still NOT seen on the TV; bin colours still to be confirmed against the real bins.
+
 **Done when:** the card and the full view draw live data on the TV in the right colours, the evening before a pickup shows "1 day" (or "Tomorrow" in the full view), one failing sensor drops only its bin, and Sofa Home is reinstalled.
 
 ### 35 · Weather widget rework
