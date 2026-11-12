@@ -50,6 +50,11 @@ All three go through `validateDisplay` like the others, so a malformed one shows
 
 Each widget sends a `card` for its tile and may send a `detail` for the read-only full-screen view. Sizes cap the rows a template may carry (`ITEM_LIMITS`), and the Server refuses an adapter result over the cap, too long, or of the wrong shape. There are no icons in v1, including weather icons: a glyph set is a template change, and words read fine at sofa distance.
 
+## Weather lines and rain bars (Session 35, 2026-11-12)
+
+- **`value` takes `lines`, `chart` takes `bars` and `barMax`.** `lines` is at most 4 strings of at most 120 characters (`ITEM_LIMITS.lines`: 2 on a small card, 3 medium and large, 4 full); `bars` is one 0-to-1 value or null per point (the lengths must agree) drawn as translucent blue columns on the line's own hours, `barMax` the label of the top of that scale at the right. Both are optional, so every other widget is unchanged; both need a new signed package. A stack in the full view gets a taller panel (`w-tall`, 836 px, the Close pill under it).
+- **Rain is an amount.** `weather.home` has no rain probability, so the Server says "Light rain" below 0.3 mm, "Rain" below 2.5 and "Heavy rain" above, and the day columns show mm. "Sunny" reads "Clear" between 17:00 and 07:00 (fixed hours, not the sun entity).
+
 ## Limits on the generic entity card
 
 The card may pick at most six entities (`MAX_CARD_ENTITIES`) from the read-only domains in `ENTITY_DOMAINS`: `sensor`, `binary_sensor`, `input_boolean`, `input_number`, `input_select`, `counter`, `light`, `switch`, `cover` and `lock`. It shows only the state, the unit and the friendly name, never other attributes, and it never controls anything. The card's `entities` config field declares these domains and that maximum, and the Server checks every instance's config against its field when it reads it (`readConfig`), so a hand-edited layout cannot widen them. Media players, cameras, `person` and `device_tracker` are left out, because they carry pictures or the household's whereabouts.

@@ -21,6 +21,9 @@
 .v-num { font-size: 76px; font-weight: bold; }
 .small .v-num { font-size: 60px; }
 .v-note { margin-top: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 26px; color: var(--p-muted); }
+.v-line { margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 24px; color: var(--p-muted); } /* Session 35: a value card's extra lines (weather: feels like and wind, the rain outlook) */
+.t-value .v-note { margin-top: 4px; }
+.full .v-line { margin-top: 12px; font-size: 34px; }
 
 /* tone (Session 34): a value card filled with a bin colour, and a column drawn as a tile whose lid carries the label. Yellow has dark ink, the rest light. */
 .tile.widget.tone-grey { background: var(--sofa-color-tone-grey); }
@@ -114,9 +117,15 @@
 .ch-plot svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
 .ch-line { fill: none; stroke: var(--p-accent); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .ch-fill { fill: var(--p-bar); fill-opacity: .3; stroke: none; }
+.ch-bar { position: absolute; bottom: 0; width: 2.4%; margin-left: -1.2%; border-radius: 4px 4px 0 0; background: var(--rain); opacity: .6; }
+.ch-r { flex: none; display: flex; flex-direction: column; justify-content: space-between; width: 110px; margin-left: 10px; text-align: left; font-size: 22px; color: var(--rain); white-space: nowrap; }
+.full .ch-r { width: 140px; font-size: 28px; }
+.small .ch-r, .small .ch-bar { display: none; }
 .ch-now { position: absolute; width: 16px; height: 16px; margin: 0 0 -8px -8px; border-radius: 8px; background: var(--p-accent); box-shadow: 0 0 0 4px var(--p-ink); }
 .ch-x { display: flex; justify-content: space-between; margin: 6px 10px 0 100px; font-size: 22px; color: var(--p-muted); }
 .t-chart .v-note { margin-top: 4px; font-size: 22px; }
+.ch-x.br { margin-right: 120px; }
+.full .ch-x.br { margin-right: 160px; }
 .small .ch-y, .small .ch-x, .small .t-chart .v-note { display: none; }
 .small .ch-plot { border-bottom: 0; }
 
@@ -149,6 +158,9 @@
 .full { width: 1560px; height: 760px; box-sizing: border-box; padding: 44px 60px; border-radius: 28px; display: flex; flex-direction: column; overflow: hidden;
   background: var(--p-full); color: var(--p-ink); }
 .full.w-unavailable { background: rgba(30, 36, 33, 0.96); }
+#full-card.w-tall { height: 836px; top: 134px; } /* a chart over days: taller, ending at 970 with the Close pill under it, inside the 54 px margin */
+#full-card.w-tall + #full-foot { top: 984px; }
+.full.w-tall .t-stack { height: 652px; }
 #full-foot { position: absolute; left: 0; right: 0; top: 924px; text-align: center; }
 #full-foot .pill { display: inline-block; margin-right: 0; }
 .full .w-head { height: 70px; }
@@ -182,6 +194,9 @@
 .full .ch-x { margin-left: 150px; font-size: 28px; }
 .full .t-chart .v-note { font-size: 30px; }
 .full .t-stack { height: 572px; }
+.full .sk .t-chart { height: auto; flex: 1; }
+.full .sk { flex: 1 1 auto; }
+.full .sk .ch { min-height: 220px; }
 .full .sk .c-bar { height: 80px; margin: 4px 22%; }
 .full .sk .c-v .u { font-size: .75em; } /* the low of '6° / 2°' stays 28 px */
 .c-v .u.deg, .full .sk .c-v .u.deg { margin-left: 0; font-size: 1em; }

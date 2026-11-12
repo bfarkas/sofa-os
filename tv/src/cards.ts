@@ -65,6 +65,7 @@ function template(d: Display, size: CardSize): HTMLElement {
   if (d.template === 'value') {
     reading(body.appendChild(h('div', 'v-main')), 'v-num', d.value, d.unit);
     if (d.note) body.appendChild(h('div', 'v-note', d.note));
+    for (const line of (d.lines ?? []).slice(0, ITEM_LIMITS.lines[size])) body.appendChild(h('div', 'v-line', line));
   } else if (d.template === 'list') {
     for (const r of d.rows.slice(0, ITEM_LIMITS.list[size])) {
       const row = body.appendChild(h('div', 'r'));
@@ -136,6 +137,19 @@ function template(d: Display, size: CardSize): HTMLElement {
       path.setAttribute('class', cls);
       path.setAttribute('d', data);
     }
+    // Rain bars (Session 35) stand on the same hours as the line: one per point, a point's x position, the full height being `barMax`.
+    const n = d.bars ? d.bars.length : 0;
+    (d.bars ?? []).forEach((v, i) => {
+      if (!v) return;
+      const bar = plot.appendChild(h('div', 'ch-bar'));
+      bar.style.left = (n < 2 ? 50 : (i / (n - 1)) * 100) + '%';
+      bar.style.height = Math.round(v * 100) + '%';
+    });
+    if (d.bars && d.barMax) {
+      const r = wrap.appendChild(h('div', 'ch-r'));
+      r.appendChild(h('span', '', d.barMax));
+      r.appendChild(h('span', '', '0'));
+    }
     const last = d.points.length - 1;
     if (d.now && last >= 0 && d.points[last] !== null) {
       const dot = plot.appendChild(h('div', 'ch-now'));
@@ -143,7 +157,7 @@ function template(d: Display, size: CardSize): HTMLElement {
       dot.style.bottom = Math.round((d.points[last] as number) * 100) + '%';
     }
     if (d.axis && d.axis.length) {
-      const x = body.appendChild(h('div', 'ch-x'));
+      const x = body.appendChild(h('div', d.bars ? 'ch-x br' : 'ch-x'));
       for (const a of d.axis) x.appendChild(h('span', '', a));
     }
     if (d.note) body.appendChild(h('div', 'v-note', d.note));
@@ -177,7 +191,7 @@ function draw(el: HTMLElement, v: CardView, size: CardSize, note: string): void 
   else el.appendChild(h('div', 'w-body w-msg', v.state === 'loading' ? 'Loading…' : v.message));
 }
 
-const STATES = ['w-ok', 'w-empty', 'w-unavailable', 'w-loading', 'w-stale', 'w-photo'].concat(TONES.map((t) => 'tone-' + t));
+const STATES = ['w-ok', 'w-empty', 'w-unavailable', 'w-loading', 'w-stale', 'w-photo', 'w-tall'].concat(TONES.map((t) => 'tone-' + t));
 
 /** Fills a widget tile (or the full-screen panel) with its card. `note` shows in the corner when nothing more urgent does. */
 export function drawCard(el: HTMLElement, id: string, fallbackTitle: string, size: CardSize, note = ''): void {
@@ -194,6 +208,7 @@ export function drawCard(el: HTMLElement, id: string, fallbackTitle: string, siz
   if (v.state === 'ok') {
     const d = size === 'full' ? v.detail : v.card;
     if (d.template === 'photo') el.classList.add('w-photo');
+    if (size === 'full' && d.template === 'stack') el.classList.add('w-tall'); // a chart over days needs more height than the other full views
     if (toneClass(d)) el.classList.add(toneClass(d));
   }
 }

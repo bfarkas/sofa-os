@@ -8,7 +8,7 @@ import { WebSocketServer } from 'ws';
 import type { HaConfig } from '../config.ts';
 import { createHaClient, subscribeEvents } from '../ha.ts';
 import { createWidgets } from '../widgets.ts';
-import { cachedHistory, createForecastReader, createHistoryReader, energyAdapter, entitiesAdapter, forecastColumns, formatState, historyChart, historyWindow, homeAssistantAdapters, watchHomeAssistant, weatherAdapter, type ForecastItem, type HistoryEntry } from './homeassistant.ts';
+import { cachedHistory, createForecastReader, createHistoryReader, energyAdapter, compass, dayColumns, entitiesAdapter, forecastChart, formatState, historyChart, historyWindow, homeAssistantAdapters, rainOutlook, upcomingHours, watchHomeAssistant, weatherAdapter, type ForecastItem, type HistoryEntry } from './homeassistant.ts';
 
 const fixtures = JSON.parse(readFileSync(new URL('../fixtures/ha-states.json', import.meta.url), 'utf8')) as Record<string, { state: string }>;
 
@@ -51,7 +51,7 @@ function fakeHa() {
   return { states, up, down, config, emit, sockets };
 }
 
-const ctx = () => ({ now: Date.now(), signal: new AbortController().signal });
+const ctx = () => ({ now: Date.parse('2026-11-12T12:40:00Z'), signal: new AbortController().signal });
 const reader = (f: ReturnType<typeof fakeHa>) => createHaClient(f.config());
 
 test('formatState: digits to read, missing as null, words capitalised', () => {
@@ -86,50 +86,83 @@ test('weather: real weather entity becomes temperature and conditions; missing a
 });
 
 const forecasts = JSON.parse(readFileSync(new URL('./fixtures/weather-forecasts.json', import.meta.url), 'utf8')) as { hourly: ForecastItem[]; daily: ForecastItem[] };
-const NIGHT = Date.parse('2026-11-10T22:40:00Z'); // 23:40 in Berlin on Tuesday the 10th
+// Real hourly data from 2026-11-12 (07:00Z on, all dry); the daily list is the one recorded on the 10th.
+const live = (JSON.parse(readFileSync(new URL('./fixtures/weather-hourly-live.json', import.meta.url), 'utf8')) as { hourly: ForecastItem[] }).hourly;
+const NOW = Date.parse('2026-11-12T12:40:00Z'); // 13:40 in Berlin on Thursday the 12th
+const BERLIN = 'Europe/Berlin';
+const hour = (iso: string, mm: number, temperature = 5): ForecastItem => ({ datetime: iso, temperature, precipitation: mm });
 
-test('forecast columns: local hours with bars, day names, high and low, rain as mm when there is no probability', () => {
-  const f = forecastColumns(forecasts.hourly, forecasts.daily, NIGHT, 'Europe/Berlin');
-  assert.equal(f.hourCols.length, 12);
-  assert.deepEqual(f.hourCols[0], { label: '00:00', value: '1', unit: '°', level: 0.15, tint: 0 });
-  assert.equal(f.hourCols[11].level, 1); // the warmest of the twelve
-  assert.deepEqual(f.dayCols[0], { label: 'Today', value: '5', unit: '° / 1°', note: 'Fog', tint: 0 });
-  assert.equal(f.dayCols[1].label, 'Wed');
-  assert.deepEqual(f.dayCols[3], { label: 'Fri', value: '8', unit: '° / 2°', note: 'Partly cloudy', badge: '0.1 mm', tint: 0.01 });
-  assert.deepEqual(f.dayCols[6], { label: 'Mon', value: '13', unit: '° / 7°', note: 'Rain', badge: '1.4 mm', tint: 0.14 });
-  assert.equal(f.today?.temperature, 5.4);
+test('compass: the point the wind comes from', () => {
+  assert.deepEqual([0, 77, 180, 315, 359, 360, -45].map(compass), ['N', 'E', 'S', 'NW', 'N', 'N', 'NW']);
 });
 
-test('forecast columns: a rain probability wins over the amount, and hours already over are dropped', () => {
-  const hours: ForecastItem[] = [
-    { datetime: '2026-11-10T21:00:00+00:00', temperature: 9 }, // ended before now
-    { datetime: '2026-11-10T22:00:00+00:00', temperature: 4, precipitation_probability: 70, precipitation: 0 }, // the current hour
-    { datetime: '2026-11-10T23:00:00+00:00', temperature: -0.4, precipitation_probability: 0 },
-  ];
-  const f = forecastColumns(hours, [], NIGHT, 'Europe/Berlin');
-  assert.deepEqual(f.hourCols.map((c) => [c.label, c.value, c.badge, c.tint]), [['23:00', '4', '70 %', 0.7], ['00:00', '0', undefined, 0]]);
-  assert.deepEqual(forecastColumns([], [], NIGHT, 'Europe/Berlin').hourCols, []);
+test('rain outlook: raining now, next rain with its day, or how long it stays dry', () => {
+  const t = (iso: string) => Date.parse(iso);
+  const hours = [hour('2026-11-12T09:00:00+00:00', 0.1), hour('2026-11-12T10:00:00+00:00', 0.1), hour('2026-11-12T11:00:00+00:00', 0), hour('2026-11-12T12:00:00+00:00', 0), hour('2026-11-13T07:00:00+00:00', 1)];
+  // Raining in the hour 10:40 is in: until the first dry hour (11:00 UTC is 12:00 in Berlin).
+  assert.equal(rainOutlook(upcomingHours(hours, t('2026-11-12T09:40:00Z')), t('2026-11-12T09:40:00Z'), BERLIN), 'Light rain until 12:00');
+  // Dry now, rain tomorrow morning: the day name appears because it is not today; the amount picks the word.
+  assert.equal(rainOutlook(upcomingHours(hours, t('2026-11-12T11:40:00Z')), t('2026-11-12T11:40:00Z'), BERLIN), 'Rain Fri 08:00');
+  assert.equal(rainOutlook(hours.slice(2, 4), t('2026-11-12T11:40:00Z'), BERLIN), 'Dry for 1 h');
+  assert.equal(rainOutlook(upcomingHours(live, NOW), NOW, BERLIN), 'Dry for 1 day');
+  assert.equal(rainOutlook([], NOW, BERLIN), null);
+  assert.equal(rainOutlook([hour('2026-11-12T12:00:00+00:00', 4)], t('2026-11-12T12:10:00Z'), BERLIN), 'Heavy rain for 1 h');
 });
 
-test('weather with a forecast: the card gains the high and low and the detail is hours over days', async () => {
+test('forecast chart: integer axis with an even span, five labels six hours apart, rain bars only when it rains', () => {
+  const c = forecastChart(upcomingHours(live, NOW), BERLIN);
+  assert.ok(c && c.points.length === 25 && c.axis.length === 5);
+  assert.equal(c.axis[0], '13:00');
+  assert.equal(c.axis[4], '13:00');
+  assert.ok(/^-?\d+°$/.test(c.max) && /^-?\d+°$/.test(c.min) && (parseInt(c.max) - parseInt(c.min)) % 2 === 0);
+  assert.ok(c.points.every((p) => p !== null && p >= 0 && p <= 1));
+  assert.equal(c.bars, undefined); // a dry day draws no bars
+  const wet = forecastChart([hour('2026-11-12T12:00:00+00:00', 0.4, 4), hour('2026-11-12T13:00:00+00:00', 1.5, 6), hour('2026-11-12T14:00:00+00:00', 0, 5)], BERLIN);
+  assert.ok(wet);
+  assert.deepEqual([wet.max, wet.min, wet.barMax, wet.bars], ['7°', '3°', '2 mm', [0.2, 0.75, 0]]);
+  assert.equal(forecastChart([hour('2026-11-12T12:00:00+00:00', 0)], BERLIN), null);
+});
+
+test('day columns: today first with high and low, rain as mm without a probability; after 21:00 the list starts tomorrow', () => {
+  const { dayCols, today } = dayColumns(forecasts.daily, NOW, BERLIN);
+  assert.equal(dayCols.length, 5); // the recorded list runs to the 16th
+  assert.equal(dayCols[0].label, 'Today');
+  assert.equal(dayCols[1].label, 'Fri');
+  assert.ok(dayCols.every((x) => !('level' in x)));
+  assert.equal(today?.datetime.slice(0, 10), '2026-11-12');
+  const late = dayColumns(forecasts.daily, Date.parse('2026-11-12T20:30:00Z'), BERLIN); // 21:30 in Berlin
+  assert.equal(late.dayCols[0].label, 'Fri');
+});
+
+test('weather with an hourly forecast: the card has the feels-like, wind and rain lines; the detail is a chart over days', async () => {
   const f = fakeHa();
   await f.up();
   try {
-    const read = async (forecast: (e: string, t: 'hourly' | 'daily') => Promise<ForecastItem[]>) =>
-      weatherAdapter(reader(f), { forecast, timeZone: 'Europe/Berlin' }).read({ title: 'Weather', entity: 'weather.home' }, { now: NIGHT, signal: new AbortController().signal });
-    const r = await read(async (_e, t) => forecasts[t]);
-    assert.ok('card' in r && r.card.template === 'value' && r.card.note === 'Cloudy, H 5° L 1°', JSON.stringify('card' in r && r.card));
+    const read = async (forecast: (e: string, t: 'hourly' | 'daily') => Promise<ForecastItem[]>, now = NOW) =>
+      weatherAdapter(reader(f), { forecast, timeZone: BERLIN }).read({ title: 'Weather', entity: 'weather.home' }, { now, signal: new AbortController().signal });
+    const forecast = async (_e: string, t: 'hourly' | 'daily') => (t === 'hourly' ? live : forecasts.daily);
+    const r = await read(forecast);
+    assert.ok('card' in r && r.card.template === 'value' && r.card.value === '6°' && r.card.note === 'Cloudy', JSON.stringify('card' in r && r.card));
+    assert.ok(r.card.template === 'value' && r.card.lines?.length === 2 && /^Feels /.test(r.card.lines[0]) && r.card.lines[1] === 'Dry for 1 day', JSON.stringify(r.card));
+    assert.deepEqual(validateDisplay(r.card), []);
     const detail = 'detail' in r ? r.detail : undefined;
     assert.ok(detail?.template === 'stack');
-    assert.deepEqual(detail.parts.map((p) => p.title), ['Next 12 hours', 'Next 7 days']);
+    assert.deepEqual(detail.parts.map((p) => p.title), ['Next 24 hours', 'Next 5 days']);
     assert.deepEqual(validateDisplay(detail, 'detail'), []);
-    // Only the hourly forecast fails: the days stay.
+    // Only the hourly forecast fails: the card is the plain reading, the days stay.
     const d = await read(async (_e, t) => (t === 'hourly' ? Promise.reject(new Error('boom')) : forecasts.daily));
-    assert.ok('detail' in d && d.detail?.template === 'stack' && d.detail.parts.length === 1 && d.detail.parts[0].title === 'Next 7 days');
+    assert.ok('card' in d && d.card.template === 'value' && d.card.lines === undefined && d.card.unit === '°C' && /^Cloudy, H /.test(String(d.card.note)));
+    assert.ok('detail' in d && d.detail?.template === 'stack' && d.detail.parts.length === 1 && d.detail.parts[0].title === 'Next 5 days');
     // Neither works: today's readings, as before, and the card as before.
     const n = await read(async () => Promise.reject(new Error('boom')));
     assert.ok('detail' in n && n.detail?.template === 'list');
     assert.ok('card' in n && n.card.template === 'value' && n.card.note === 'Cloudy');
+    // The integration says sunny through the night: Clear.
+    f.states['weather.home'] = { ...(f.states['weather.home'] as object), state: 'sunny' };
+    const night = await read(forecast, Date.parse('2026-11-12T20:40:00Z'));
+    assert.ok('card' in night && night.card.template === 'value' && night.card.note === 'Clear');
+    const day = await read(forecast);
+    assert.ok('card' in day && day.card.template === 'value' && day.card.note === 'Sunny');
   } finally {
     await f.down();
   }

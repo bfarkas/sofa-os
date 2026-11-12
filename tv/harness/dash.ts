@@ -18,11 +18,12 @@ const ago = (s: number) => new Date(now - s * 1000).toISOString();
 const w = (id: string, title: string, over: Partial<WidgetData>): WidgetData => ({ id, title, status: 'ok', updatedAt: ago(20), failing: false, staleAfterSeconds: 180, ...over });
 const stale = q.get('state') === 'stale', down = q.get('state') === 'unavailable', mixed = q.get('state') === 'mixed';
 
-// Detail fixtures as the Server sends them (weather: stack of hours over days, calendar: a week, energy: a chart).
-const rainOf = [0, 0, 0.2, 0.3, 0.55, 0.7, 0.6, 0.4, 0.25, 0.15, 0, 0];
-const hours = rainOf.map((t, i) => ({ label: String((19 + i) % 24).padStart(2, '0') + ':00', value: String(4 - Math.round(i / 3)), unit: '\u00b0', level: 0.8 - i * 0.04, tint: t, ...(t ? { badge: Math.round(t * 100) + ' %' } : {}) }));
+// Detail fixtures as the Server sends them (weather: a 24 hour chart over days, calendar: a week, energy: a chart).
 const rainDay = [0.1, 0.8, 0.7, 0.3, 0.05, 0.2, 0.4];
-const wdays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((label, i) => ({ label, value: String(6 - (i % 3)), unit: '\u00b0 / 2\u00b0', note: ['Cloudy', 'Rain', 'Rain', 'Partly cloudy', 'Sunny', 'Cloudy', 'Snow'][i], tint: rainDay[i], badge: Math.round(rainDay[i] * 100) + ' %' }));
+const wdays = ['Today', 'Fri', 'Sat', 'Sun', 'Mon'].map((label, i) => ({ label, value: String(6 - (i % 3)), unit: '\u00b0 / 2\u00b0', note: ['Cloudy', 'Rain', 'Rain', 'Partly cloudy', 'Sunny'][i], tint: rainDay[i], badge: ['0.1 mm', '4 mm', '1.4 mm', '0.1 mm', '2 mm'][i] }));
+// Session 35: 25 hourly temperatures from 13:00, rain per hour as a share of 2 mm.
+const temps = Array.from({ length: 25 }, (_, i) => Math.round((0.45 + 0.35 * Math.sin((i - 4) / 3.8)) * 1000) / 1000);
+const rainBars = [0, 0, 0, 0, 0, 0, 0, 0.1, 0.25, 0.6, 0.9, 0.5, 0.3, 0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 const weekDays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((title, i) => ({
   title,
   subtitle: String(11 + i),
@@ -37,8 +38,11 @@ const weekDays = ['Today', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'].map((title,
 const power = Array.from({ length: 72 }, (_, i) => Math.min(1, 0.15 + 0.12 * Math.sin(i / 5) + (i % 23 === 0 ? 0.6 : 0) + (i > 50 ? 0.25 : 0)));
 const widgets: WidgetData[] = [
   w('weather', 'Weather', {
-    card: { template: 'value', value: '4', unit: '°C', note: 'Cloudy, high 7°, low 2°' },
-    detail: { template: 'stack', parts: [{ title: 'Next 12 hours', display: { template: 'columns', columns: hours } }, { title: 'Next 7 days', display: { template: 'columns', columns: wdays } }] },
+    card: { template: 'value', value: '4°', note: 'Cloudy', lines: ['Feels 1° · NE 12 km/h', 'Light rain Fri 08:00'] },
+    detail: { template: 'stack', parts: [
+      { title: 'Next 24 hours', display: { template: 'chart', points: temps, max: '8°', min: '0°', axis: ['13:00', '19:00', '01:00', '07:00', '13:00'], bars: rainBars, barMax: '2 mm', note: 'Now 4°, feels 1° · wind NE 12 km/h, gusts to 31 · 2.1 mm rain, 22:00 to 01:00, peak 23:00' } },
+      { title: 'Next 5 days', display: { template: 'columns', columns: wdays } },
+    ] },
   }),
   w('calendar', 'Calendar', {
     card: { template: 'days', days: [{ title: 'Today', today: true, events: [{ time: '16:30', title: 'Elternabend der Klasse 2b mit dem langen Titel, der abgeschnitten wird' }, { time: '', title: 'and 3 more today' }] }] },

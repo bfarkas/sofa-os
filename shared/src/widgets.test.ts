@@ -64,6 +64,16 @@ test('validateDisplay accepts a tone on a value and a column, and refuses an unk
   assert.deepEqual(validateDisplay({ template: 'columns', columns: [{ label: 'a', value: '1', tone: 1 }] }), ['display.columns[0].tone: must be one of grey, brown, blue, yellow']);
 });
 
+test('validateDisplay checks a value card\'s lines and a chart\'s second series', () => {
+  assert.deepEqual(validateDisplay({ template: 'value', value: '3°', note: 'Fog', lines: ['Feels 1° · E 3 km/h', 'Light rain until 11:00'] }), []);
+  assert.deepEqual(validateDisplay({ template: 'value', value: '3', lines: 'x' }), ['display.lines: must be a list of at most 4']);
+  assert.deepEqual(validateDisplay({ template: 'value', value: '3', lines: [1] }), ['display.lines[0]: must be a string of at most 120 characters']);
+  assert.deepEqual(validateDisplay({ template: 'chart', points: [0.2, 0.5, 0.4], bars: [0, null, 1], barMax: '2 mm' }), []);
+  assert.deepEqual(validateDisplay({ template: 'chart', points: [0.2, 0.5, 0.4], bars: [0, 1] }), ['display.bars: must be a list as long as points']);
+  assert.deepEqual(validateDisplay({ template: 'chart', points: [0.2, 0.5], bars: [0, 2] }), ['display.bars[1]: must be a number from 0 to 1, or null for none']);
+  assert.deepEqual(validateDisplay({ template: 'chart', points: [0.2], barMax: 5 }), ['display.barMax: must be a string of at most 40 characters']);
+});
+
 test('validateWidgetData checks what Sofa Home receives', () => {
   const ok = { id: 'w', title: 'Weather', status: 'ok', card: { template: 'value', value: '12', unit: '°C' }, updatedAt: '2026-11-09T10:00:00.000Z', failing: false, staleAfterSeconds: 180 };
   assert.deepEqual(validateWidgetData(ok), []);

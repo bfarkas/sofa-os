@@ -94,6 +94,8 @@ export interface ForecastItem {
   condition?: string | null;
   precipitation?: number | null; // mm
   precipitation_probability?: number | null; // percent
+  apparent_temperature?: number | null; // feels like
+  wind_gust_speed?: number | null;
 }
 export type ForecastReader = (entity: string, type: 'hourly' | 'daily', signal: AbortSignal) => Promise<ForecastItem[]>;
 
@@ -115,11 +117,10 @@ export function createForecastReader(ha: HaConfig, fetchFn: typeof fetch = fetch
   };
 }
 
-const HOURS = 12;
 const DAYS = 7;
 const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) ? v : null);
 const whole = (v: number | null) => (v === null ? null : String(Math.round(v)).replace('-0', '0'));
-/** The rain figure of one forecast entry: the chance in percent when the integration has one, else the amount in mm. Dry gives no figure. */
+/** The rain figure of one daily entry: the chance in percent when the integration has one, else the amount in mm. Dry gives no figure. */
 function rain(f: ForecastItem, mmFull: number): { badge?: string; tint: number } {
   const tint = (x: number) => Math.round(Math.min(x, 1) * 100) / 100;
   const p = num(f.precipitation_probability);
@@ -128,47 +129,112 @@ function rain(f: ForecastItem, mmFull: number): { badge?: string; tint: number }
   return mm !== null && mm > 0 ? { badge: String(Number(mm.toFixed(1))) + ' mm', tint: tint(mm / mmFull) } : { tint: 0 };
 }
 
-/** The next hours as columns with a temperature bar and the rain figure; the day columns come from daily(). Pure: every string is formatted here. */
-export function forecastColumns(hourly: ForecastItem[], daily: ForecastItem[], now: number, timeZone: string, conditions: Record<string, string> = CONDITIONS) {
-  const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
-  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short' });
-  const today = dayFmt.format(new Date(now));
-  // An hour whose end has passed is gone; the list may still start with the current hour.
-  const hours = hourly.filter((f) => Date.parse(f.datetime) > now - 3_600_000 && num(f.temperature) !== null).slice(0, HOURS);
-  const temps = hours.map((f) => num(f.temperature) as number);
-  const lo = Math.min(...temps), hi = Math.max(...temps);
-  const hourCols: Column[] = hours.map((f, i) => ({
-    label: hourFmt.format(new Date(f.datetime)),
-    value: whole(temps[i]),
-    unit: '°',
-    level: hi === lo ? 0.5 : Math.round((0.15 + 0.85 * ((temps[i] - lo) / (hi - lo))) * 100) / 100,
-    ...rain(f, 2),
-  }));
-  // A daily entry's own date part is its day, whatever offset the integration sends.
-  const days = daily.filter((f) => typeof f.datetime === 'string' && f.datetime.slice(0, 10) >= today).slice(0, DAYS);
-  const dayCols: Column[] = days.map((f) => {
-    const key = f.datetime.slice(0, 10);
-    const low = num(f.templow);
-    return {
-      label: key === today ? 'Today' : weekday.format(new Date(key + 'T12:00:00Z')),
-      value: whole(num(f.temperature)),
-      unit: low === null ? '°' : '° / ' + whole(low) + '°',
-      ...(f.condition ? { note: conditions[f.condition] ?? formatState(f.condition) ?? undefined } : {}),
-      ...rain(f, 10),
-    };
-  });
-  const todayEntry = days.find((f) => f.datetime.slice(0, 10) === today);
-  return { hourCols, dayCols, today: todayEntry };
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+/** The compass point the wind comes from: 77° is E. */
+export const compass = (deg: number) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+
+const zoneFormats = (timeZone: string) => ({
+  hour: new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+  day: new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }),
+  weekday: new Intl.DateTimeFormat('en-GB', { timeZone, weekday: 'short' }),
+});
+
+/** The hours still to come, starting with the one `now` is in (its end has not passed). */
+export const upcomingHours = (hourly: ForecastItem[], now: number): ForecastItem[] => hourly.filter((f) => Date.parse(f.datetime) > now - 3_600_000);
+
+const rainWord = (mm: number) => (mm < 0.3 ? 'Light rain' : mm < 2.5 ? 'Rain' : 'Heavy rain');
+
+/**
+ * The line the card leads with: "Light rain until 11:00" while it rains, "Light rain Fri 08:00" for the next rain (day name
+ * only when it is not today), "Dry for 4 days" when the forecast shows none, counted from the end of the forecast. Rain is an
+ * amount, since there is no probability; the word comes from the heaviest hour of that spell. Null without hours.
+ */
+export function rainOutlook(hours: ForecastItem[], now: number, timeZone: string): string | null {
+  if (!hours.length) return null;
+  const f = zoneFormats(timeZone);
+  const mm = hours.map((h) => num(h.precipitation) ?? 0);
+  const spell = (from: number) => {
+    let end = from, peak = 0;
+    while (end < hours.length && mm[end] > 0) peak = Math.max(peak, mm[end++]);
+    return { end, peak };
+  };
+  const time = (h: ForecastItem) => f.hour.format(new Date(h.datetime));
+  if (Date.parse(hours[0].datetime) <= now && mm[0] > 0) {
+    const r = spell(0);
+    return r.end < hours.length ? rainWord(r.peak) + ' until ' + time(hours[r.end]) : rainWord(r.peak) + ' for ' + hours.length + ' h';
+  }
+  const i = mm.findIndex((v) => v > 0);
+  if (i >= 0) {
+    const sameDay = f.day.format(new Date(hours[i].datetime)) === f.day.format(new Date(now));
+    return rainWord(spell(i).peak) + ' ' + (sameDay ? '' : f.weekday.format(new Date(hours[i].datetime)) + ' ') + time(hours[i]);
+  }
+  const left = (Date.parse(hours[hours.length - 1].datetime) + 3_600_000 - now) / 3_600_000;
+  return left >= 48 ? 'Dry for ' + Math.floor(left / 24) + ' days' : left >= 24 ? 'Dry for 1 day' : 'Dry for ' + Math.floor(left) + ' h';
 }
 
-/** Weather from a Home Assistant weather entity: the current reading, plus (with a forecast reader) the day's high and low and the next hours and days. */
+const RAIN_SCALES = [0.5, 1, 2, 3, 5, 10]; // mm per hour at the top of the rain axis: the first that holds the largest hour, so a nearly dry day still reads
+
+/**
+ * The full view's chart over the next 24 hours: the temperature as `points` on an integer axis (floor of the minimum less one
+ * to ceil of the maximum plus one, widened to an even span so the middle line is a whole number), five time labels six hours
+ * apart (evenly spread, as the chart draws them), and the rain per hour as `bars` when any falls. Null when there are fewer
+ * than two temperatures.
+ */
+export function forecastChart(hours: ForecastItem[], timeZone: string) {
+  const h = hours.slice(0, 25);
+  const temps = h.map((x) => num(x.temperature));
+  const real = temps.filter((v): v is number => v !== null);
+  if (real.length < 2) return null;
+  const lo = Math.floor(Math.min(...real)) - 1;
+  let hi = Math.ceil(Math.max(...real)) + 1;
+  if ((hi - lo) % 2) hi++;
+  const f = zoneFormats(timeZone);
+  const labels = h.length >= 25 ? 5 : 4;
+  const mm = h.map((x) => num(x.precipitation) ?? 0);
+  const top = Math.max(...mm);
+  const scale = RAIN_SCALES.find((v) => v >= top) ?? 10;
+  return {
+    points: temps.map((t) => (t === null ? null : Math.round(((t - lo) / (hi - lo)) * 1000) / 1000)),
+    max: hi + '°',
+    min: lo + '°',
+    axis: Array.from({ length: labels }, (_, k) => f.hour.format(new Date(h[Math.round((k * (h.length - 1)) / (labels - 1))].datetime))),
+    ...(top > 0 ? { bars: mm.map((v) => Math.round(Math.min(v / scale, 1) * 1000) / 1000), barMax: scale + ' mm' } : {}),
+    hours: h,
+    mm,
+  };
+}
+
+/** The day columns: high / low, condition and rain. After 21:00 the list starts tomorrow, when today's entry says little about what is left of it. */
+export function dayColumns(daily: ForecastItem[], now: number, timeZone: string, conditions: Record<string, string> = CONDITIONS): { dayCols: Column[]; today: ForecastItem | undefined } {
+  const f = zoneFormats(timeZone);
+  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short' });
+  const today = f.day.format(new Date(now));
+  const late = Number(f.hour.format(new Date(now)).slice(0, 2)) >= 21;
+  const start = late ? new Date(Date.parse(today + 'T12:00:00Z') + 86_400_000).toISOString().slice(0, 10) : today;
+  // A daily entry's own date part is its day, whatever offset the integration sends.
+  const days = daily.filter((x) => typeof x.datetime === 'string' && x.datetime.slice(0, 10) >= start).slice(0, DAYS);
+  const dayCols: Column[] = days.map((x) => {
+    const key = x.datetime.slice(0, 10);
+    const low = num(x.templow);
+    return {
+      label: key === today ? 'Today' : weekday.format(new Date(key + 'T12:00:00Z')),
+      value: whole(num(x.temperature)),
+      unit: low === null ? '°' : '° / ' + whole(low) + '°',
+      ...(x.condition ? { note: conditions[x.condition] ?? formatState(x.condition) ?? undefined } : {}),
+      ...rain(x, 10),
+    };
+  });
+  return { dayCols, today: daily.find((x) => typeof x.datetime === 'string' && x.datetime.slice(0, 10) === today) };
+}
+
+/** Weather from a Home Assistant weather entity: the current reading, plus (with a forecast reader) the feels-like, wind and rain outlook on the card and a 24 hour chart over the next days in the full view. */
 export function weatherAdapter(ha: HaReader | null, deps: { forecast?: ForecastReader; timeZone?: string } = {}): WidgetAdapter {
+  const zone = deps.timeZone ?? 'UTC';
   return {
     type: 'weather',
     title: 'Weather',
-    description: 'Current temperature and conditions from a Home Assistant weather entity, with the next hours and days when it has a forecast.',
-    templates: ['value', 'list', 'stack'],
+    description: 'Current temperature and conditions from a Home Assistant weather entity, with wind and rain, a 24 hour chart and the next days when it has a forecast.',
+    templates: ['value', 'list', 'stack', 'chart', 'columns'],
     sizes: ['small', 'medium', 'large'],
     defaultSize: 'small',
     defaultFreshness: 'hourly',
@@ -191,11 +257,29 @@ export function weatherAdapter(ha: HaReader | null, deps: { forecast?: ForecastR
       const temp = attr('temperature');
       const tempUnit = str(a.temperature_unit) ?? '°C';
       const missing = MISSING.indexOf(s.state) >= 0;
-      const condition = missing ? null : CONDITIONS[s.state] ?? formatState(s.state);
+      // The integration says "sunny" through the night: clear between 17:00 and 07:00 (shortcut: fixed hours, not the sun entity; upgrade if it looks wrong in December or June).
+      const hourNow = Number(zoneFormats(zone).hour.format(new Date(ctx.now)).slice(0, 2));
+      const condition = missing ? null : s.state === 'sunny' && (hourNow >= 17 || hourNow < 7) ? 'Clear' : CONDITIONS[s.state] ?? formatState(s.state);
       const humidity = attr('humidity');
-      const f = hourly || daily ? forecastColumns(hourly ?? [], daily ?? [], ctx.now, deps.timeZone ?? 'UTC') : null;
-      const hiLo = f?.today && num(f.today.temperature) !== null ? 'H ' + whole(num(f.today.temperature)) + '° L ' + (whole(num(f.today.templow)) ?? '–') + '°' : null;
-      const card: Display = { template: 'value', value: temp, unit: temp === null ? undefined : tempUnit, note: [condition ?? 'No conditions', hiLo ?? (humidity !== null ? humidity + ' % humidity' : '')].filter(Boolean).join(', ') };
+      const hours = upcomingHours(hourly ?? [], ctx.now);
+      const d = daily ? dayColumns(daily, ctx.now, zone) : null;
+      const hiLo = d?.today && num(d.today.temperature) !== null ? 'H ' + whole(num(d.today.temperature)) + '° L ' + (whole(num(d.today.templow)) ?? '–') + '°' : null;
+      const chart = forecastChart(hours, zone);
+      const cur = hours.length && Date.parse(hours[0].datetime) <= ctx.now ? hours[0] : undefined;
+      const temperature = num(a.temperature), wind = num(a.wind_speed), bearing = num(a.wind_bearing);
+      const windUnit = str(a.wind_speed_unit) ?? 'km/h';
+      const feels = cur && num(cur.apparent_temperature) !== null ? whole(num(cur.apparent_temperature)) + '°' : null;
+      const windText = wind !== null ? (bearing !== null ? compass(bearing) + ' ' : '') + whole(wind) + ' ' + windUnit : null;
+      const outlook = rainOutlook(hours, ctx.now, zone);
+      // With an hourly forecast the card has the feels-like, wind and rain lines; without one it is the plain reading.
+      const card: Display = hours.length
+        ? {
+            template: 'value',
+            value: temperature === null ? null : whole(temperature) + '°',
+            note: condition ?? 'No conditions',
+            lines: [[feels && 'Feels ' + feels, windText].filter(Boolean).join(' · '), outlook ?? ''].filter(Boolean),
+          }
+        : { template: 'value', value: temp, unit: temp === null ? undefined : tempUnit, note: [condition ?? 'No conditions', hiLo ?? (humidity !== null ? humidity + ' % humidity' : '')].filter(Boolean).join(', ') };
       const withUnit = (k: string, u: string | null): ListRow => ({ label: '', value: attr(k), ...(u && attr(k) !== null ? { unit: u } : {}) });
       const readings: Display = {
         template: 'list',
@@ -209,8 +293,24 @@ export function weatherAdapter(ha: HaReader | null, deps: { forecast?: ForecastR
         ],
       };
       const parts: StackPart[] = [];
-      if (f?.hourCols.length) parts.push({ title: 'Next ' + f.hourCols.length + ' hours', display: { template: 'columns', columns: f.hourCols } });
-      if (f?.dayCols.length) parts.push({ title: 'Next ' + f.dayCols.length + ' days', display: { template: 'columns', columns: f.dayCols } });
+      if (chart) {
+        const total = chart.mm.reduce((x, y) => x + y, 0);
+        const wet = chart.mm.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+        const f = zoneFormats(zone);
+        const at = (i: number) => f.hour.format(new Date(chart.hours[i].datetime));
+        const peak = chart.mm.indexOf(Math.max(...chart.mm));
+        const gust = Math.max(0, ...chart.hours.map((x) => num(x.wind_gust_speed) ?? 0));
+        const rainText = wet.length
+          ? Number(total.toFixed(1)) + ' mm rain, ' + (wet.length === 1 ? 'at ' + at(wet[0]) : at(wet[0]) + ' to ' + at(wet[wet.length - 1]) + ', peak ' + at(peak))
+          : 'no rain in the next 24 hours';
+        const note = [
+          ['Now ' + (temperature === null ? DASH : whole(temperature) + '°'), feels && 'feels ' + feels].filter(Boolean).join(', '),
+          [windText && 'wind ' + windText, gust > 0 && 'gusts to ' + Math.round(gust)].filter(Boolean).join(', '),
+          rainText,
+        ].filter(Boolean).join(' · ');
+        parts.push({ title: 'Next 24 hours', display: { template: 'chart', points: chart.points, max: chart.max, min: chart.min, axis: chart.axis, ...(chart.bars ? { bars: chart.bars, barMax: chart.barMax } : {}), note: cut(note, 120) } });
+      }
+      if (d?.dayCols.length) parts.push({ title: 'Next ' + d.dayCols.length + ' days', display: { template: 'columns', columns: d.dayCols } });
       const detail: Display = parts.length ? { template: 'stack', parts } : readings;
       return { title: String(config.title), card, detail };
     },

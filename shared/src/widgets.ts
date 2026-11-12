@@ -61,12 +61,12 @@ export interface StackPart {
  *   stack    two or three of the above, one over the other, in the full-screen view (hours over days); a card shows the first only
  */
 export type Leaf =
-  | { template: 'value'; value: Reading; unit?: string; note?: string; tone?: Tone } // tone: the whole card is filled with that colour
+  | { template: 'value'; value: Reading; unit?: string; note?: string; lines?: string[]; tone?: Tone } // lines: short rows under the note, the last one bold (a card shows at most ITEM_LIMITS.lines); tone: the whole card is filled with that colour
   | { template: 'list'; rows: ListRow[] }
   | { template: 'columns'; columns: Column[]; note?: string }
   | { template: 'agenda'; days: AgendaDay[] }
   | { template: 'photo'; image: string; caption?: string } // image: a path on the Server, loadable without headers
-  | { template: 'chart'; points: (number | null)[]; max?: Reading; min?: Reading; axis?: string[]; now?: boolean; note?: string } // max, min: the labels of the top and bottom of the scale; axis: labels spread under the line; now: marks the last point
+  | { template: 'chart'; points: (number | null)[]; max?: Reading; min?: Reading; axis?: string[]; now?: boolean; note?: string; bars?: (number | null)[]; barMax?: Reading } // max, min: the labels of the top and bottom of the scale; axis: labels spread under the line, with a grid line at each; now: marks the last point; bars: a second series, one per point (0 to 1, translucent columns behind the line, e.g. rain) on its own scale at the right whose top label is barMax
   | { template: 'days'; days: AgendaDay[] };
 export type Display = Leaf | { template: 'stack'; parts: StackPart[] };
 
@@ -74,12 +74,13 @@ export type Display = Leaf | { template: 'stack'; parts: StackPart[] };
 export type CardSize = WidgetSize | 'full';
 
 /** How many rows, columns or agenda lines (day titles count) each size shows. The Server may send more; the rest is cut. */
-export const ITEM_LIMITS: Record<'list' | 'columns' | 'agenda' | 'days' | 'dayEvents', Record<CardSize, number>> = {
+export const ITEM_LIMITS: Record<'list' | 'columns' | 'agenda' | 'days' | 'dayEvents' | 'lines', Record<CardSize, number>> = {
   list: { small: 2, medium: 3, large: 6, full: 16 },
   columns: { small: 2, medium: 4, large: 6, full: 12 },
   agenda: { small: 2, medium: 3, large: 6, full: 16 },
   days: { small: 1, medium: 2, large: 3, full: 7 }, // day columns; each shows at most `dayEvents` events, the rest is cut with an ellipsis
   dayEvents: { small: 2, medium: 2, large: 2, full: 4 },
+  lines: { small: 2, medium: 3, large: 3, full: 4 }, // the extra rows of a value card
 };
 
 /**
@@ -273,6 +274,7 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
     str(d.unit, path + '.unit', SHORT, true);
     str(d.note, path + '.note', TEXT, true);
     tone(d.tone, path + '.tone');
+    if (d.lines !== undefined) list(d.lines, path + '.lines', 4).forEach((v, i) => str(v, path + '.lines[' + i + ']', TEXT));
   } else if (d.template === 'list') {
     list(d.rows, path + '.rows', 24).forEach((r, i) => {
       const p = path + '.rows[' + i + ']';
@@ -309,6 +311,13 @@ export function validateDisplay(value: unknown, path = 'display'): string[] {
     if (d.axis !== undefined) list(d.axis, path + '.axis', 8).forEach((v, i) => str(v, path + '.axis[' + i + ']', SHORT));
     if (d.now !== undefined && typeof d.now !== 'boolean') err(path + '.now', 'must be true or false');
     str(d.note, path + '.note', TEXT, true);
+    if (d.bars !== undefined) {
+      if (!Array.isArray(d.bars) || d.bars.length !== (Array.isArray(d.points) ? d.points.length : -1)) err(path + '.bars', 'must be a list as long as points');
+      else d.bars.forEach((v, i) => {
+        if (v !== null && (typeof v !== 'number' || !(v >= 0 && v <= 1))) err(path + '.bars[' + i + ']', 'must be a number from 0 to 1, or null for none');
+      });
+    }
+    if (d.barMax !== undefined) reading(d.barMax, path + '.barMax');
   } else if (d.template === 'stack' && !nested) {
     const parts = list(d.parts, path + '.parts', 3);
     if (Array.isArray(d.parts) && !d.parts.length) err(path + '.parts', 'must hold at least one display');
