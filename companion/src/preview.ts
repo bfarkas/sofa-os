@@ -2,7 +2,7 @@
 // own tv/app/index.html (same markup and stylesheet), and it draws with Sofa Home's own code: shell.ts decides what each tab
 // shows, view.ts and cards.ts draw it into that markup, shared/ holds the tokens. Only the network, keys and Tizen are left
 // out. The editor (editor.ts) puts this page in a 1920x1080 iframe and scales it down.
-import { dayFootInk, dayImage, dayInk, periodAt, textOn, tokensCss, type Layout, type WidgetsResponse } from '@sofa/shared';
+import { dayFootInk, dayImage, dayInk, periodAt, SCHEME_PROPS, schemeVars, textOn, tokensCss, type Layout, type WidgetsResponse } from '@sofa/shared';
 import { cardOptions, setWidgetsState } from '../../tv/src/cards.ts';
 import { forestFor } from '../../tv/src/kids.ts';
 import { createShell, type Tab } from '../../tv/src/shell.ts';
@@ -36,6 +36,9 @@ function paint(s: PreviewState): void {
   const kids = s.screen === 'kids';
   const color = s.layout.background.kind === 'color' ? s.layout.background.color : '';
   document.body.className = kids ? 'kids' : '';
+  // The colour scheme goes on the stage as properties (an inline <style> would break the CSP); never in Kids Mode.
+  const scheme = kids ? {} : schemeVars(s.layout.scheme);
+  for (const k of SCHEME_PROPS) (scheme as Record<string, string>)[k] ? stage.style.setProperty(k, (scheme as Record<string, string>)[k]) : stage.style.removeProperty(k);
   const period = !kids && s.layout.background.kind === 'daycycle' ? periodAt(new Date().getHours()) : null; // the preview shows the picture of the hour, no fade
   document.body.style.background = kids ? '#26331f url(img/kids-forest-' + forestFor(new Date()) + '.jpg) center / cover no-repeat' : period ? '#1f241e url(' + dayImage(period) + ') center / cover no-repeat' : color;
   if (period) stage.style.setProperty('--on-bg', dayInk(period));

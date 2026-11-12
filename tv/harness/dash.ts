@@ -2,8 +2,8 @@
 // fixture widget data (no Server, no TV). The arrow keys, Enter and Escape drive it like the remote. Not part of the signed package.
 //   npm run harness -w tv, serve tv/ (python3 -m http.server 8077 -d tv), open /harness/dash.html at 1920 x 1080.
 // Query: ?tab=apps|widgets, ?focus=<id> (kids, widget:weather, app:org.tizen.netflix-app, allapps), ?screen=kids, ?apps=N (more apps),
-//   ?icons=<image url> (Session 30: Netflix, Plex and ARD get that picture as their icon, YouTube a path that does not load, ZDF an API error and KiKA none: the letter stays), ?day=H (0 to 23: the day-cycle background as at that hour, through the real photoview; setDayHour(h) in the console changes it), ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable|mixed (one stale, one unavailable, one empty), ?still (no transitions, for screenshots), ?cal=now|night|busy (the calendar card in three situations), ?full=weather|calendar|energy|home (the full-screen view open, as OK on that widget does).
-import { dayFootInk, dayInk, dayShadow, periodAt, tokensCss, type Layout, type WidgetData } from '@sofa/shared';
+//   ?icons=<image url> (Session 30: Netflix, Plex and ARD get that picture as their icon, YouTube a path that does not load, ZDF an API error and KiKA none: the letter stays), ?day=H (0 to 23: the day-cycle background as at that hour, through the real photoview; setDayHour(h) in the console changes it), ?rows=N (more widget rows, to see the column give way), ?bg=<css colour or url>, ?state=stale|unavailable|mixed (one stale, one unavailable, one empty), ?still (no transitions, for screenshots), ?scheme=slate|lamplight|plum|graphite (a colour scheme; not under Kids Mode), ?cal=now|night|busy (the calendar card in three situations), ?full=weather|calendar|energy|home (the full-screen view open, as OK on that widget does).
+import { dayFootInk, dayInk, dayShadow, periodAt, schemeCss, tokensCss, type Layout, type WidgetData } from '@sofa/shared';
 import { cardOptions, drawCard, setWidgetsState } from '../src/cards.ts';
 import type { RemoteEvent, RemoteKey } from '../src/keys.ts';
 import { createIcons } from '../src/icons.ts';
@@ -106,7 +106,7 @@ const layout: Layout = {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   for (const el of Array.from(doc.head.querySelectorAll('style, link[rel=stylesheet]'))) document.head.appendChild(document.importNode(el, true));
   const st = document.createElement('style');
-  st.textContent = tokensCss();
+  st.textContent = tokensCss() + schemeCss(q.get('scheme'));
   document.head.insertBefore(st, document.head.firstChild);
   document.body.innerHTML = doc.body.innerHTML.replace(/<script[\s\S]*?<\/script>/g, '');
   await new Promise((r) => setTimeout(r, 200)); // the stylesheets

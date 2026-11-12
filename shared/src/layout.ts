@@ -1,6 +1,7 @@
 // The layout schema: what the Server publishes as numbered revisions and Sofa Home renders.
 // This file also runs on the TV (Chromium 56), so it uses no runtime API newer than ES2017.
 import { STREAM } from './photos.ts';
+import { SCHEME_IDS, type SchemeId } from './tokens.ts';
 
 /** Bump only with a matching Sofa Home release: the TV rejects any other schema and keeps its last snapshot. */
 export const LAYOUT_SCHEMA = 1;
@@ -60,6 +61,7 @@ export interface Layout {
   widgets: WidgetInstance[]; // every widget instance (the Widgets tab); rows place some on the Dashboard
   rows: Row[]; // Dashboard rows, top to bottom
   background: Background;
+  scheme?: SchemeId; // the colour scheme of the glass (Session 37); absent means sage, the look before schemes existed
   kidsMode: KidsModeSettings;
 }
 
@@ -147,6 +149,7 @@ export function validateLayout(value: unknown): string[] {
     });
   });
 
+  if (value.scheme !== undefined) oneOf(value.scheme, SCHEME_IDS, 'scheme');
   const bg = value.background;
   if (!isObj(bg)) err('background', 'must be an object');
   else if (bg.kind === 'color') {

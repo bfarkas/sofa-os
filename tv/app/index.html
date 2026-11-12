@@ -12,17 +12,17 @@
     /* Panel colours (tiles, pills, the full-screen view): smoked glass, light text. Kids Mode and the overlays on ivory take other values below. */
     --p-bg: var(--sofa-color-glass); --p-dim: var(--sofa-color-glass-dim); --p-full: var(--sofa-color-glass-full); --p-ink: var(--sofa-color-glass-ink); --p-muted: var(--sofa-color-glass-muted);
     --p-line: var(--sofa-color-glass-line); --p-soft: var(--sofa-color-glass-soft); --p-accent: var(--sofa-color-glass-accent); --p-bar: var(--sofa-color-glass-bar); --p-warn: var(--sofa-color-glass-warn);
-    --rain: var(--sofa-color-rain); --edge: transparent; } /* the white ring alone is the focus mark over glass and wallpapers */
+    --rain: var(--sofa-color-rain); --sel: var(--sofa-color-selected); --sel-lift: var(--sofa-color-selected-lift); --edge: transparent; } /* the white ring alone is the focus mark over glass and wallpapers */
   body.kids #stage { --p-bg: var(--sofa-color-panel); --p-dim: var(--sofa-color-panel-dim); --p-ink: var(--sofa-color-ink); --p-muted: var(--sofa-color-ink-muted); --p-line: rgba(43, 47, 42, 0.16);
     --p-soft: rgba(43, 47, 42, 0.08); --p-accent: var(--sofa-color-sage-deep); --p-bar: var(--sofa-color-sage); --p-warn: var(--sofa-color-warn); }
-  #settings-panel, #menu-panel, #pin-panel { --edge: var(--sofa-color-sage-deep); } /* ivory panels: the deep outline reads there, the light one does not */
+  #settings-panel, #menu-panel, #pin-panel { --edge: var(--sel); } /* ivory panels: the deep outline reads there, the light one does not */
 
   /* The bar: tabs on the left, Settings and the clock on the right. */
   #bar { display: flex; align-items: center; height: 76px; }
   #tabs { display: flex; flex: 1; }
   .pill { flex: none; box-sizing: border-box; height: 64px; padding: 0 34px; margin-right: 18px; border-radius: 32px; line-height: 64px; font-size: var(--sofa-size-text-label); font-weight: bold;
     background: var(--p-dim); color: var(--p-ink); box-shadow: inset 0 0 0 2px var(--p-line); } /* the hairline keeps a pill's shape over the night picture */
-  .pill.sel { box-shadow: none; background: var(--sofa-color-sage-deep); color: var(--sofa-color-ivory); }
+  .pill.sel { box-shadow: none; background: var(--sel); color: var(--sofa-color-ivory); }
   #clock { margin-left: 24px; text-align: right; line-height: 1.1; }
   #time { font-size: 56px; font-weight: bold; }
 
@@ -159,7 +159,7 @@
   #menu-panel { position: absolute; left: 610px; top: 300px; width: 700px; box-sizing: border-box; padding: 40px 50px 14px; border-radius: 28px; background: var(--sofa-color-ivory); color: var(--sofa-color-ink); text-shadow: none; }
   #menu-title { margin: 0 0 26px; font-size: 44px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* The row clips anything raised above its 20 px padding, so a lifted widget is tinted green and casts a shadow instead of rising. */
-  #stage .tile.lifted { background: rgba(47, 93, 70, 0.9); box-shadow: 0 0 0 var(--sofa-size-focus-ring) var(--sofa-color-focus-ring), 0 0 0 calc(var(--sofa-size-focus-ring) + var(--sofa-size-focus-outline)) var(--edge), 0 10px 18px rgba(0, 0, 0, .4); }
+  #stage .tile.lifted { background: var(--sel-lift); box-shadow: 0 0 0 var(--sofa-size-focus-ring) var(--sofa-color-focus-ring), 0 0 0 calc(var(--sofa-size-focus-ring) + var(--sofa-size-focus-outline)) var(--edge), 0 10px 18px rgba(0, 0, 0, .4); }
   #lift-hint { position: absolute; left: 50%; bottom: 30px; padding: 20px 40px; border-radius: 20px; transform: translateX(-50%); white-space: nowrap;
     background: var(--sofa-color-sage-deep); color: var(--sofa-color-ivory); font-size: 34px; font-weight: bold; z-index: 5; text-shadow: none; }
 </style>

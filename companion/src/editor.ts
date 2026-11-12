@@ -1,7 +1,7 @@
 // Companion's Home Screen editor (/edit): Dashboard, Apps, Widgets and Settings over one working copy of the layout, with a
 // 16:9 preview made by Sofa Home's own drawing code (preview.ts). The working copy is saved to a Server draft as you go and
 // published through the Session 05 API. Every change goes through edit.ts; this file is forms and plumbing.
-import { checkWidgets, fieldApplies, FRESHNESS, ROW_UNITS, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type KidsStatus, type Layout, type Snapshot, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, fieldApplies, FRESHNESS, ROW_UNITS, SCHEME_IDS, SCHEMES, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type KidsStatus, type Layout, type Snapshot, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
 import * as E from './edit.ts';
 import type { PreviewApi } from './preview.ts';
 
@@ -393,6 +393,17 @@ export function startEditor(call: Call): void {
     return [
       h('div', { class: 'card' },
         h('h3', null, 'Appearance'),
+        h('div', { class: 'line schemes' },
+          ...SCHEME_IDS.map((id) => {
+            const sc = SCHEMES[id];
+            const on = (layout.scheme ?? 'sage') === id;
+            // A swatch: the glass tint with the bar colour as a stripe, the name under it.
+            return h('button', { type: 'button', class: 'scheme' + (on ? ' on' : ''), 'aria-pressed': String(on), onclick: () => edit(E.setScheme(layout, id)) },
+              h('span', { class: 'scheme-sw', style: 'background:rgb(' + sc.glass.join(',') + ');border-bottom-color:' + sc.bar }),
+              h('span', null, sc.name));
+          }),
+        ),
+        h('p', { class: 'hint' }, 'The colour of the tiles and panels on the TV. Kids Mode keeps its own look.'),
         bg.kind !== 'color' && h('p', { class: 'hint' }, 'The layout uses a ' + bg.kind + ' background. Choosing a colour replaces it.'),
         h('div', { class: 'line swatches' },
           ...SWATCHES.map((c) => h('button', { type: 'button', class: 'swatch' + (c === color ? ' on' : ''), 'aria-label': 'Background ' + c, style: 'background:' + c, onclick: () => edit(E.setBackgroundColor(layout, c)) })),

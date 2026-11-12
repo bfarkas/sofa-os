@@ -1,7 +1,7 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { applyOp, dayFootInk, dayInk, dayShadow, isSource, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
+import { applyOp, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
@@ -204,6 +204,8 @@ const settingsNote = $('settings-note');
 const style = document.createElement('style');
 style.textContent = tokensCss();
 document.head.appendChild(style);
+const schemeStyle = document.createElement('style'); // the colour scheme of the glass (Session 37), repainted with every snapshot
+document.head.appendChild(schemeStyle);
 // App icons (Session 30): each app's outcome goes to the Server's log once (over the socket when it is up), and to the local log.
 let liveSocket: WebSocket | null = null; // the sync socket (runSync); Phone Remote's visible report and the icon reports go over it
 let iconReports: string[] = []; // waiting for the socket
@@ -256,6 +258,7 @@ function renderHome(s: SyncState): void {
     appNames = {};
     for (const a of l.apps) appNames[a.id] = a.name;
     // A colour or an Immich photo; text colour follows it so labels outside tiles stay legible.
+    schemeStyle.textContent = schemeCss(l.scheme);
     const bg = l.background;
     bgColor = bg.kind === 'color' ? bg.color : '';
     const path = bg.kind === 'image' ? backgroundImage(bg.image) : null;

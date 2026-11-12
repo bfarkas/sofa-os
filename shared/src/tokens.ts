@@ -25,6 +25,8 @@ export const COLORS = {
   toneBrown: '#86613f',
   toneBlue: '#3a74b8',
   toneYellow: '#e6c04a',
+  selected: '#2f5d46', // the selected tab pill and the lifted tile (a colour scheme changes it, see SCHEMES)
+  selectedLift: 'rgba(47, 93, 70, 0.9)', // the lifted tile: `selected` at 90 %
   ink: '#2b2f2a', // text on panels and on light backgrounds
   inkMuted: '#4f5a4d', // secondary text on panels (above 6:1 on ivory)
   sage: '#8aa58d', // muted sage: accents and the app letter badge
@@ -33,6 +35,59 @@ export const COLORS = {
   warn: '#a3352b', // errors and "unavailable"
   scrim: 'rgba(31, 36, 30, 0.72)', // behind overlays
 } as const;
+
+/**
+ * Colour schemes (Session 37): the household picks one in Companion's Appearance (Layout.scheme). A scheme tints the glass (the
+ * same 66 / 50 / 96 % alphas as today) and sets the accent, bar, warn, rain and selected colours; text on glass does not change.
+ * `sage` is today's look and has no override (COLORS holds it). Kids Mode never takes a scheme.
+ */
+export const SCHEME_IDS = ['sage', 'slate', 'lamplight', 'plum', 'graphite'] as const;
+export type SchemeId = (typeof SCHEME_IDS)[number];
+export interface Scheme {
+  name: string;
+  glass: readonly [number, number, number]; // rgb of the Dashboard glass
+  full: readonly [number, number, number]; // rgb of the full-screen glass
+  accent: string;
+  bar: string;
+  warn: string;
+  rain: string;
+  selected: string;
+}
+export const SCHEMES: Record<SchemeId, Scheme> = {
+  sage: { name: 'Sage', glass: [16, 24, 21], full: [14, 20, 18], accent: '#b5dcc0', bar: '#8fc3a0', warn: '#ffb4aa', rain: '#8cc4f5', selected: '#2f5d46' },
+  slate: { name: 'Lake Slate', glass: [13, 24, 38], full: [11, 20, 32], accent: '#a8cdf0', bar: '#7aaedc', warn: '#ffb4aa', rain: '#78d9d0', selected: '#2f5a85' },
+  lamplight: { name: 'Lamplight', glass: [27, 20, 16], full: [24, 18, 14], accent: '#f1cb8e', bar: '#e0a458', warn: '#ff9f93', rain: '#8cc4f5', selected: '#8a5a14' },
+  plum: { name: 'Plum Dusk', glass: [28, 18, 34], full: [24, 15, 30], accent: '#dcc2f0', bar: '#b494d8', warn: '#ffb0a8', rain: '#8cc4f5', selected: '#5b3a86' },
+  graphite: { name: 'Graphite & Coral', glass: [19, 20, 22], full: [16, 17, 19], accent: '#efe9dd', bar: '#f08a6e', warn: '#ffd479', rain: '#8cc4f5', selected: '#b5482e' },
+};
+/** The custom properties on #stage that a scheme sets (index.html defines their defaults, the sage look). */
+export const SCHEME_PROPS = ['--p-bg', '--p-dim', '--p-full', '--p-accent', '--p-bar', '--p-warn', '--rain', '--sel', '--sel-lift'] as const;
+
+const rgba = (c: readonly number[], a: number) => 'rgba(' + c.join(', ') + ', ' + a + ')';
+const hexRgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+/** The overrides of a scheme as property -> value; empty for sage and for an unknown id (the default look). */
+export function schemeVars(id: unknown): Record<string, string> {
+  const s = id === 'sage' ? undefined : (SCHEMES as Record<string, Scheme | undefined>)[id as string];
+  if (!s) return {};
+  return {
+    '--p-bg': rgba(s.glass, 0.66),
+    '--p-dim': rgba(s.glass, 0.5),
+    '--p-full': rgba(s.full, 0.96),
+    '--p-accent': s.accent,
+    '--p-bar': s.bar,
+    '--p-warn': s.warn,
+    '--rain': s.rain,
+    '--sel': s.selected,
+    '--sel-lift': rgba(hexRgb(s.selected), 0.9),
+  };
+}
+
+/** The overrides as one rule for a style element. Not under Kids Mode, which keeps its ivory panels whatever the scheme. */
+export function schemeCss(id: unknown): string {
+  const v = schemeVars(id);
+  const keys = Object.keys(v);
+  return keys.length ? 'body:not(.kids) #stage{' + keys.map((k) => k + ':' + v[k]).join(';') + '}' : '';
+}
 
 /** Sizes in px for a 1920x1080 screen. The margins keep content inside the TV-safe area (5%). */
 export const SIZES = {

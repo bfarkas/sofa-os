@@ -71,3 +71,10 @@ test('validateSnapshot checks the envelope and the layout', () => {
   assert.match(validateSnapshot({ revision: 1, publishedAt: 'x', layout: { schema: 2 } }).join(), /schema/);
   assert.deepEqual(validateSnapshot('nope'), ['snapshot: must be an object']);
 });
+
+test('the colour scheme is optional; each known id is accepted and any other is rejected with the list', () => {
+  assert.deepEqual(validateLayout(valid()), []); // absent means sage
+  for (const id of ['sage', 'slate', 'lamplight', 'plum', 'graphite']) assert.deepEqual(errorsAfter((l) => (l.scheme = id)), [], id);
+  assert.deepEqual(errorsAfter((l) => (l.scheme = 'neon')), ['scheme: must be one of sage, slate, lamplight, plum, graphite']);
+  assert.deepEqual(errorsAfter((l) => (l.scheme = 3)), ['scheme: must be one of sage, slate, lamplight, plum, graphite']);
+});

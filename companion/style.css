@@ -67,6 +67,10 @@ select.compact { width: auto; max-width: 96px; flex: none; margin: 0 6px 0 0; pa
 .swatches { flex-wrap: wrap; }
 .swatch { width: 40px; height: 40px; padding: 0; border-radius: 20px; border: 2px solid var(--muted); }
 .swatch.on { outline: 3px solid var(--accent); }
+.schemes { flex-wrap: wrap; }
+.scheme { display: flex; flex-direction: column; align-items: center; margin: 0 8px 8px 0; padding: 6px; border-radius: 12px; border: 2px solid transparent; background: none; font-size: 13px; color: inherit; }
+.scheme.on { border-color: var(--accent); }
+.scheme-sw { display: block; width: 64px; height: 36px; margin-bottom: 4px; border-radius: 8px; border-bottom: 8px solid transparent; box-sizing: border-box; }
 .ed-bar { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; margin-top: 12px; padding: 10px 0; background: var(--bg); border-top: 1px solid var(--muted); }
 .ed-bar > * { margin-right: 8px; }
 .ed-bar > :last-child { margin-right: 0; }
