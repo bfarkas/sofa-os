@@ -3,7 +3,7 @@
 #   tv/build.sh            build + sign only
 #   tv/build.sh install    build, sign, install on the TV
 # Sofa Home signs in by QR code on first start; SOFA_SERVER_URL below is only its default Server address.
-# Output: tv/out/SofaHome.wgt (gitignored). Open the app from Apps on the TV; there is no remote launch.
+# Output: tv/out/SofaHome.wgt (gitignored). Launch it remotely: sdb shell 0 was_execute sofahome01.SofaHome (or tizen run -p sofahome01.SofaHome -t UE55NU8009).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
