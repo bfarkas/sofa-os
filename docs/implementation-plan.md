@@ -2,6 +2,8 @@
 
 Derived from the [Architecture spec v0.2](Sofa.OS%20Architecture%20v0.2.md), [CONTEXT.md](../CONTEXT.md) and the [ADRs](adr/). The plan follows the spec's roadmap phases: 0 Hardware feasibility, 1 Kids Mode evening, 2 Household features, 3 Convenience.
 
+**Closed after Session 37 (2026-11-12).** New ideas and changes go into the [next version plan](next-version-plan.md); this file stays as the record.
+
 Each session is one self-contained chunk of work that ends in something testable. Start each one fresh with this file, the spec and CONTEXT.md as context.
 
 ## How to read the ratings
