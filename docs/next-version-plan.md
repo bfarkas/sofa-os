@@ -8,7 +8,11 @@ How an idea moves: **Inbox** (one line, no design) → **Picked** (the user deci
 
 Ideas and changes the user wants, one line each, newest at the top. Nothing is designed yet.
 
-- (empty)
+- Start the gaming PC, PS5 and Switch from Sofa Home as "apps" or buttons. They hang off a Denon receiver; HDMI CEC through the ESPHome integration in Home Assistant may help (check what it exposes first). Touches the household's live Home Assistant.
+- Show every app installed on the TV in the Apps screen, but not in the Dashboard row (the row stays curated).
+- Find a better way to add and design new widgets. Look at https://github.com/natureglass/haven-tizen-ha, which looks like it copies the Apple Home style, for ideas on adding widgets and how they look.
+- Use photos as a screensaver on the TV, with the timeout set in Settings.
+- Redesign the PWA (Companion) to match the style of the TV app, following Apple's Human Interface Guidelines and style guide. Use the UX/UI skills.
 
 ## Carried over from the old plan
 
