@@ -1,10 +1,30 @@
-# Sofa.OS
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/v1/wordmarks/sofa-wordmark-ivory.svg">
+    <img src="assets/brand/v1/wordmarks/sofa-wordmark-charcoal.svg" alt="Sofa.OS" width="360">
+  </picture>
+</p>
 
 A family TV experience for one household: a remote-friendly screen on a Samsung TV, set up from a phone or computer.
 
-![Sofa.OS dashboard over a mountain sunset.](docs/sofa-os-mountain-sunset-dashboard.png)
+![Sofa.OS design mockup: the Dashboard, Kids Mode and its two Watch Allowance screens.](assets/brand/v2/mockup/mock-sheet.png)
 
-*Early design mockup. It still shows some features that have since been removed.*
+*Design mockup with placeholder tiles and the Kids Mode unicorn.*
+
+## Look
+
+The Dashboard wallpaper follows the time of day: morning, midday, evening and night.
+
+![The mountain lake wallpaper in four times of day.](assets/brand/v2/wallpaper/day-cycle/preview-contact-sheet.png)
+
+Kids Mode has its own forest and a unicorn that sits in the Dashboard tile, warns when time is nearly up and sleeps when it is over.
+
+![The Kids Mode tile, available and not available, over the forest.](assets/brand/v2/mockup/tile-states.png)
+
+<p align="center">
+  <img src="assets/brand/v2/final/unicorn-warning.png" alt="The unicorn with an hourglass." width="220">
+  <img src="assets/brand/v2/final/unicorn-sleeping.png" alt="The sleeping unicorn." width="220">
+</p>
 
 ## Status
 
