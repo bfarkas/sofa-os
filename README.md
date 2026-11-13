@@ -7,9 +7,9 @@
 
 A family TV experience for one household: a remote-friendly screen on a Samsung TV, set up from a phone or computer.
 
-![Sofa.OS design mockup: the Dashboard, Kids Mode and its two Watch Allowance screens.](assets/brand/v2/mockup/mock-sheet.png)
+![Sofa Home's Dashboard on a summer evening: the Kids Mode tile, five widgets and the app row.](docs/sofa-home-dashboard.png)
 
-*Design mockup with placeholder tiles and the Kids Mode unicorn.*
+*Sofa Home's Dashboard as the desktop test harness draws it, with sample data. App tiles show letters here; on the TV they use the app's own icon.*
 
 ## Look
 
@@ -18,6 +18,8 @@ The Dashboard wallpaper follows the time of day: morning, midday, evening and ni
 ![The mountain lake wallpaper in four times of day.](assets/brand/v2/wallpaper/day-cycle/preview-contact-sheet.png)
 
 Kids Mode has its own forest and a unicorn that sits in the Dashboard tile, warns when time is nearly up and sleeps when it is over.
+
+![Design mockup of Kids Mode: the tile, the app grid and the two Watch Allowance screens.](assets/brand/v2/mockup/mock-sheet.png)
 
 ![The Kids Mode tile, available and not available, over the forest.](assets/brand/v2/mockup/tile-states.png)
 
