@@ -17,20 +17,11 @@ The Dashboard wallpaper follows the time of day: morning, midday, evening and ni
 
 ![The mountain lake wallpaper in four times of day.](assets/brand/v2/wallpaper/day-cycle/preview-contact-sheet.png)
 
-Kids Mode has its own forest and a unicorn that sits in the Dashboard tile, warns when time is nearly up and sleeps when it is over.
-
-![Design mockup of Kids Mode: the tile, the app grid and the two Watch Allowance screens.](assets/brand/v2/mockup/mock-sheet.png)
-
-![The Kids Mode tile, available and not available, over the forest.](assets/brand/v2/mockup/tile-states.png)
-
-<p align="center">
-  <img src="assets/brand/v2/final/unicorn-warning.png" alt="The unicorn with an hourglass." width="220">
-  <img src="assets/brand/v2/final/unicorn-sleeping.png" alt="The sleeping unicorn." width="220">
-</p>
-
 ## Status
 
-Phase 1 has started. The Server foundation runs on the home server behind Caddy, with Companion sign-in. Layout revisions, their sync to Sofa Home, TV Sign-in by QR code and Sofa Home's remote-driven shell (Dashboard, Apps and Widgets tabs, focus, Settings, app launching) are built; TV Sign-in is verified on the TV, the shell is not yet. The Server's Watch Allowance clock is built and tested with a fake clock and a fake Home Assistant, but has not yet switched the real TV off. See the [implementation plan](docs/implementation-plan.md).
+Phases 0 to 4 of the [implementation plan](docs/implementation-plan.md) are built, and the plan is closed at Session 37. The Server runs on the home server behind Caddy. Companion covers sign-in, the layout editor, Kids Mode settings, the Phone Remote and installs as a PWA. Sofa Home, the TV app, has the Dashboard, Apps and Widgets tabs, the family photo slideshow, the time-of-day wallpapers and colour schemes, and widgets for weather, calendar, power and waste collection. Kids Mode and its Watch Allowance (a daily limit that switches the TV off) have run live on the TV for a full evening.
+
+The newest work, the waste, weather and calendar widgets and the colour schemes (Sessions 34 to 37), has only been checked in the desktop harness and still needs a walk on the real TV. New ideas go into the [next version plan](docs/next-version-plan.md).
 
 ## Development
 
