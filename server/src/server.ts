@@ -9,7 +9,7 @@ import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE,
 import { createCalendarReader } from './adapters/calendar.ts';
 import { cachedHistory, createForecastReader, createHistoryReader, watchHomeAssistant } from './adapters/homeassistant.ts';
 import { createCatalogue } from './catalogue.ts';
-import { cameraRoute, createCamera } from './adapters/camera.ts';
+import { cameraRoute, createCamera, createLiveView } from './adapters/camera.ts';
 import { createImmich } from './immich.ts';
 import type { Config } from './config.ts';
 import { createHaClient, subscribeEvents } from './ha.ts';
@@ -78,6 +78,7 @@ export function startServer(
 ): Server {
   const haClient = config.ha && createHaClient(config.ha);
   const camera = haClient ? createCamera(haClient) : null;
+  const live = camera && createLiveView(camera);
   adapters ??= createCatalogue({ db, photos, camera, ha: haClient, calendar: config.ha ? createCalendarReader(config.ha) : undefined, forecast: config.ha ? createForecastReader(config.ha) : undefined, history: config.ha ? cachedHistory(createHistoryReader(config.ha)) : undefined, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {
@@ -174,6 +175,20 @@ export function startServer(
 
     if (pathname.startsWith('/api/media/') || pathname.startsWith('/api/photos/')) {
       if (await photoRoute(photos, req, res, { companion: sessionOf(req) !== null, tv: isTv(req) })) return;
+    }
+
+    // The live view of the front door (Session 42): the TV opens it (stream on, HLS URL back) and closes it; the Server also closes it after 2 minutes.
+    if (key === 'POST /api/camera/live/open' || key === 'POST /api/camera/live/close') {
+      if (!isTv(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      if (allowance.status().active) return send(res, 403, { error: 'the camera is not available in Kids Mode' } satisfies ApiError);
+      if (!live) return send(res, 503, { error: 'Home Assistant is not set up' } satisfies ApiError);
+      try {
+        if (key.endsWith('/close')) return send(res, 200, (await live.close(), {}));
+        return send(res, 200, { url: await live.open() });
+      } catch (err) {
+        log.warn('camera: live view failed', { err: String(err) });
+        return send(res, 502, { error: 'camera not reachable' } satisfies ApiError);
+      }
     }
 
     if (pathname.startsWith('/api/camera/') && (await cameraRoute(camera, req, res))) return;

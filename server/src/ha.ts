@@ -27,6 +27,8 @@ export class HaHttpError extends Error {
 const KEYS: string[] = Object.values(REMOTE_KEYS); // only the Phone Remote's keys, not any KEY_*
 export const FRONTDOOR_SNAPSHOT = 'image.bosch_frontdoor_last_snapshot';
 export const FRONTDOOR_REFRESH = 'button.bosch_frontdoor_refresh_snapshot';
+export const FRONTDOOR_CAMERA = 'camera.bosch_frontdoor';
+export const FRONTDOOR_LIVE = 'switch.bosch_frontdoor_live_stream'; // the Bosch integration opens a stream only while this is on
 export const SOFA_HOME_APP_ID = 'sofahome01.SofaHome'; // tv/app/config.xml
 const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
 
@@ -34,7 +36,7 @@ function onlyKeys(data: Record<string, unknown>, allowed: string[]): boolean {
   return Object.keys(data).every((k) => allowed.includes(k));
 }
 
-/** Throws WriteRefused unless the call is one of the four allowed writes, aimed at this TV or the adults' phones. */
+/** Throws WriteRefused unless the call is one of the five allowed writes, aimed at this TV or the adults' phones. */
 export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   const { domain, service, data } = call;
   const name = `${domain}.${service}`;
@@ -49,7 +51,33 @@ export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   }
   // 4. Ask the front door camera for a new snapshot (Session 41): the one button, nothing else.
   if (name === 'button.press' && onlyKeys(data, ['entity_id']) && data.entity_id === FRONTDOOR_REFRESH) return;
+  // 5. Switch the front door camera's live stream on and off (Session 42): exactly that switch, nothing else.
+  if ((name === 'switch.turn_on' || name === 'switch.turn_off') && onlyKeys(data, ['entity_id']) && data.entity_id === FRONTDOOR_LIVE) return;
   throw new WriteRefused(`Home Assistant write refused: ${name} ${JSON.stringify(data)}`);
+}
+
+/** One Home Assistant WebSocket command (auth, then `msg` with id 1) and its result. For reads that REST does not offer (camera/stream). */
+export function haCommand(ha: HaConfig, msg: Record<string, unknown>, timeoutMs = 10_000): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(ha.url.replace(/^http/, 'ws') + '/api/websocket', { handshakeTimeout: timeoutMs });
+    const timer = setTimeout(() => fail(new Error('Home Assistant WebSocket: timeout')), timeoutMs);
+    const done = (f: () => void) => (clearTimeout(timer), ws.removeAllListeners(), ws.on('error', () => {}), ws.close(), f());
+    const fail = (e: Error) => done(() => reject(e));
+    ws.on('error', fail);
+    ws.on('close', () => fail(new Error('Home Assistant WebSocket closed')));
+    ws.on('message', (raw) => {
+      let m: { type?: string; success?: boolean; result?: unknown; error?: { message?: string } };
+      try {
+        m = JSON.parse(String(raw));
+      } catch {
+        return;
+      }
+      if (m.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: ha.token }));
+      else if (m.type === 'auth_ok') ws.send(JSON.stringify({ ...msg, id: 1 }));
+      else if (m.type === 'auth_invalid') fail(new Error('Home Assistant refused the token'));
+      else if (m.type === 'result') (m.success ? done(() => resolve(m.result)) : fail(new Error('Home Assistant ' + String(msg.type) + ': ' + (m.error?.message ?? 'failed'))));
+    });
+  });
 }
 
 export type HaClient = ReturnType<typeof createHaClient>;
@@ -88,6 +116,13 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
       return { body: Buffer.from(await res.arrayBuffer()), type: res.headers.get('content-type') ?? 'image/jpeg' };
     },
     pressFrontdoorRefresh: () => callService({ domain: 'button', service: 'press', data: { entity_id: FRONTDOOR_REFRESH } }),
+    setFrontdoorLive: (on: boolean) => callService({ domain: 'switch', service: on ? 'turn_on' : 'turn_off', data: { entity_id: FRONTDOOR_LIVE } }),
+    /** The camera's HLS playlist as an absolute URL, with Home Assistant's short-lived token in the path (a read: `camera/stream`). */
+    async frontdoorStreamUrl(): Promise<string> {
+      const r = (await haCommand(ha, { type: 'camera/stream', entity_id: FRONTDOOR_CAMERA, format: 'hls' })) as { url?: unknown } | null;
+      if (!r || typeof r.url !== 'string' || !r.url.startsWith('/')) throw new Error('Home Assistant gave no stream URL');
+      return ha.url + r.url;
+    },
     turnOffTv: () => callService({ domain: 'media_player', service: 'turn_off', data: { entity_id: ha.tvEntity } }),
     /**
      * Brings Sofa Home to the front, so the TV's Start Last App powers on into it. Through the TV's own REST API (port

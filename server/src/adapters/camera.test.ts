@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { validateDisplay } from '@sofa/shared';
 import { HaHttpError } from '../ha.ts';
-import { cameraAdapter, caption, shouldRefresh, type Camera } from './camera.ts';
+import { cameraAdapter, caption, createLiveView, shouldRefresh, type Camera } from './camera.ts';
 
 // The four real entities, recorded 2026-11-15.
 const base: Record<string, { state: string; attributes: Record<string, unknown> }> = JSON.parse(readFileSync(new URL('./fixtures/frontdoor-states.json', import.meta.url), 'utf8'));
@@ -23,6 +23,8 @@ function fake(over: Record<string, string> = {}, opts: { looking?: boolean; onPr
     async press() { presses.push(1); opts.onPress?.(states); },
     looking: async () => opts.looking ?? true,
     image: async () => ({ body: Buffer.from('x'), type: 'image/jpeg' }),
+    live: async () => {},
+    streamUrl: async () => 'http://ha.test/api/hls/T/master_playlist.m3u8',
   };
   return { camera, presses, adapter: cameraAdapter({ camera }, async () => {}) };
 }
@@ -93,4 +95,65 @@ test('a failed press keeps the old picture; kids see nothing; no Home Assistant 
   assert.ok('card' in r && r.card.template === 'photo' && r.card.image.endsWith('?v=' + SNAP_AT));
   assert.deepEqual(a.adapter.forKids!(r), { empty: 'Nothing to show' });
   await assert.rejects(async () => cameraAdapter({ camera: null }).read({}, { now: 0, signal }), /not set up/);
+});
+
+// ---- the live view (Session 42) ----
+function liveRig(over: Partial<Camera> = {}) {
+  const { camera } = fake();
+  const calls: string[] = [];
+  camera.live = async (on) => { calls.push(on ? 'on' : 'off'); };
+  Object.assign(camera, over);
+  const timers: { f: () => void; ms: number; id: number }[] = [];
+  let n = 0;
+  const set = ((f: () => void, ms: number) => (timers.push({ f, ms, id: ++n }), n)) as unknown as typeof setTimeout;
+  const clear = ((id: number) => { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1); }) as unknown as typeof clearTimeout;
+  return { view: createLiveView(camera, 120_000, { set, clear }), calls, timers };
+}
+
+test('live: open switches on and returns the URL; close switches off', async () => {
+  const r = liveRig();
+  assert.equal(await r.view.open(), 'http://ha.test/api/hls/T/master_playlist.m3u8');
+  assert.deepEqual(r.calls, ['on']);
+  await r.view.close();
+  assert.deepEqual(r.calls, ['on', 'off']);
+  assert.equal(r.timers.length, 0);
+  await r.view.close();
+  assert.deepEqual(r.calls, ['on', 'off'], 'closing with nothing running does nothing');
+});
+
+test('live: the Server timeout switches off when the TV never closes', async () => {
+  const r = liveRig();
+  await r.view.open();
+  assert.equal(r.timers.length, 1);
+  assert.equal(r.timers[0].ms, 120_000);
+  r.timers[0].f();
+  await r.view.close(); // queued behind the timeout's switch-off
+  assert.deepEqual(r.calls, ['on', 'off']);
+});
+
+test('live: a second open while one runs does not switch again and restarts the timeout', async () => {
+  const r = liveRig();
+  await Promise.all([r.view.open(), r.view.open()]);
+  await r.view.open();
+  assert.deepEqual(r.calls, ['on']);
+  assert.equal(r.timers.length, 1, 'one timeout, restarted');
+});
+
+test('live: no stream URL turns the switch back off and fails the open', async () => {
+  const r = liveRig({ streamUrl: async () => { throw new Error('no stream'); } });
+  await assert.rejects(r.view.open(), /no stream/);
+  assert.deepEqual(r.calls, ['on', 'off']);
+});
+
+test('live: a failed switch-off is tried again at the next timeout', async () => {
+  let down = true;
+  const calls: string[] = [];
+  const r = liveRig({ live: async (on) => { if (!on && down) throw new Error('ha down'); calls.push(on ? 'on' : 'off'); } });
+  await r.view.open();
+  await assert.rejects(r.view.close(), /ha down/);
+  assert.equal(r.timers.length, 1);
+  down = false;
+  r.timers[0].f();
+  await r.view.close();
+  assert.deepEqual(calls, ['on', 'off']);
 });

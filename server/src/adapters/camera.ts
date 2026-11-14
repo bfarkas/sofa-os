@@ -21,8 +21,62 @@ export interface Camera {
   press(): Promise<unknown>;
   looking(): Promise<boolean>; // Sofa Home is in front on the TV
   image(): Promise<{ body: Buffer; type: string }>;
+  live(on: boolean): Promise<unknown>; // the live stream switch (Session 42)
+  streamUrl(): Promise<string>; // Home Assistant's HLS playlist, an absolute URL with a short-lived token
 }
-export const createCamera = (ha: HaClient, secret = randomBytes(16).toString('hex')): Camera => ({ ha, secret, press: () => ha.pressFrontdoorRefresh(), looking: () => ha.sofaHomeVisible(), image: () => ha.getImage(FRONTDOOR_SNAPSHOT) });
+export const createCamera = (ha: HaClient, secret = randomBytes(16).toString('hex')): Camera => ({ ha, secret, press: () => ha.pressFrontdoorRefresh(), looking: () => ha.sofaHomeVisible(), image: () => ha.getImage(FRONTDOOR_SNAPSHOT), live: (on) => ha.setFrontdoorLive(on), streamUrl: () => ha.frontdoorStreamUrl() });
+export const LIVE_MS = 2 * 60_000; // the Server turns the stream off this long after the last open, even if the TV never closes
+
+export interface LiveView {
+  /** Switches the stream on if it is not (once, however many opens) and returns the HLS URL; every open restarts the timeout. */
+  open(): Promise<string>;
+  /** Switches the stream off if it is on. Closing while nothing runs does nothing. */
+  close(): Promise<void>;
+}
+/** One live session at a time, serialised so a close cannot cross an open. `timers` are injectable for tests. */
+export function createLiveView(camera: Camera, timeoutMs = LIVE_MS, timers: { set: typeof setTimeout; clear: typeof clearTimeout } = { set: setTimeout, clear: clearTimeout }): LiveView {
+  let on = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let chain: Promise<unknown> = Promise.resolve();
+  const queue = <T>(f: () => Promise<T>): Promise<T> => {
+    const r = chain.then(f, f);
+    chain = r.catch(() => {});
+    return r;
+  };
+  const arm = () => {
+    timers.clear(timer);
+    timer = timers.set(() => { void stop().catch((err) => log.warn('camera: live timeout switch-off failed', { err: String(err) })); }, timeoutMs);
+  };
+  const off = async () => {
+    timers.clear(timer);
+    if (!on) return;
+    try {
+      await camera.live(false);
+      on = false;
+    } catch (err) {
+      arm(); // still on: try again at the next timeout
+      throw err;
+    }
+  };
+  const stop = () => queue(off);
+  return {
+    open: () => queue(async () => {
+      const started = !on;
+      if (started) {
+        await camera.live(true);
+        on = true;
+      }
+      arm();
+      try {
+        return await camera.streamUrl();
+      } catch (err) {
+        if (started) await off().catch(() => {}); // already inside the queue
+        throw err;
+      }
+    }),
+    close: stop,
+  };
+}
 export interface CameraDeps { camera?: Camera | null }
 
 const time = (s: string | undefined | null): number | null => {

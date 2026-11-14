@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { HaConfig } from './config.ts';
-import { checkWrite, createHaClient, WriteRefused, type ServiceCall } from './ha.ts';
+import { WebSocketServer } from 'ws';
+import { checkWrite, createHaClient, haCommand, WriteRefused, type ServiceCall } from './ha.ts';
 
 const ha: HaConfig = {
   url: 'http://ha.test:8123',
@@ -81,7 +82,7 @@ test('allowed: refresh the front door snapshot, and only that button', async () 
 const refused: [string, ServiceCall][] = [
   ['another button', { domain: 'button', service: 'press', data: { entity_id: 'button.garage_door' } }],
   ['the snapshot button with a second target', { domain: 'button', service: 'press', data: { entity_id: 'button.bosch_frontdoor_refresh_snapshot', area_id: 'hall' } }],
-  ['the live stream switch', { domain: 'switch', service: 'turn_on', data: { entity_id: 'switch.bosch_frontdoor_live_stream' } }],
+  ['toggling the live stream switch', { domain: 'switch', service: 'toggle', data: { entity_id: 'switch.bosch_frontdoor_live_stream' } }],
   ['another domain', { domain: 'light', service: 'turn_on', data: { entity_id: 'light.living_room' } }],
   ['a Home Assistant restart', { domain: 'homeassistant', service: 'restart', data: {} }],
   ['turning on the TV', { domain: 'media_player', service: 'turn_on', data: { entity_id: 'media_player.samung_tv' } }],
@@ -129,4 +130,43 @@ test('dry run: allowed writes pass the guard and are logged, not sent; everythin
   await client.sendKey('KEY_ENTER');
   assert.equal(calls.length, 0);
   for (const [, call] of refused) await assert.rejects(client.callService(call), WriteRefused);
+});
+
+test('allowed: the front door live stream switch on and off, and only that switch', async () => {
+  const { calls, client } = fakeHa();
+  await client.setFrontdoorLive(true);
+  await client.setFrontdoorLive(false);
+  assert.deepEqual(calls.map((c) => c.url), ['http://ha.test:8123/api/services/switch/turn_on', 'http://ha.test:8123/api/services/switch/turn_off']);
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), { entity_id: 'switch.bosch_frontdoor_live_stream' });
+  for (const call of [
+    { domain: 'switch', service: 'turn_on', data: { entity_id: 'switch.bosch_frontdoor_live_stream', extra: 1 } },
+    { domain: 'switch', service: 'turn_on', data: { entity_id: 'switch.bosch_backdoor_live_stream' } },
+    { domain: 'switch', service: 'toggle', data: { entity_id: 'switch.bosch_frontdoor_live_stream' } },
+    { domain: 'switch', service: 'turn_off', data: { entity_id: ['switch.bosch_frontdoor_live_stream', 'switch.other'] } },
+    { domain: 'switch', service: 'turn_off', data: {} },
+  ] as ServiceCall[]) assert.throws(() => checkWrite(call, ha), WriteRefused);
+});
+
+test('camera/stream over the WebSocket: auth, one command, an absolute URL back', async () => {
+  const wss = new WebSocketServer({ port: 0 });
+  const seen: unknown[] = [];
+  wss.on('connection', (ws) => {
+    ws.send(JSON.stringify({ type: 'auth_required' }));
+    ws.on('message', (raw) => {
+      const m = JSON.parse(String(raw));
+      seen.push(m);
+      if (m.type === 'auth') ws.send(JSON.stringify({ type: 'auth_ok' }));
+      else ws.send(JSON.stringify({ id: m.id, type: 'result', success: true, result: { url: '/api/hls/TOKEN/master_playlist.m3u8' } }));
+    });
+  });
+  const port = (wss.address() as { port: number }).port;
+  try {
+    const url = `http://127.0.0.1:${port}`;
+    const client = createHaClient({ ...ha, url });
+    assert.equal(await client.frontdoorStreamUrl(), url + '/api/hls/TOKEN/master_playlist.m3u8');
+    assert.deepEqual(seen, [{ type: 'auth', access_token: 'test-token' }, { type: 'camera/stream', entity_id: 'camera.bosch_frontdoor', format: 'hls', id: 1 }]);
+    await assert.rejects(haCommand({ ...ha, url: 'http://127.0.0.1:1' }, { type: 'x' }, 500));
+  } finally {
+    wss.close();
+  }
 });

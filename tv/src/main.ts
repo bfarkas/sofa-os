@@ -16,6 +16,7 @@ import { initView, redrawCards, render, renderPad, setFocus, setKidsLeft, update
 import { cardOptions, drawCard, setWidgetsState, viewFor } from './cards.ts';
 import { albumOfCard, authedGet, backgroundImage, fetchImages, startAlbums } from './photos.ts';
 import { createPhotoView } from './photoview.ts';
+import { createLive, isCameraCard } from './live.ts';
 import { startWidgets, widgetsFetcher } from './widgets.ts';
 
 declare global {
@@ -121,6 +122,7 @@ document.addEventListener('visibilitychange', () => {
   forget();
   add(document.hidden ? 'HIDDEN' : 'VISIBLE');
   photoView.pause(document.hidden); // no slideshow timers while another app has the screen
+  if (document.hidden && overlay === 'live') { overlay = null; syncOverlays(); } // another app on top: stop the stream
   idle.setHidden(document.hidden);
   reportVisible();
   if (!document.hidden) {
@@ -200,7 +202,7 @@ let syncKids = screen !== 'household'; // which view of the layout the sync fetc
 let bgColor = ''; // the household layout's background
 let bgPhoto: { path: string } | { album: string } | null = null; // or a photo / album slideshow from Immich
 let bgDay = false; // or the day cycle: four pictures from the package, by the clock
-let overlay: 'settings' | 'pin' | 'full' | 'photos' | 'menu' | null = null;
+let overlay: 'settings' | 'pin' | 'full' | 'photos' | 'menu' | 'live' | null = null;
 let menuWidget = ''; // the widget the context menu is for
 let liftBase = 0; // the revision a lifted widget was lifted on
 let kidsTileOk = false; // the Kids Mode request has been answered
@@ -238,11 +240,35 @@ const photoView = createPhotoView({
   log: add,
 });
 
+// The front door's live view (Session 42): the Server switches the camera's stream on and hands back Home Assistant's HLS URL.
+const liveEl = $('live'), liveVideo = $('live-v') as HTMLVideoElement;
+const cameraPost = (path: string) => window.fetch(server + '/api/camera/live/' + path, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+const live = createLive({
+  open: () => cameraPost('open').then((r) => {
+    add('live open answered ' + r.status);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json().then((j: { url?: string }) => { if (!j.url) throw new Error('no url'); return j.url; });
+  }),
+  close: () => { cameraPost('close').then((r) => add('live close answered ' + r.status), (e) => add('live close failed: ' + e)); },
+  show: (v) => {
+    $('live-msg').textContent = v.message;
+    if (v.url && liveVideo.getAttribute('src') !== v.url) {
+      liveVideo.src = v.url;
+      add('live play ' + v.url.replace(/\/api\/hls\/[^/]+/, '/api/hls/…')); // not the token
+      const p = liveVideo.play() as Promise<void> | undefined;
+      if (p && p.then) p.then(null, (e) => $('live-msg').textContent = 'The picture cannot be played (' + (e && e.name) + ').');
+    }
+  },
+  hide: () => { liveVideo.pause(); liveVideo.removeAttribute('src'); liveVideo.load(); },
+  onClosed: () => { add('live timed out'); overlay = null; syncOverlays(); },
+});
+liveVideo.addEventListener('error', () => { if (live.isOpen()) $('live-msg').textContent = 'The picture cannot be played.'; });
+
 // Photo screensaver (Session 40): after the household's idle minutes the ambient view of the photo widget's album opens over
 // whatever is showing; the first key closes it and is not acted on, so Sofa Home is back where it was.
 const idle = createIdle();
 idle.setKids(screen !== 'household');
-let saverFrom: 'settings' | 'pin' | 'full' | 'photos' | 'menu' | null = null; // the overlay the screensaver covered
+let saverFrom: 'settings' | 'pin' | 'full' | 'photos' | 'menu' | 'live' | null = null; // the overlay the screensaver covered
 function wakeScreensaver(): void {
   overlay = saverFrom;
   saverFrom = null;
@@ -251,7 +277,7 @@ function wakeScreensaver(): void {
 function screensaverTick(): void {
   if (!idle.tick()) return;
   const album = lastSync && lastSync.snapshot ? lastSync.snapshot.layout.widgets.map((w) => albumOfCard(viewFor(w.id, w.id))).filter((a) => !!a)[0] : null;
-  if (!album || !token || screen !== 'household' || overlay === 'photos' || overlay === 'pin') return void idle.key(); // nothing to show, or a slideshow is already open: count again
+  if (!album || !token || screen !== 'household' || overlay === 'photos' || overlay === 'live' || overlay === 'pin') return void idle.key(); // nothing to show, or a slideshow is already open: count again
   add('screensaver start');
   saverFrom = overlay;
   openPhotos(album, 'household', 'ambient');
@@ -529,6 +555,8 @@ function syncOverlays(): void {
   pinEl.hidden = overlay !== 'pin';
   $('full').hidden = overlay !== 'full';
   $('menu').hidden = overlay !== 'menu';
+  liveEl.hidden = overlay !== 'live';
+  if (overlay !== 'live') live.close(); // tells the Server; does nothing when the view is not open
   if (overlay !== 'photos') photoView.close(); // the view hides itself; the background gets its pictures' place back
 }
 
@@ -673,6 +701,13 @@ function phoneMenu(): void {
 }
 
 function onRemote(e: RemoteEvent): void {
+  if (overlay === 'live') {
+    if (live.key(e)) {
+      overlay = null;
+      syncOverlays();
+    }
+    return;
+  }
   if (overlay === 'photos') {
     // The slideshow owns the remote: arrows step, OK pauses, Back returns to the tile that opened it.
     if (photoView.key(e)) {
@@ -688,6 +723,12 @@ function onRemote(e: RemoteEvent): void {
   if (!act) return;
   if (act.type === 'launch') launchApp(act.appId);
   else if (act.type === 'album') openPhotos(act.id, 'kids', 'slideshow', act.name);
+  else if (act.type === 'widget' && screen === 'household' && isCameraCard(viewFor(act.id, act.title))) {
+    add('live view');
+    overlay = 'live';
+    syncOverlays();
+    live.open();
+  }
   else if (act.type === 'widget' && albumOfCard(viewFor(act.id, act.title))) openPhotos(albumOfCard(viewFor(act.id, act.title))!, 'household', 'ambient'); // the photo widget opens the ambient view
   else if (act.type === 'widget') {
     // The read-only full-screen view: Back or OK closes it, and focus returns to the widget.
