@@ -8,6 +8,7 @@ How an idea moves: **Inbox** (one line, no design) → **Picked** (the user deci
 
 Ideas and changes the user wants, one line each, newest at the top. Nothing is designed yet.
 
+- Animate the unicorn, above all on the turning-off screen: it waves goodbye and goes to sleep. The Kids Mode art is still images today (welcome, resting, warning, sleeping), so check first how to animate on the TV (sprite frames, APNG/WebP, or CSS on the existing stills) and what it costs on the panel.
 - Show the Bosch front door camera as a widget. Check first what Home Assistant offers for it (camera entity, snapshot or stream, doorbell events) and how a live picture fits the widget templates, which have no image type today apart from the photo widget.
 - Start the gaming PC, PS5 and Switch from Sofa Home as "apps" or buttons. They hang off a Denon receiver; HDMI CEC through the ESPHome integration in Home Assistant may help (check what it exposes first). Touches the household's live Home Assistant.
 - Show every app installed on the TV in the Apps screen, but not in the Dashboard row (the row stays curated).
