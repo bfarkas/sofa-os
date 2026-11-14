@@ -1,11 +1,12 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { applyOp, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
+import { applyOp, DEFAULT_SCREENSAVER_MINUTES, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { installedApps, tizenLauncher, type TizenApplicationApi, type TizenInstalledApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { currentPeriod, fakeHour } from './daycycle.ts';
+import { createIdle } from './idle.ts';
 import { createKids, createPad, forestFor, leftText, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
 import { drawQr } from './qr.ts';
 import { createShell, type Activation, type Tab } from './shell.ts';
@@ -88,6 +89,11 @@ document.addEventListener('keydown', (e) => {
     held[e.keyCode] = Date.now();
     add(`down ${e.keyCode} key=${e.key}`);
   }
+  if (idle.key()) { // the first key after the screensaver started only wakes it; its keyup is ignored by keys.ts (no keydown there)
+    e.preventDefault();
+    wakeScreensaver();
+    return;
+  }
   if (document.activeElement === serverInput) {
     // 65385 is the on-screen keyboard's own Back (tested on the TV): it closes the keyboard but leaves the field focused.
     if (e.keyCode === 13 || e.keyCode === 10009 || e.keyCode === 27 || e.keyCode === 65385) {
@@ -115,6 +121,7 @@ document.addEventListener('visibilitychange', () => {
   forget();
   add(document.hidden ? 'HIDDEN' : 'VISIBLE');
   photoView.pause(document.hidden); // no slideshow timers while another app has the screen
+  idle.setHidden(document.hidden);
   reportVisible();
   if (!document.hidden) {
     focusStage();
@@ -231,6 +238,25 @@ const photoView = createPhotoView({
   log: add,
 });
 
+// Photo screensaver (Session 40): after the household's idle minutes the ambient view of the photo widget's album opens over
+// whatever is showing; the first key closes it and is not acted on, so Sofa Home is back where it was.
+const idle = createIdle();
+idle.setKids(screen !== 'household');
+let saverFrom: 'settings' | 'pin' | 'full' | 'photos' | 'menu' | null = null; // the overlay the screensaver covered
+function wakeScreensaver(): void {
+  overlay = saverFrom;
+  saverFrom = null;
+  syncOverlays();
+}
+function screensaverTick(): void {
+  if (!idle.tick()) return;
+  const album = lastSync && lastSync.snapshot ? lastSync.snapshot.layout.widgets.map((w) => albumOfCard(viewFor(w.id, w.id))).filter((a) => !!a)[0] : null;
+  if (!album || !token || screen !== 'household' || overlay === 'photos' || overlay === 'pin') return void idle.key(); // nothing to show, or a slideshow is already open: count again
+  add('screensaver start');
+  saverFrom = overlay;
+  openPhotos(album, 'household', 'ambient');
+}
+
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 function toast(text: string): void {
   toastEl.textContent = text;
@@ -265,6 +291,7 @@ function renderHome(s: SyncState): void {
     const path = bg.kind === 'image' ? backgroundImage(bg.image) : null;
     bgPhoto = path ? { path } : bg.kind === 'slideshow' && isSource(bg.album) ? { album: bg.album } : null;
     bgDay = bg.kind === 'daycycle';
+    idle.setMinutes(l.screensaverMinutes !== undefined ? l.screensaverMinutes : DEFAULT_SCREENSAVER_MINUTES);
     paintBackground();
     shell.setLayout(l);
     if (widgetsSync) widgetsSync.refresh(); // new or changed widgets
@@ -427,6 +454,7 @@ function showScreen(next: Screen): void {
   add('screen ' + screen + ' -> ' + next);
   screen = next;
   store.set(SCREEN_KEY, next);
+  if (idle.setKids(next !== 'household')) saverFrom = null; // Kids Mode ends a running screensaver (syncOverlays below closes it)
   while (shell.focus.depth() > 1) shell.focus.pop(); // the Settings or PIN overlay belongs to the screen that is gone
   overlay = null;
   syncOverlays();
@@ -702,6 +730,7 @@ setInterval(() => {
   updateClock(new Date());
   paintBackground(); // the forest and the day cycle change with the hour
   paintKidsLeft();
+  screensaverTick();
 }, 10_000);
 start();
 

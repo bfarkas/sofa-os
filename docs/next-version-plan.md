@@ -60,6 +60,8 @@ There is no idle detection today. The slideshow pieces exist (`tv/src/slideshow.
 
 **Tests.** The idle timer as a pure state machine (start, reset on key, paused in Kids Mode and when Sofa Home is in the background, Off never fires); the setting's validation on the Server.
 
+**Built (2026-11-15), NOT yet seen on the TV:** `tv/src/idle.ts` is the idle timer as a state machine fed the clock (no timers inside); `main.ts` ticks it every 10 s, resets it on every keydown, pauses it in Kids Mode and while hidden, and the first key after it starts only closes the ambient view and is swallowed (the previous overlay, if any, comes back). The setting is `layout.screensaverMinutes` (0 Off, 5, 10, 15, 30; absent means 10), validated by `validateLayout` on every Server publish and edited in Companion → Settings → Photo screensaver. Deviations: it lives in the layout, not a separate settings endpoint, so changing it publishes a revision; the album is the first photo widget on the layout whose card has loaded (no photo widget or none loaded yet means no screensaver, not the photostream); a slideshow the user opened suppresses it; the count restarts when Sofa Home returns to the front. Not checked on the TV: that the ambient view's clock and the swallowed wake key behave with the real remote (OK acts on keyup, which keys.ts ignores without a keydown).
+
 **Done when:** the TV starts the slideshow after the chosen time on the Dashboard, never in Kids Mode or over another app, and a key brings back the same screen without acting.
 
 ### 41 · Front door camera: snapshot widget

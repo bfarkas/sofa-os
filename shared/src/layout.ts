@@ -49,6 +49,10 @@ export type Background =
   | { kind: 'slideshow'; album: string } // an Immich album id or "photostream": its photos fade through behind the Dashboard (Session 14)
   | { kind: 'daycycle' }; // four pictures shipped in the Sofa Home package, by the TV's clock (Session 29, shared/src/daycycle.ts)
 
+/** Minutes of no key before the photo screensaver starts (Session 40); 0 is Off. */
+export const SCREENSAVER_MINUTES = [0, 5, 10, 15, 30] as const;
+export const DEFAULT_SCREENSAVER_MINUTES = 10;
+
 export interface KidsModeSettings {
   apps: string[]; // approved app ids, in tile order
   dailyMinutes: number; // the Watch Allowance
@@ -62,6 +66,7 @@ export interface Layout {
   rows: Row[]; // Dashboard rows, top to bottom
   background: Background;
   scheme?: SchemeId; // the colour scheme of the glass (Session 37); absent means sage, the look before schemes existed
+  screensaverMinutes?: number; // one of SCREENSAVER_MINUTES (Session 40); absent means DEFAULT_SCREENSAVER_MINUTES
   kidsMode: KidsModeSettings;
 }
 
@@ -150,6 +155,7 @@ export function validateLayout(value: unknown): string[] {
   });
 
   if (value.scheme !== undefined) oneOf(value.scheme, SCHEME_IDS, 'scheme');
+  if (value.screensaverMinutes !== undefined && SCREENSAVER_MINUTES.indexOf(value.screensaverMinutes as never) < 0) err('screensaverMinutes', 'must be one of ' + SCREENSAVER_MINUTES.join(', ') + ' (0 is off)');
   const bg = value.background;
   if (!isObj(bg)) err('background', 'must be an object');
   else if (bg.kind === 'color') {

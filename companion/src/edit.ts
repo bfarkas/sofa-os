@@ -125,6 +125,7 @@ export function setConfig(l: Layout, id: string, key: string, value: unknown): L
 
 export const setBackgroundStream = (l: Layout): Layout => ({ ...l, background: { kind: 'slideshow', album: STREAM } });
 export const setBackgroundDayCycle = (l: Layout): Layout => ({ ...l, background: { kind: 'daycycle' } });
+export const setScreensaver = (l: Layout, screensaverMinutes: number): Layout => ({ ...l, screensaverMinutes });
 export const setScheme = (l: Layout, scheme: SchemeId): Layout => ({ ...l, scheme });
 export const setBackgroundColor = (l: Layout, color: string): Layout => ({ ...l, background: { kind: 'color', color } });
 

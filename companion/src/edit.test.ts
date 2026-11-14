@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkWidgets, validateLayout, type Layout, type WidgetType, type WidgetsResponse } from '@sofa/shared';
-import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, pickableApps, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, showOnDashboard, updateWidget } from './edit.ts';
+import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, pickableApps, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, setScreensaver, showOnDashboard, updateWidget } from './edit.ts';
 
 const type: WidgetType = {
   type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['small', 'medium'], defaultSize: 'medium', defaultFreshness: 'live',
@@ -135,4 +135,11 @@ test('the app picker offers the TV\'s reported apps A to Z, or KNOWN_APPS before
   assert.ok(pickableApps(l, []).some((a) => a.name === 'Netflix'));
   const reported = [{ id: 'z.Zed', name: 'Zed' }, { id: 'a', name: 'Already' }, { id: 'b.Bee', name: 'bee' }];
   assert.deepEqual(pickableApps(l, reported).map((a) => a.id), ['b.Bee', 'z.Zed']);
+});
+
+test('setScreensaver sets only the minutes, and the result validates', () => {
+  const p = setScreensaver(base(), 15);
+  assert.equal(p.screensaverMinutes, 15);
+  assert.deepEqual(validateLayout(p), []);
+  assert.ok(validateLayout(setScreensaver(base(), 7)).length);
 });

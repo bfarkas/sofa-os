@@ -78,3 +78,8 @@ test('the colour scheme is optional; each known id is accepted and any other is 
   assert.deepEqual(errorsAfter((l) => (l.scheme = 'neon')), ['scheme: must be one of sage, slate, lamplight, plum, graphite']);
   assert.deepEqual(errorsAfter((l) => (l.scheme = 3)), ['scheme: must be one of sage, slate, lamplight, plum, graphite']);
 });
+
+test('the screensaver minutes are optional and must be Off, 5, 10, 15 or 30', () => {
+  for (const m of [0, 5, 10, 15, 30]) assert.deepEqual(errorsAfter((l) => (l.screensaverMinutes = m)), [], String(m));
+  for (const m of [1, 7, -5, 60, '10', null, 10.5]) assert.deepEqual(errorsAfter((l) => (l.screensaverMinutes = m)), ['screensaverMinutes: must be one of 0, 5, 10, 15, 30 (0 is off)'], String(m));
+});

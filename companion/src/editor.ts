@@ -1,7 +1,7 @@
 // Companion's Home Screen editor (/edit): Dashboard, Apps, Widgets and Settings over one working copy of the layout, with a
 // 16:9 preview made by Sofa Home's own drawing code (preview.ts). The working copy is saved to a Server draft as you go and
 // published through the Session 05 API. Every change goes through edit.ts; this file is forms and plumbing.
-import { checkWidgets, fieldApplies, FRESHNESS, ROW_UNITS, SCHEME_IDS, SCHEMES, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type InstalledApp, type KidsStatus, type Layout, type Snapshot, type TvAppsReport, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, DEFAULT_SCREENSAVER_MINUTES, SCREENSAVER_MINUTES, fieldApplies, FRESHNESS, ROW_UNITS, SCHEME_IDS, SCHEMES, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type InstalledApp, type KidsStatus, type Layout, type Snapshot, type TvAppsReport, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
 import * as E from './edit.ts';
 import type { PreviewApi } from './preview.ts';
 
@@ -416,6 +416,11 @@ export function startEditor(call: Call): void {
         h('p', { class: 'hint' }, 'Four mountain lake pictures by the TV’s clock: morning 6 to 10, midday 10 to 17, evening 17 to 21, night 21 to 6.'),
         h('div', { class: 'line' }, btn('Slideshow of the newest photos', () => edit(E.setBackgroundStream(layout)), 'small ghost', { disabled: bg.kind === 'slideshow' && bg.album === STREAM })),
         h('p', { class: 'hint' }, 'Needs Immich. The household Dashboard only; Kids Mode keeps its own background.'),
+      ),
+      h('div', { class: 'card' },
+        h('h3', null, 'Photo screensaver'),
+        select(SCREENSAVER_MINUTES.map((m): [string, string] => [String(m), m ? m + ' minutes' : 'Off']), String(layout.screensaverMinutes ?? DEFAULT_SCREENSAVER_MINUTES), (v) => edit(E.setScreensaver(layout, Number(v))), { 'aria-label': 'Start the screensaver after' }),
+        h('p', { class: 'hint' }, 'After this long without a key the TV shows the photo widget’s album full screen with the clock. The first key press only wakes it. Not in Kids Mode.'),
       ),
       h('div', { class: 'card' },
         h('h3', null, 'TV'),

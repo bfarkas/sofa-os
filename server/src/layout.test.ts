@@ -108,6 +108,19 @@ test('an invalid draft is refused and changes nothing', () => {
   assert.equal(currentSnapshot(db).revision, 1);
 });
 
+test('the screensaver setting is validated on publish: 0, 5, 10, 15 and 30 pass, anything else is refused', () => {
+  const db = freshDb();
+  for (const m of [0, 30]) {
+    const d = createDraft(db);
+    saveDraft(db, d.id, d.base, { ...layout(), screensaverMinutes: m });
+    assert.equal(publishDraft(db, d.id).ok, true, String(m));
+  }
+  const d = createDraft(db);
+  assert.match((saveDraft(db, d.id, d.base, { ...layout(), screensaverMinutes: 7 }) as Draft).errors.join(), /screensaverMinutes/);
+  assert.equal((publishDraft(db, d.id) as { reason?: string }).reason, 'invalid');
+  assert.equal((currentSnapshot(db).layout as Layout).screensaverMinutes, 30);
+});
+
 test('a publish that fails midway leaves the current revision unchanged', () => {
   const db = freshDb();
   const d = createDraft(db);
