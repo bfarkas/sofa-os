@@ -2,7 +2,7 @@
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
 import { applyOp, DEFAULT_SCREENSAVER_MINUTES, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
-import { installedApps, tizenLauncher, type TizenApplicationApi, type TizenInstalledApi } from './launch.ts';
+import { installedApps, startInput, switchSource, tizenLauncher, type TizenApplicationApi, type TizenInstalledApi, type TizenSourceApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { currentPeriod, fakeHour } from './daycycle.ts';
@@ -26,7 +26,7 @@ declare global {
     SOFA_FAKE_HOUR?: string | number; // optional, from env.js: pretend it is this hour (0 to 23) for the day-cycle background
   }
   // Tizen web API, only the parts used here. Absent in a desktop browser.
-  const tizen: TizenApplicationApi & TizenAppInfoApi & TizenInstalledApi & {
+  const tizen: TizenApplicationApi & TizenAppInfoApi & TizenInstalledApi & TizenSourceApi & {
     tvinputdevice: {
       registerKey(name: string): void;
       getSupportedKeys(): { name: string; code: number }[];
@@ -579,6 +579,29 @@ function launchApp(appId: string): void {
   );
 }
 
+// A console (Session 43): the Server runs its Home Assistant script (Denon source, wake), the TV switches to the Denon's input,
+// and Sofa Home hides. Sofa Home never turns a console off. The resume record brings focus back to the tile afterwards.
+function startConsole(appId: string, source: string): void {
+  const where = shell.where();
+  add('input ' + appId + ' ' + source);
+  startInput({
+    runScript: () => window.fetch(server + '/api/inputs/start', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ app: appId }) })
+      .then((r) => { add('input start answered ' + r.status); if (!r.ok) throw new Error(r.status === 403 ? 'not in Kids Mode' : 'Home Assistant did not start it (HTTP ' + r.status + ')'); }),
+    switchSource: () => switchSource(typeof tizen === 'undefined' ? undefined : tizen, source),
+    leave: () => {
+      if (where) store.set(RESUME_KEY, JSON.stringify({ tab: where.tab, id: where.id, appId, at: Date.now() }));
+      const me = tizen.application.getCurrentApplication();
+      if (me.hide) me.hide();
+    },
+  }).then(
+    () => add('input ' + appId + ' done'),
+    (err: Error) => {
+      add('input failed ' + appId + ': ' + err.message);
+      toast((appNames[appId] || appId) + ' did not start: ' + err.message);
+    },
+  );
+}
+
 function resumeFromLaunch(): void {
   const raw = store.get(RESUME_KEY);
   if (!raw) return;
@@ -722,6 +745,7 @@ function onRemote(e: RemoteEvent): void {
   syncOverlays();
   if (!act) return;
   if (act.type === 'launch') launchApp(act.appId);
+  else if (act.type === 'input') startConsole(act.appId, act.source);
   else if (act.type === 'album') openPhotos(act.id, 'kids', 'slideshow', act.name);
   else if (act.type === 'widget' && screen === 'household' && isCameraCard(viewFor(act.id, act.title))) {
     add('live view');

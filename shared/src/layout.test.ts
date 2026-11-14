@@ -83,3 +83,14 @@ test('the screensaver minutes are optional and must be Off, 5, 10, 15 or 30', ()
   for (const m of [0, 5, 10, 15, 30]) assert.deepEqual(errorsAfter((l) => (l.screensaverMinutes = m)), [], String(m));
   for (const m of [1, 7, -5, 60, '10', null, 10.5]) assert.deepEqual(errorsAfter((l) => (l.screensaverMinutes = m)), ['screensaverMinutes: must be one of 0, 5, 10, 15, 30 (0 is off)'], String(m));
 });
+
+test('an input (Session 43) carries a sofa_start script and an HDMI source, sits in rows, and is never approved for Kids Mode', () => {
+  const ps5 = { id: 'script.sofa_start_ps5', name: 'PS5', kind: 'input', script: 'script.sofa_start_ps5', source: 'HDMI4' };
+  assert.deepEqual(errorsAfter((l) => { l.apps.push(ps5); l.rows[0].items.push({ kind: 'app', id: ps5.id }); }), []);
+  assert.match(errorsAfter((l) => l.apps.push({ ...ps5, script: 'script.turn_everything_off' })).join(), /apps\[2\]\.script/);
+  assert.match(errorsAfter((l) => l.apps.push({ ...ps5, script: 'script.sofa_start_PS5' })).join(), /apps\[2\]\.script/);
+  assert.match(errorsAfter((l) => l.apps.push({ ...ps5, source: 'TV' })).join(), /apps\[2\]\.source/);
+  assert.match(errorsAfter((l) => l.apps.push({ ...ps5, kind: 'console' })).join(), /apps\[2\]\.kind/);
+  assert.match(errorsAfter((l) => l.apps.push({ id: 'x.Y', name: 'X', script: 'script.sofa_start_x' })).join(), /belong to an input/);
+  assert.match(errorsAfter((l) => { l.apps.push(ps5); l.kidsMode.apps.push(ps5.id); }).join(), /kidsMode\.apps\[1\]: a console cannot be approved/);
+});

@@ -18,9 +18,18 @@ export type Profile = (typeof PROFILES)[number];
 export type Freshness = (typeof FRESHNESS)[number];
 
 export interface AppTile {
-  id: string; // Tizen app ID, e.g. org.tizen.netflix-app
+  id: string; // Tizen app ID, e.g. org.tizen.netflix-app; for an input, its script id
   name: string;
+  kind?: 'input'; // Session 43: a console behind the Denon, not a Tizen app. Absent means a Tizen app.
+  script?: string; // input only: the Home Assistant script that sets the Denon source and wakes the console (INPUT_SCRIPT)
+  source?: string; // input only: the TV input the Denon is on (INPUT_SOURCE), e.g. HDMI4
 }
+
+/** The only scripts an input may run; the Server's write guard allows script.turn_on for exactly these. */
+export const INPUT_SCRIPT = /^script\.sofa_start_[a-z0-9_]+$/;
+/** The TV inputs an input tile may switch to (tizen.tvwindow's HDMI sources). */
+export const INPUT_SOURCE = /^HDMI[1-9]$/;
+export const isInput = (a: AppTile | undefined): boolean => !!a && a.kind === 'input';
 
 export interface WidgetInstance {
   id: string;
@@ -111,12 +120,21 @@ export function validateLayout(value: unknown): string[] {
   if (value.schema !== LAYOUT_SCHEMA) err('schema', 'must be ' + LAYOUT_SCHEMA);
 
   const appIds = new Set<unknown>();
+  const inputIds = new Set<unknown>();
   list(value.apps, 'apps', 200).forEach((a, i) => {
     const p = 'apps[' + i + ']';
     if (!isObj(a)) return err(p, 'must be an object');
     str(a.id, p + '.id', 128);
     unique(appIds, a.id, p + '.id');
     str(a.name, p + '.name', 80);
+    if (a.kind === undefined) {
+      if (a.script !== undefined || a.source !== undefined) err(p, 'script and source belong to an input (kind input)');
+      return;
+    }
+    if (a.kind !== 'input') return err(p + '.kind', 'must be input or absent');
+    inputIds.add(a.id);
+    if (typeof a.script !== 'string' || !INPUT_SCRIPT.test(a.script)) err(p + '.script', 'must be a script id starting script.sofa_start_ (lower case, digits, _)');
+    if (typeof a.source !== 'string' || !INPUT_SOURCE.test(a.source)) err(p + '.source', 'must be a TV input like HDMI4');
   });
 
   const widgetIds = new Set<unknown>();
@@ -173,6 +191,7 @@ export function validateLayout(value: unknown): string[] {
     list(kids.apps, 'kidsMode.apps', 200).forEach((id, i) => {
       const p = 'kidsMode.apps[' + i + ']';
       if (typeof id !== 'string' || !appIds.has(id)) return err(p, 'unknown app ' + JSON.stringify(id));
+      if (inputIds.has(id)) return err(p, 'a console cannot be approved for Kids Mode: the timer cannot stop it');
       unique(approved, id, p);
     });
     if (kids.albums !== undefined) {

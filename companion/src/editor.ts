@@ -279,6 +279,9 @@ export function startEditor(call: Call): void {
     const known: [string, string][] = [['', 'Pick a known app…'], ...E.pickableApps(layout, reported).map((k): [string, string] => [k.id, k.name])];
     const name = h('input', { type: 'text', placeholder: 'Name', maxLength: 80, 'aria-label': 'New app name' });
     const id = h('input', { type: 'text', placeholder: 'Tizen app ID, like org.tizen.netflix-app', maxLength: 128, 'aria-label': 'New app ID', autocapitalize: 'off', spellcheck: 'false' });
+    const cName = h('input', { type: 'text', placeholder: 'Name, like PS5', maxLength: 80, 'aria-label': 'Console name' });
+    const cScript = h('input', { type: 'text', placeholder: 'script.sofa_start_ps5', maxLength: 128, 'aria-label': 'Home Assistant script', autocapitalize: 'off', spellcheck: 'false' });
+    const cSource = h('input', { type: 'text', value: 'HDMI4', maxLength: 5, 'aria-label': 'TV input of the Denon', autocapitalize: 'characters', spellcheck: 'false' });
     return [
       h('p', { class: 'hint' }, 'All Apps lists these in this order. Turn “On the Dashboard” off to keep an app in All Apps only.'),
       ...layout.apps.map((a, i) =>
@@ -292,7 +295,7 @@ export function startEditor(call: Call): void {
             h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: onDash(a.id), onchange: (e: Event) => edit(E.showOnDashboard(layout, { kind: 'app', id: a.id }, (e.target as HTMLInputElement).checked)) }), 'On the Dashboard'),
             btn('Remove', () => edit(E.removeApp(layout, a.id)), 'small ghost danger', { 'aria-label': 'Remove ' + a.name }),
           ),
-          h('p', { class: 'hint mono' }, a.id + (layout.kidsMode.apps.includes(a.id) ? ' · approved for Kids Mode' : '')),
+          h('p', { class: 'hint mono' }, a.id + (a.kind === 'input' ? ' · console on ' + a.source + ', never in Kids Mode' : '') + (layout.kidsMode.apps.includes(a.id) ? ' · approved for Kids Mode' : '')),
         ),
       ),
       h('div', { class: 'card' },
@@ -301,6 +304,12 @@ export function startEditor(call: Call): void {
         name, id,
         btn('Add app', () => edit(E.addApp(layout, { id: id.value, name: name.value })), ''),
         h('p', { class: 'hint' }, (reported.length ? 'The list above is what the TV reported as installed. ' : 'The TV has not reported its apps yet, so this is the short list Sofa Home is known to launch. ') + 'Any other app needs its exact Tizen ID. An app that fails to launch shows as Unavailable on the TV.'),
+      ),
+      h('div', { class: 'card' },
+        h('h3', null, 'Add a console'),
+        cName, cScript, cSource,
+        btn('Add console', () => edit(E.addInput(layout, { name: cName.value, script: cScript.value, source: cSource.value })), ''),
+        h('p', { class: 'hint' }, 'A console behind the Denon. OK on its tile runs the Home Assistant script (it sets the Denon input and wakes the console), switches the TV to the Denon’s input and leaves Sofa Home. Consoles never show in Kids Mode.'),
       ),
     ];
   }

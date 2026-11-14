@@ -186,6 +186,7 @@ async function loadApps(): Promise<void> {
     box.querySelectorAll('label').forEach((l) => l.remove());
     $<HTMLInputElement>('kids-minutes').value = String(layout.kidsMode.dailyMinutes);
     for (const app of layout.apps) {
+      if (app.kind === 'input') continue; // a console cannot be approved for Kids Mode (Session 43)
       const label = document.createElement('label');
       const check = document.createElement('input');
       check.type = 'checkbox';

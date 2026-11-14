@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { checkWidgets, isLayoutOp, parseInstalledApps, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LayoutOpRequest, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, isInput, isLayoutOp, parseInstalledApps, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LayoutOpRequest, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
@@ -188,6 +188,24 @@ export function startServer(
       } catch (err) {
         log.warn('camera: live view failed', { err: String(err) });
         return send(res, 502, { error: 'camera not reachable' } satisfies ApiError);
+      }
+    }
+
+    // Start a console (Session 43): the TV names an input tile of the published layout; the Server runs that tile's script.
+    if (key === 'POST /api/inputs/start') {
+      if (!isTv(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      if (allowance.status().active) return send(res, 403, { error: 'consoles are not available in Kids Mode' } satisfies ApiError);
+      const app = ((await readJson(req)) as { app?: unknown } | null)?.app;
+      const tile = currentSnapshot(db).layout.apps.find((a) => a.id === app && isInput(a));
+      if (!tile?.script) return send(res, 404, { error: 'no such console in the layout' } satisfies ApiError);
+      if (!haClient) return send(res, 503, { error: 'Home Assistant is not set up' } satisfies ApiError);
+      try {
+        await haClient.startInput(tile.script);
+        log.info('console started', { script: tile.script });
+        return send(res, 200, {});
+      } catch (err) {
+        log.warn('console start failed', { script: tile.script, err: String(err) });
+        return send(res, 502, { error: 'Home Assistant did not start it' } satisfies ApiError);
       }
     }
 

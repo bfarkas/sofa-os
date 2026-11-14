@@ -9,7 +9,7 @@
 // Arranging widgets (Session 16): a long press on a widget asks for its context menu (Move, Remove from Dashboard on the
 // Dashboard; Add to Dashboard in the Widgets tab for one not there). Move lifts it: left and right reorder it in its row, OK
 // places it as a `move` operation for the Server, Back cancels. A long press anywhere else is a select, as before.
-import { applyOp, mergeApps, ROW_UNITS, UNITS, type AppInfo, type InstalledApp, type Layout, type LayoutOp, type PhotoAlbum, type Profile, type WidgetSize } from '@sofa/shared';
+import { applyOp, isInput, mergeApps, ROW_UNITS, UNITS, type AppInfo, type InstalledApp, type Layout, type LayoutOp, type PhotoAlbum, type Profile, type WidgetSize } from '@sofa/shared';
 import { createFocus } from './focus.ts';
 import type { RemoteEvent } from './keys.ts';
 import type { Screen } from './kids.ts';
@@ -46,6 +46,7 @@ export interface View {
 
 export type Activation =
   | { type: 'launch'; appId: string }
+  | { type: 'input'; appId: string; source: string } // OK on a console tile (Session 43): the Server runs its script, the TV switches to `source`
   | { type: 'settings' }
   | { type: 'select'; id: string } // OK on an overlay row
   | { type: 'digit'; digit: string } // a number key while an overlay (the PIN pad) is open
@@ -67,7 +68,7 @@ const KIDS_COLUMNS = 5;
 /** Kids Mode: the approved apps, in the approved order, then the approved albums the Server listed, five large tiles to a row. Nothing else. */
 export function kidsSections(layout: Layout, albums: PhotoAlbum[] = []): Section[] {
   const byId: Record<string, string> = {};
-  for (const a of layout.apps) byId[a.id] = a.name;
+  for (const a of layout.apps) if (!isInput(a)) byId[a.id] = a.name; // a console never shows in Kids Mode, even if a layout slipped through
   const tiles: Tile[] = layout.kidsMode.apps.filter((id) => byId[id] !== undefined).map((id) => ({ id: 'app:' + id, kind: 'app' as const, label: byId[id], detail: '' }));
   const approved = layout.kidsMode.albums || [];
   for (const a of albums) if (approved.indexOf(a.id) >= 0) tiles.push({ id: 'album:' + a.id, kind: 'album', label: a.name, detail: a.count + (a.count === 1 ? ' photo' : ' photos') }); // the Server lists only approved ones; this checks again
@@ -265,7 +266,10 @@ export function createShell(hooks: ShellHooks) {
     else if (id === 'allapps') {
       const first = layout && layout.apps[0];
       showTab('apps', first ? 'app:' + first.id : undefined);
-    } else if (id.indexOf('app:') === 0) return { type: 'launch', appId: id.slice(4) };
+    } else if (id.indexOf('app:') === 0) {
+      const input = layout && screen === 'household' ? layout.apps.filter((a) => 'app:' + a.id === id && isInput(a))[0] : undefined;
+      return input ? { type: 'input', appId: input.id, source: input.source || '' } : { type: 'launch', appId: id.slice(4) };
+    }
     else if (id.indexOf('album:') === 0) {
       const a = albums.filter((x) => 'album:' + x.id === id)[0];
       return a ? { type: 'album', id: a.id, name: a.name } : null;

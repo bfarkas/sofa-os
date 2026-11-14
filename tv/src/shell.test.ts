@@ -404,3 +404,13 @@ test('with the TV\'s installed apps the Apps tab lists curated first then the re
   shell.setScreen('kids');
   assert.deepEqual(shell.view().sections.flatMap((s) => s.tiles.map((t) => t.id)), ['app:a.One']);
 });
+
+test('a console tile (Session 43) asks to start its input on the Dashboard and in Apps, and never shows in Kids Mode', () => {
+  const ps5 = { id: 'script.sofa_start_ps5', name: 'PS5', kind: 'input' as const, script: 'script.sofa_start_ps5', source: 'HDMI4' };
+  const l = layout({ apps: [ps5, app('a.One', 'One')], rows: [{ id: 'r1', title: '', items: [{ kind: 'app', id: ps5.id }] }], kidsMode: { apps: [ps5.id, 'a.One'], dailyMinutes: 40 } });
+  const { shell, press } = setup(l);
+  press('down', 'down');
+  assert.equal(shell.focus.current(), 'app:' + ps5.id);
+  assert.deepEqual(press('ok')[0], { type: 'input', appId: ps5.id, source: 'HDMI4' });
+  assert.deepEqual(kidsSections(l).map((x) => x.tiles.map((t) => t.id)), [['app:a.One']], 'even an approval that slipped past validation');
+});

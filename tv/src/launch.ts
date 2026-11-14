@@ -34,7 +34,7 @@ export function tizenLauncher(api: TizenApplicationApi | undefined): Launcher {
 export interface TizenInstalledApi {
   application: {
     getAppsInfo(onSuccess: (apps: { id: string; name?: string; show?: boolean }[]) => void, onError: (e: { message?: string }) => void): void;
-    getCurrentApplication(): { appInfo: { id: string } };
+    getCurrentApplication(): { appInfo: { id: string }; hide?(): void }; // hide: Session 43 leaves Sofa Home after switching input
   };
 }
 
@@ -51,4 +51,41 @@ export function installedApps(api: TizenInstalledApi | undefined): Promise<{ app
       reject(new Error((e instanceof Error && e.message) || 'The TV refused to list apps'));
     }
   });
+}
+
+// Session 43: an input tile starts a console behind the Denon. The Server runs its Home Assistant script (Denon source,
+// wake); the TV then switches its own input with tizen.tvwindow (privilege tv.window) and Sofa Home hides itself.
+
+/** The Tizen APIs the input switch uses: the connected video sources and the main TV window's source. */
+export interface TizenSourceApi {
+  systeminfo: { getPropertyValue(p: 'VIDEOSOURCE', ok: (v: { connected: { type: string; number: number }[] }) => void, fail: (e: { message?: string }) => void): void };
+  tvwindow: { setSource(src: { type: string; number: number }, ok: () => void, fail: (e: { message?: string }) => void, window?: 'MAIN'): void };
+}
+
+/** Switches the TV to `source` (HDMI4 and so on), which must be listed as connected. Rejects without the API or when the TV refuses. */
+export function switchSource(api: TizenSourceApi | undefined, source: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const m = /^([A-Z]+)(\d+)$/.exec(source);
+    if (!api || !api.tvwindow || !api.systeminfo) return reject(new Error('Not running on a TV'));
+    if (!m) return reject(new Error('Not a TV input: ' + source));
+    const fail = (e: { message?: string }) => reject(new Error((e && e.message) || 'The TV did not switch to ' + source));
+    try {
+      api.systeminfo.getPropertyValue('VIDEOSOURCE', (v) => {
+        const src = (v.connected || []).filter((s) => s.type === m[1] && s.number === Number(m[2]))[0];
+        if (!src) return reject(new Error(source + ' is not connected'));
+        try {
+          api.tvwindow.setSource(src, () => resolve(), fail, 'MAIN');
+        } catch (e) {
+          fail(e as { message?: string });
+        }
+      }, fail);
+    } catch (e) {
+      fail(e as { message?: string });
+    }
+  });
+}
+
+/** OK on an input tile: the script first, then the TV input, then leave Sofa Home. A failing step stops the rest. Never turns anything off. */
+export function startInput(steps: { runScript(): Promise<void>; switchSource(): Promise<void>; leave(): void }): Promise<void> {
+  return steps.runScript().then(() => steps.switchSource()).then(() => steps.leave());
 }

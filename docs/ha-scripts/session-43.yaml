@@ -1,0 +1,75 @@
+# Session 43: the three console start scripts Sofa Home runs (POST /api/inputs/start -> script.turn_on).
+# DRAFT, NOT written to Home Assistant. The user approves them first, then they go in through the script editor
+# (YAML mode) or scripts.yaml, with exactly these ids: the Server's write guard only turns on script.sofa_start_*.
+#
+# Read from the live Home Assistant on 2026-11-15 (read only, nothing written):
+# - media_player.denon_avr_x1700h source_list: AUX1, AUX2, Bluetooth, HEOS Music, NET, PC, PS5, Source, TV Audio.
+# - script.wake_pc presses button.wake_on_lan_a8_a1_59_22_6c_64 (Wake-on-LAN).
+# - automation "Wake PC when Denon selects PC" already runs script.wake_pc when the Denon's source becomes PC.
+# - The ESP32 HDMI-CEC node offers one service, esphome.esp32_hdmi_hdmi_cec_send(cec_destination, cec_data), and
+#   a last-message sensor. In its log the PS5 answers as CEC logical address 8 ("PlaybackDev2", OSD name
+#   "PlayStation 5"); the Denon is the audio system at physical address 4.0.0.0, so it hangs off the TV's HDMI 4.
+# - No PS5 integration (only a router tracker and Plex), and nothing at all for the Nintendo Switch.
+#
+# None of them turns anything off. mode: single, so a second OK while one runs is ignored.
+
+script:
+  # PC: Denon on, source PC, Wake-on-LAN.
+  # Uncertain: selecting PC also fires "Wake PC when Denon selects PC", so the PC gets two magic packets (harmless).
+  # The explicit call stays so the script still works if that automation is ever turned off.
+  # The 2 s wait after turn_on is a guess at how long the Denon needs before it accepts a source change.
+  sofa_start_pc:
+    alias: Sofa Home – start PC
+    description: Turns the Denon on, selects PC and wakes the PC (Wake-on-LAN). Run by Sofa Home's PC tile.
+    mode: single
+    sequence:
+      - action: media_player.turn_on
+        target: { entity_id: media_player.denon_avr_x1700h }
+      - delay: { seconds: 2 }
+      - action: media_player.select_source
+        target: { entity_id: media_player.denon_avr_x1700h }
+        data: { source: PC }
+      - action: script.turn_on
+        target: { entity_id: script.wake_pc }
+
+  # PS5: Denon on, source PS5, then a CEC power-on to the PS5.
+  # Uncertain:
+  # - Whether the PS5 wakes from CEC at all depends on its "Enable HDMI Device Link" and "Power on from TV" settings.
+  # - The command is <User Control Pressed>[Power On Function] (0x44 0x6D) then <User Control Released> (0x45), sent
+  #   to logical address 8. Many devices ignore 0x6D in standby; if this does nothing, the next try is the Denon's own
+  #   CEC routing (it often wakes the source when its input is selected), or the PlayStation integration from HACS
+  #   (ps5-mqtt / PSN), which is not installed.
+  # - Logical address 8 was seen on 2026-11-14; it can change if CEC devices are added.
+  sofa_start_ps5:
+    alias: Sofa Home – start PS5
+    description: Turns the Denon on, selects PS5 and sends the PS5 a CEC power-on. Run by Sofa Home's PS5 tile.
+    mode: single
+    sequence:
+      - action: media_player.turn_on
+        target: { entity_id: media_player.denon_avr_x1700h }
+      - delay: { seconds: 2 }
+      - action: media_player.select_source
+        target: { entity_id: media_player.denon_avr_x1700h }
+        data: { source: PS5 }
+      - action: esphome.esp32_hdmi_hdmi_cec_send
+        data: { cec_destination: 8, cec_data: [0x44, 0x6D] }
+      - delay: { milliseconds: 200 }
+      - action: esphome.esp32_hdmi_hdmi_cec_send
+        data: { cec_destination: 8, cec_data: [0x45] }
+
+  # Switch: Denon on, source AUX1. NO wake path.
+  # Uncertain:
+  # - Which Denon input the Switch is on: AUX1 or AUX2 (the user says which; AUX1 is my guess). Change `source` below.
+  # - The Switch has no network wake and does not reliably wake from CEC; it has never shown up in the CEC log.
+  #   So this script only gets the Denon ready: someone presses the Switch's power or HOME button on a controller.
+  sofa_start_switch:
+    alias: Sofa Home – start Switch
+    description: Turns the Denon on and selects the Switch's input. The Switch itself wakes from its controller. Run by Sofa Home's Switch tile.
+    mode: single
+    sequence:
+      - action: media_player.turn_on
+        target: { entity_id: media_player.denon_avr_x1700h }
+      - delay: { seconds: 2 }
+      - action: media_player.select_source
+        target: { entity_id: media_player.denon_avr_x1700h }
+        data: { source: AUX1 }

@@ -147,6 +147,21 @@ test('allowed: the front door live stream switch on and off, and only that switc
   ] as ServiceCall[]) assert.throws(() => checkWrite(call, ha), WriteRefused);
 });
 
+test('allowed: turn on a sofa_start script (Session 43), and nothing else in the script domain', async () => {
+  const { calls, client } = fakeHa();
+  await client.startInput('script.sofa_start_ps5');
+  assert.equal(calls[0].url, 'http://ha.test:8123/api/services/script/turn_on');
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), { entity_id: 'script.sofa_start_ps5' });
+  for (const call of [
+    { domain: 'script', service: 'turn_on', data: { entity_id: 'script.wake_pc' } },
+    { domain: 'script', service: 'turn_on', data: { entity_id: 'script.sofa_start_ps5', variables: {} } },
+    { domain: 'script', service: 'turn_on', data: { entity_id: ['script.sofa_start_ps5'] } },
+    { domain: 'script', service: 'turn_off', data: { entity_id: 'script.sofa_start_ps5' } },
+    { domain: 'script', service: 'sofa_start_ps5', data: {} },
+    { domain: 'script', service: 'turn_on', data: { entity_id: 'script.sofa_start_PS5' } },
+  ] as ServiceCall[]) assert.throws(() => checkWrite(call, ha), WriteRefused);
+});
+
 test('camera/stream over the WebSocket: auth, one command, an absolute URL back', async () => {
   const wss = new WebSocketServer({ port: 0 });
   const seen: unknown[] = [];

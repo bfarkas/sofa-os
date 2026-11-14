@@ -1,6 +1,6 @@
 // Editing operations on a layout, pure and immutable: each takes a layout and returns the next one (an equal layout when
 // nothing changes). The editor (editor.ts) only calls these, so every rule about rows, apps and widgets is tested here.
-import { readConfig, ROW_UNITS, STREAM, UNITS, widgetProblems, type AppTile, type Layout, type RowItem, type SchemeId, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
+import { INPUT_SCRIPT, INPUT_SOURCE, readConfig, ROW_UNITS, STREAM, UNITS, widgetProblems, type AppTile, type Layout, type RowItem, type SchemeId, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
 
 export type Item = RowItem;
 const same = (a: Item, b: Item) => a.kind === b.kind && a.id === b.id;
@@ -85,6 +85,12 @@ export function addApp(l: Layout, app: AppTile): Layout {
   const id = app.id.trim(), name = app.name.trim();
   if (!id || !name || l.apps.some((a) => a.id === id)) return l;
   return { ...l, apps: l.apps.concat({ id, name }) };
+}
+/** Adds a console (Session 43): its tile runs `script` on Home Assistant and switches the TV to `source`. Its id is the script id. */
+export function addInput(l: Layout, input: { name: string; script: string; source: string }): Layout {
+  const name = input.name.trim(), script = input.script.trim(), source = input.source.trim().toUpperCase();
+  if (!name || !INPUT_SCRIPT.test(script) || !INPUT_SOURCE.test(source) || l.apps.some((a) => a.id === script)) return l;
+  return { ...l, apps: l.apps.concat({ id: script, name, kind: 'input', script, source }) };
 }
 export const renameApp = (l: Layout, id: string, name: string): Layout => ({ ...l, apps: l.apps.map((a) => (a.id === id ? { ...a, name } : a)) });
 export const moveApp = (l: Layout, id: string, delta: number): Layout => ({ ...l, apps: swap(l.apps, l.apps.findIndex((a) => a.id === id), delta) });

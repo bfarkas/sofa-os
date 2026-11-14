@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { REMOTE_KEYS } from '@sofa/shared';
+import { INPUT_SCRIPT, REMOTE_KEYS } from '@sofa/shared';
 import type { HaConfig } from './config.ts';
 import { log } from './log.ts';
 
@@ -36,7 +36,7 @@ function onlyKeys(data: Record<string, unknown>, allowed: string[]): boolean {
   return Object.keys(data).every((k) => allowed.includes(k));
 }
 
-/** Throws WriteRefused unless the call is one of the five allowed writes, aimed at this TV or the adults' phones. */
+/** Throws WriteRefused unless the call is one of the six allowed writes, aimed at this TV or the adults' phones. */
 export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   const { domain, service, data } = call;
   const name = `${domain}.${service}`;
@@ -53,6 +53,8 @@ export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   if (name === 'button.press' && onlyKeys(data, ['entity_id']) && data.entity_id === FRONTDOOR_REFRESH) return;
   // 5. Switch the front door camera's live stream on and off (Session 42): exactly that switch, nothing else.
   if ((name === 'switch.turn_on' || name === 'switch.turn_off') && onlyKeys(data, ['entity_id']) && data.entity_id === FRONTDOOR_LIVE) return;
+  // 6. Start a console (Session 43): turn on one script.sofa_start_* (Denon source and wake), never anything that turns a console off.
+  if (name === 'script.turn_on' && onlyKeys(data, ['entity_id']) && typeof data.entity_id === 'string' && INPUT_SCRIPT.test(data.entity_id)) return;
   throw new WriteRefused(`Home Assistant write refused: ${name} ${JSON.stringify(data)}`);
 }
 
@@ -123,6 +125,8 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
       if (!r || typeof r.url !== 'string' || !r.url.startsWith('/')) throw new Error('Home Assistant gave no stream URL');
       return ha.url + r.url;
     },
+    /** Runs a console's start script; script.turn_on returns at once while the script waits for the console. */
+    startInput: (script: string) => callService({ domain: 'script', service: 'turn_on', data: { entity_id: script } }),
     turnOffTv: () => callService({ domain: 'media_player', service: 'turn_off', data: { entity_id: ha.tvEntity } }),
     /**
      * Brings Sofa Home to the front, so the TV's Start Last App powers on into it. Through the TV's own REST API (port

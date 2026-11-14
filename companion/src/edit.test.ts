@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkWidgets, validateLayout, type Layout, type WidgetType, type WidgetsResponse } from '@sofa/shared';
-import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, pickableApps, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, setScreensaver, showOnDashboard, updateWidget } from './edit.ts';
+import { addApp, addInput, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, pickableApps, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, setScreensaver, showOnDashboard, updateWidget } from './edit.ts';
 
 const type: WidgetType = {
   type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['small', 'medium'], defaultSize: 'medium', defaultFreshness: 'live',
@@ -142,4 +142,15 @@ test('setScreensaver sets only the minutes, and the result validates', () => {
   assert.equal(p.screensaverMinutes, 15);
   assert.deepEqual(validateLayout(p), []);
   assert.ok(validateLayout(setScreensaver(base(), 7)).length);
+});
+
+test('a console (Session 43): added with a sofa_start script and an HDMI input, valid, placeable on the Dashboard; bad ones are ignored', () => {
+  let l = addInput(base(), { name: ' PS5 ', script: ' script.sofa_start_ps5 ', source: 'hdmi4' });
+  assert.deepEqual(l.apps[3], { id: 'script.sofa_start_ps5', name: 'PS5', kind: 'input', script: 'script.sofa_start_ps5', source: 'HDMI4' });
+  l = showOnDashboard(l, { kind: 'app', id: 'script.sofa_start_ps5' }, true);
+  assert.deepEqual(validateLayout(l), []);
+  assert.equal(addInput(l, { name: 'Again', script: 'script.sofa_start_ps5', source: 'HDMI4' }), l);
+  assert.equal(addInput(l, { name: 'PC', script: 'script.wake_pc', source: 'HDMI4' }), l);
+  assert.equal(addInput(l, { name: 'PC', script: 'script.sofa_start_pc', source: 'TV' }), l);
+  assert.equal(addInput(l, { name: '', script: 'script.sofa_start_pc', source: 'HDMI4' }), l);
 });
