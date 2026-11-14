@@ -393,3 +393,14 @@ test('on the Dashboard the Kids Mode tile is a row of its own that the arrows re
   press('up', 'up');
   assert.equal(shell.focus.current(), 'kids');
 });
+
+test('with the TV\'s installed apps the Apps tab lists curated first then the rest, the Dashboard and Kids Mode stay curated', () => {
+  const { shell } = setup(layout({ kidsMode: { apps: ['a.One'], dailyMinutes: 60 } }));
+  shell.setInstalled([app('z.Zed', 'Zed'), app('a.Two', 'Two'), { ...app('h.Hid', 'Hidden'), show: false }, app('me.Home', 'Sofa Home'), app('b.Bee', 'Bee')], 'me.Home');
+  shell.key({ key: 'right', long: false } as RemoteEvent);
+  shell.key({ key: 'ok', long: false } as RemoteEvent); // Apps tab
+  const tiles = shell.view().sections.flatMap((s) => s.tiles.map((t) => t.id));
+  assert.deepEqual(tiles, ['app:a.One', 'app:a.Two', 'app:a.Three', 'app:b.Bee', 'app:z.Zed']);
+  shell.setScreen('kids');
+  assert.deepEqual(shell.view().sections.flatMap((s) => s.tiles.map((t) => t.id)), ['app:a.One']);
+});

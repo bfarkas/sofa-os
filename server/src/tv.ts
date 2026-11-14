@@ -1,6 +1,6 @@
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { TvCode, TvTokenResponse } from '@sofa/shared';
+import type { InstalledApp, TvAppsReport, TvCode, TvTokenResponse } from '@sofa/shared';
 import { sha256 } from './auth.ts';
 
 // TV Sign-in. The TV asks for a code and gets {code, secret}. The code goes into the QR code, so anyone who sees the
@@ -59,4 +59,14 @@ export function checkDeviceToken(db: DatabaseSync, token: string | undefined): b
   if (!token) return false;
   const row = db.prepare('SELECT token_hash FROM tv_device WHERE id = 1').get() as { token_hash: string } | undefined;
   return !!row && same(row.token_hash, sha256(token));
+}
+
+/** The TV's reported list of installed apps replaces the last one. */
+export function saveTvApps(db: DatabaseSync, apps: InstalledApp[], now = Date.now()): void {
+  db.prepare('INSERT INTO tv_apps (id, apps, reported_at) VALUES (1, ?, ?) ON CONFLICT (id) DO UPDATE SET apps = excluded.apps, reported_at = excluded.reported_at').run(JSON.stringify(apps), now);
+}
+
+export function loadTvApps(db: DatabaseSync): TvAppsReport {
+  const row = db.prepare('SELECT apps, reported_at FROM tv_apps WHERE id = 1').get() as { apps: string; reported_at: number } | undefined;
+  return row ? { apps: JSON.parse(row.apps), reportedAt: new Date(row.reported_at).toISOString() } : { apps: [], reportedAt: null };
 }

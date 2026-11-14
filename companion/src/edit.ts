@@ -75,6 +75,12 @@ export const KNOWN_APPS: AppTile[] = [
   { id: 'mvOizTfhQn.KiKAplayer', name: 'KiKA' },
 ];
 
+/** What the app picker offers: the TV's reported apps once it has reported any, else KNOWN_APPS; apps already in the layout are left out, A to Z. */
+export function pickableApps(l: Layout, reported: AppTile[]): AppTile[] {
+  const have = new Set(l.apps.map((a) => a.id));
+  return (reported.length ? reported : KNOWN_APPS).filter((a) => !have.has(a.id)).sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+}
+
 export function addApp(l: Layout, app: AppTile): Layout {
   const id = app.id.trim(), name = app.name.trim();
   if (!id || !name || l.apps.some((a) => a.id === id)) return l;

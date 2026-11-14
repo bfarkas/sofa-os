@@ -1,7 +1,7 @@
 // Companion's Home Screen editor (/edit): Dashboard, Apps, Widgets and Settings over one working copy of the layout, with a
 // 16:9 preview made by Sofa Home's own drawing code (preview.ts). The working copy is saved to a Server draft as you go and
 // published through the Session 05 API. Every change goes through edit.ts; this file is forms and plumbing.
-import { checkWidgets, fieldApplies, FRESHNESS, ROW_UNITS, SCHEME_IDS, SCHEMES, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type KidsStatus, type Layout, type Snapshot, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, fieldApplies, FRESHNESS, ROW_UNITS, SCHEME_IDS, SCHEMES, STREAM, validateLayout, widgetProblems, type ConfigField, type Draft, type InstalledApp, type KidsStatus, type Layout, type Snapshot, type TvAppsReport, type WidgetInstance, type WidgetType, type WidgetsResponse } from '@sofa/shared';
 import * as E from './edit.ts';
 import type { PreviewApi } from './preview.ts';
 
@@ -41,7 +41,7 @@ export function startEditor(call: Call): void {
 
   let layout: Layout, published: Layout; // the working copy, and the revision it started from
   let base = 0, publishedAt = '';
-  let types: WidgetType[] = [], live: WidgetsResponse | null = null, tv: KidsStatus | null = null;
+  let reported: InstalledApp[] = [], types: WidgetType[] = [], live: WidgetsResponse | null = null, tv: KidsStatus | null = null;
   let draftId: number | null = null;
   let tab: Tab = 'dashboard', kids = false, selected: string | null = null;
   let dirty = false, busy = '', conflict = false, message = '', restored = false;
@@ -64,12 +64,14 @@ export function startEditor(call: Call): void {
     busy = 'Loading…';
     paintBar();
     try {
-      const [snap, kinds, now, status] = await Promise.all([
+      const [snap, kinds, now, status, installed] = await Promise.all([
         call<Snapshot>('GET', '/api/snapshot'),
         call<WidgetType[]>('GET', '/api/widget-types').catch(() => [] as WidgetType[]),
         call<WidgetsResponse>('GET', '/api/widgets').catch(() => null),
         call<KidsStatus>('GET', '/api/kids').catch(() => null),
+        call<TvAppsReport>('GET', '/api/tv/apps').catch(() => null),
       ]);
+      reported = installed ? installed.apps : [];
       published = snap.layout;
       base = snap.revision;
       publishedAt = snap.publishedAt;
@@ -274,7 +276,7 @@ export function startEditor(call: Call): void {
 
   function apps(): Child[] {
     const onDash = (id: string) => E.rowOf(layout, { kind: 'app', id }) !== null;
-    const known: [string, string][] = [['', 'Pick a known app…'], ...E.KNOWN_APPS.filter((k) => !layout.apps.some((a) => a.id === k.id)).map((k): [string, string] => [k.id, k.name])];
+    const known: [string, string][] = [['', 'Pick a known app…'], ...E.pickableApps(layout, reported).map((k): [string, string] => [k.id, k.name])];
     const name = h('input', { type: 'text', placeholder: 'Name', maxLength: 80, 'aria-label': 'New app name' });
     const id = h('input', { type: 'text', placeholder: 'Tizen app ID, like org.tizen.netflix-app', maxLength: 128, 'aria-label': 'New app ID', autocapitalize: 'off', spellcheck: 'false' });
     return [
@@ -295,10 +297,10 @@ export function startEditor(call: Call): void {
       ),
       h('div', { class: 'card' },
         h('h3', null, 'Add an app'),
-        select(known, '', (v) => { const k = E.KNOWN_APPS.find((x) => x.id === v); if (k) { name.value = k.name; id.value = k.id; } }, { 'aria-label': 'Known apps' }),
+        select(known, '', (v) => { const k = E.pickableApps(layout, reported).find((x) => x.id === v); if (k) { name.value = k.name; id.value = k.id; } }, { 'aria-label': 'Known apps' }),
         name, id,
         btn('Add app', () => edit(E.addApp(layout, { id: id.value, name: name.value })), ''),
-        h('p', { class: 'hint' }, 'Companion cannot list what is installed on the TV. The IDs above are the ones Sofa Home is known to launch; others need the exact Tizen ID. An app that fails to launch shows as Unavailable on the TV.'),
+        h('p', { class: 'hint' }, (reported.length ? 'The list above is what the TV reported as installed. ' : 'The TV has not reported its apps yet, so this is the short list Sofa Home is known to launch. ') + 'Any other app needs its exact Tizen ID. An app that fails to launch shows as Unavailable on the TV.'),
       ),
     ];
   }

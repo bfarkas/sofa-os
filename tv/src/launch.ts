@@ -1,3 +1,5 @@
+import type { AppInfo } from '@sofa/shared';
+
 // Starting provider apps. Sofa Home talks to the TV through this small interface so tests and a desktop browser can fake it.
 export interface Launcher {
   /** Resolves once the TV accepted the launch; rejects with a readable reason when the app cannot be opened. */
@@ -26,4 +28,27 @@ export function tizenLauncher(api: TizenApplicationApi | undefined): Launcher {
       });
     },
   };
+}
+
+/** The part of the Tizen Application API that lists what is installed (privilege application.info). */
+export interface TizenInstalledApi {
+  application: {
+    getAppsInfo(onSuccess: (apps: { id: string; name?: string; show?: boolean }[]) => void, onError: (e: { message?: string }) => void): void;
+    getCurrentApplication(): { appInfo: { id: string } };
+  };
+}
+
+/** Every app the TV lists, and Sofa Home's own id. Rejects without the API (a desktop browser) or when the TV refuses. */
+export function installedApps(api: TizenInstalledApi | undefined): Promise<{ apps: AppInfo[]; self: string }> {
+  return new Promise((resolve, reject) => {
+    if (!api || !api.application || !api.application.getAppsInfo) return reject(new Error('Not running on a TV'));
+    try {
+      api.application.getAppsInfo(
+        (list) => resolve({ apps: list.map((a) => ({ id: a.id, name: a.name || '', show: a.show })), self: api.application.getCurrentApplication().appInfo.id }),
+        (e) => reject(new Error((e && e.message) || 'The TV refused to list apps')),
+      );
+    } catch (e) {
+      reject(new Error((e instanceof Error && e.message) || 'The TV refused to list apps'));
+    }
+  });
 }

@@ -48,6 +48,12 @@ const migrations: string[] = [
    ) STRICT;`,
   // A revision Sofa Home made records its operation (shared/src/ops.ts, ADR 0004); a Companion publish leaves it NULL.
   `ALTER TABLE revisions ADD COLUMN op TEXT;`,
+  // The apps installed on the TV, as Sofa Home last reported them (shared/src/apps.ts): one JSON document.
+  `CREATE TABLE tv_apps (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     apps TEXT NOT NULL,
+     reported_at INTEGER NOT NULL
+   ) STRICT;`,
 ];
 
 /** The schema version this code writes; a backup with a higher one is from a newer Server. */

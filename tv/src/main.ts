@@ -2,7 +2,7 @@
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
 import { applyOp, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
-import { tizenLauncher, type TizenApplicationApi } from './launch.ts';
+import { installedApps, tizenLauncher, type TizenApplicationApi, type TizenInstalledApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
 import { currentPeriod, fakeHour } from './daycycle.ts';
@@ -24,7 +24,7 @@ declare global {
     SOFA_FAKE_HOUR?: string | number; // optional, from env.js: pretend it is this hour (0 to 23) for the day-cycle background
   }
   // Tizen web API, only the parts used here. Absent in a desktop browser.
-  const tizen: TizenApplicationApi & TizenAppInfoApi & {
+  const tizen: TizenApplicationApi & TizenAppInfoApi & TizenInstalledApi & {
     tvinputdevice: {
       registerKey(name: string): void;
       getSupportedKeys(): { name: string; code: number }[];
@@ -124,6 +124,7 @@ document.addEventListener('visibilitychange', () => {
     shell.focus.refresh(); // the focus model survived; draw it again
     resumeFromLaunch();
     if (token && server) {
+      reportInstalled();
       kidsCtl.refresh();
       if (sync) sync.refresh();
       if (widgetsSync) widgetsSync.refresh();
@@ -301,6 +302,7 @@ function start(signedOutNote = ''): void {
   if (!server) return openSettings('Enter the Server address first.');
   if (token) {
     runSync();
+    reportInstalled();
     kidsCtl.refresh();
   } else {
     renderSignIn({ code: '', url: '', error: '' }, signedOutNote);
@@ -316,6 +318,20 @@ function start(signedOutNote = ''): void {
       },
     });
   }
+}
+
+// Session 39: the Apps tab lists every launchable app, and the Server learns the list for Companion's picker. Failing only costs the extras.
+function reportInstalled(): void {
+  const t = token;
+  installedApps(typeof tizen === 'undefined' ? undefined : tizen).then(
+    ({ apps, self }) => {
+      shell.setInstalled(apps, self);
+      const list = apps.filter((a) => a.show !== false && a.id !== self).map((a) => ({ id: a.id, name: a.name }));
+      window.fetch(server + '/api/tv/apps', { method: 'PUT', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ apps: list }) })
+        .then((r) => { if (r.status === 401) tokenRefused(); else if (!r.ok) add('apps report refused: HTTP ' + r.status); }, (e) => add('apps report failed: ' + e));
+    },
+    (err: Error) => add('installed apps unavailable: ' + err.message),
+  );
 }
 
 // The household layout (or the kids view of it while Kids Mode shows) with a live socket. Restarted when the screen changes sides.

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { checkWidgets, isLayoutOp, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LayoutOpRequest, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
+import { checkWidgets, isLayoutOp, parseInstalledApps, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LayoutOpRequest, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
@@ -18,7 +18,7 @@ import { createPhotos, type Photos } from './photos.ts';
 import { photoRoute } from './photos-http.ts';
 import { createPin } from './pin.ts';
 import { createPhoneRemote } from './remote.ts';
-import { approveCode, checkDeviceToken, claimToken, createCode } from './tv.ts';
+import { approveCode, checkDeviceToken, claimToken, createCode, loadTvApps, saveTvApps } from './tv.ts';
 import { createSystem, type System } from './system.ts';
 import { createWidgets, type WidgetAdapter } from './widgets.ts';
 
@@ -189,6 +189,19 @@ export function startServer(
       log.info('layout op', { op: body.op.op, revision: result.snapshot.revision });
       broadcast({ type: 'revision', revision: result.snapshot.revision });
       return send(res, 200, result.snapshot);
+    }
+
+    // The apps installed on the TV: only the TV reports them, Companion and the TV read them.
+    if (key === 'PUT /api/tv/apps') {
+      if (!isTv(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      const apps = parseInstalledApps(((await readJson(req)) as { apps?: unknown } | null)?.apps);
+      if (!apps) throw new HttpError(400, 'expected { apps: [{ id, name }] } with at most 500 apps');
+      saveTvApps(db, apps);
+      return send(res, 200, loadTvApps(db));
+    }
+    if (key === 'GET /api/tv/apps') {
+      if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      return send(res, 200, loadTvApps(db));
     }
 
     if (pathname.startsWith('/api/')) {

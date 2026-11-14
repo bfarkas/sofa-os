@@ -11,7 +11,7 @@ import { hashSecret, sha256 } from './auth.ts';
 import type { Config } from './config.ts';
 import { openDb } from './db.ts';
 import { startServer } from './server.ts';
-import { approveCode, checkDeviceToken, claimToken, CODE_TTL_MS, createCode, MAX_PENDING } from './tv.ts';
+import { approveCode, checkDeviceToken, claimToken, CODE_TTL_MS, createCode, loadTvApps, MAX_PENDING, saveTvApps } from './tv.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'sofa-tv-'));
 const freshDb = () => openDb(':memory:');
@@ -317,4 +317,26 @@ test('the kids snapshot holds only what is approved and needs the TV token or a 
   assert.equal(((await (await get('', tv)).json()) as Snapshot).layout.apps.length, 2, 'the household snapshot is unchanged');
   assert.equal(((await (await get('?profile=household', tv)).json()) as Snapshot).layout.apps.length, 2);
   assert.equal((await get('?profile=adults', tv)).status, 400);
+});
+
+test('the TV reports its installed apps; Companion and the TV read them, only the TV writes', async () => {
+  const token = await signIn();
+  const put = (body: unknown, headers: Record<string, string>) => fetch(base + '/api/tv/apps', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  assert.deepEqual(await (await fetch(base + '/api/tv/apps', { headers: { cookie } })).json(), { apps: [], reportedAt: null });
+  assert.equal((await fetch(base + '/api/tv/apps')).status, 401);
+  assert.equal((await put({ apps: [] }, {})).status, 401);
+  assert.equal((await put({ apps: [{ id: 'a.B', name: 'A' }] }, { cookie })).status, 401); // Companion reads, it does not report
+  for (const bad of [{}, { apps: 'x' }, { apps: [{ id: 'a' }] }, { apps: [{ id: '', name: 'x' }] }]) assert.equal((await put(bad, bearer(token))).status, 400);
+  assert.equal((await put({ apps: [{ id: 'a.B', name: 'Alpha' }, { id: 'c.D', name: '' }] }, bearer(token))).status, 200);
+  const read = (await (await fetch(base + '/api/tv/apps', { headers: { cookie } })).json()) as { apps: unknown; reportedAt: string };
+  assert.deepEqual(read.apps, [{ id: 'a.B', name: 'Alpha' }, { id: 'c.D', name: 'c.D' }]);
+  assert.ok(Date.parse(read.reportedAt) > 0);
+  assert.deepEqual((await (await fetch(base + '/api/tv/apps', { headers: bearer(token) })).json() as { apps: unknown[] }).apps.length, 2);
+});
+
+test('a new report replaces the old list', () => {
+  const db = freshDb();
+  saveTvApps(db, [{ id: 'a.B', name: 'A' }], T0);
+  saveTvApps(db, [{ id: 'x.Y', name: 'X' }], T0 + 1);
+  assert.deepEqual(loadTvApps(db), { apps: [{ id: 'x.Y', name: 'X' }], reportedAt: new Date(T0 + 1).toISOString() });
 });

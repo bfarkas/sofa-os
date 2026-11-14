@@ -9,7 +9,7 @@
 // Arranging widgets (Session 16): a long press on a widget asks for its context menu (Move, Remove from Dashboard on the
 // Dashboard; Add to Dashboard in the Widgets tab for one not there). Move lifts it: left and right reorder it in its row, OK
 // places it as a `move` operation for the Server, Back cancels. A long press anywhere else is a select, as before.
-import { applyOp, ROW_UNITS, UNITS, type Layout, type LayoutOp, type PhotoAlbum, type Profile, type WidgetSize } from '@sofa/shared';
+import { applyOp, mergeApps, ROW_UNITS, UNITS, type AppInfo, type InstalledApp, type Layout, type LayoutOp, type PhotoAlbum, type Profile, type WidgetSize } from '@sofa/shared';
 import { createFocus } from './focus.ts';
 import type { RemoteEvent } from './keys.ts';
 import type { Screen } from './kids.ts';
@@ -76,17 +76,17 @@ export function kidsSections(layout: Layout, albums: PhotoAlbum[] = []): Section
   return out;
 }
 
-/** The sections of one tab. `unavailable` holds app ids that failed to launch; `kidsTile` is whether Kids Mode can be entered. */
-export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, profile: Profile = PROFILE, kidsTile = true): Section[] {
+/** The sections of one tab. `unavailable` holds app ids that failed to launch; `kidsTile` is whether Kids Mode can be entered; `allApps` is what the Apps tab lists (default: the curated apps). */
+export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, profile: Profile = PROFILE, kidsTile = true, allApps: InstalledApp[] = layout.apps): Section[] {
   const apps: Record<string, Tile> = {};
-  for (const a of layout.apps) apps[a.id] = { id: 'app:' + a.id, kind: 'app', label: a.name, detail: unavailable.has(a.id) ? 'Unavailable' : '', unavailable: unavailable.has(a.id) };
+  for (const a of allApps.concat(layout.apps)) apps[a.id] = { id: 'app:' + a.id, kind: 'app', label: a.name, detail: unavailable.has(a.id) ? 'Unavailable' : '', unavailable: unavailable.has(a.id) };
   const shown = layout.widgets.filter((w) => w.profiles.indexOf(profile) >= 0);
   const placed: Record<string, boolean> = {};
   const widgetTile = (w: (typeof shown)[number], detail: string): Tile => ({ id: 'widget:' + w.id, kind: 'widget', label: cap(w.type), detail, size: w.size });
 
   if (tab === 'apps') {
     const out: Section[] = [];
-    const tiles = layout.apps.map((a) => apps[a.id]);
+    const tiles = allApps.map((a) => apps[a.id]);
     for (let i = 0; i < tiles.length; i += APP_COLUMNS) out.push({ title: i ? '' : 'All Apps', tiles: tiles.slice(i, i + APP_COLUMNS) });
     return out;
   }
@@ -151,6 +151,7 @@ export function createShell(hooks: ShellHooks) {
   let kidsTile = true;
   let albums: PhotoAlbum[] = [];
   let unavailable = new Set<string>();
+  let installed: { apps: AppInfo[]; self: string } | null = null; // what the TV reports; the Apps tab lists it after the curated apps
   let lift: { widget: string; layout: Layout; from: string } | null = null; // the widget being moved, the layout as it shows now, and its row's tiles at the start
 
   const mode = (): View['mode'] => (!signedIn ? 'signin' : screen === 'household' ? 'home' : screen);
@@ -158,7 +159,7 @@ export function createShell(hooks: ShellHooks) {
     if (!layout || !signedIn) return [];
     if (screen === 'kids') return kidsSections(layout, albums);
     if (screen !== 'household') return [];
-    const out = sectionsFor(lift ? lift.layout : layout, tab, unavailable, PROFILE, kidsTile);
+    const out = sectionsFor(lift ? lift.layout : layout, tab, unavailable, PROFILE, kidsTile, installed ? mergeApps(layout.apps, installed.apps, installed.self) : layout.apps);
     if (lift) for (const s of out) for (const t of s.tiles) if (t.id === 'widget:' + lift.widget) t.lifted = true;
     return out;
   };
@@ -310,6 +311,11 @@ export function createShell(hooks: ShellHooks) {
     setAlbums(list: PhotoAlbum[]): void {
       if (JSON.stringify(list) === JSON.stringify(albums)) return;
       albums = list;
+      rebuild();
+    },
+    /** The apps the TV has installed (Session 39) and Sofa Home's own id. The Apps tab lists the curated apps, then the rest; the Dashboard and Kids Mode stay curated. */
+    setInstalled(apps: AppInfo[], self: string): void {
+      installed = { apps, self };
       rebuild();
     },
     /** The layout from the Server. A widget being moved keeps moving on the layout it was lifted from; the Server refuses the move if that is stale. */

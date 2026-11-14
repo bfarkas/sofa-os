@@ -45,6 +45,8 @@ No denylist unless something odd shows up on the TV.
 
 **Done when:** every launchable app on the TV appears in the Apps screen and launches, the Dashboard row is unchanged, and Companion's picker lists the TV's real apps.
 
+**Built (date 2026-11-15), NOT yet seen on the TV:** `mergeApps` and `parseInstalledApps` in `shared/src/apps.ts`; Sofa Home calls `tizen.application.getAppsInfo` (`tv/src/launch.ts`) at start and whenever it comes back to the front, shows curated apps first and the rest A to Z in the Apps tab (`shell.setInstalled`), and PUTs the list to the Server. Server: `PUT /api/tv/apps` (TV token only, validated, max 500) and `GET /api/tv/apps` (Companion or TV), stored in a new `tv_apps` table (migration 7). Companion's picker uses the reported list (`pickableApps`), falling back to `KNOWN_APPS`. Deviations: the Server needs deploying before the TV's report is accepted (an old Server answers 404, which only logs); the "All Apps" tile still counts curated apps only; a curated app stays even if the TV marks it hidden. Not checked: that `getAppsInfo` objects expose `name`/`show` as plain properties on the TV, and whether any odd system apps need a denylist.
+
 ### 40 · Photo screensaver
 
 **Difficulty 2 · Sonnet · medium · TV**

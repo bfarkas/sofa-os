@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkWidgets, validateLayout, type Layout, type WidgetType, type WidgetsResponse } from '@sofa/shared';
-import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, showOnDashboard, updateWidget } from './edit.ts';
+import { addApp, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, pickableApps, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, showOnDashboard, updateWidget } from './edit.ts';
 
 const type: WidgetType = {
   type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['small', 'medium'], defaultSize: 'medium', defaultFreshness: 'live',
@@ -128,4 +128,11 @@ test('setScheme changes only the scheme, and the result validates', () => {
   assert.equal(p.scheme, 'plum');
   assert.deepEqual(validateLayout(p), []);
   assert.equal(l.scheme, undefined); // the layout it was given is untouched
+});
+
+test('the app picker offers the TV\'s reported apps A to Z, or KNOWN_APPS before it has reported, never an app already added', () => {
+  const l = base();
+  assert.ok(pickableApps(l, []).some((a) => a.name === 'Netflix'));
+  const reported = [{ id: 'z.Zed', name: 'Zed' }, { id: 'a', name: 'Already' }, { id: 'b.Bee', name: 'bee' }];
+  assert.deepEqual(pickableApps(l, reported).map((a) => a.id), ['b.Bee', 'z.Zed']);
 });
