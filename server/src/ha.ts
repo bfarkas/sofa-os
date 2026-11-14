@@ -4,7 +4,7 @@ import type { HaConfig } from './config.ts';
 import { log } from './log.ts';
 
 // Home Assistant client. Every service call passes the write guard, which allows exactly the
-// spec's three writes (Home Assistant and household information) and refuses everything else.
+// spec's writes (Home Assistant and household information) and refuses everything else.
 // A new write needs a spec decision first, then a rule here and a test.
 // Two calls go to the TV itself, not to Home Assistant: launchSofaHome and sofaHomeVisible, one fixed URL with no data (see there).
 
@@ -25,6 +25,8 @@ export class HaHttpError extends Error {
 }
 
 const KEYS: string[] = Object.values(REMOTE_KEYS); // only the Phone Remote's keys, not any KEY_*
+export const FRONTDOOR_SNAPSHOT = 'image.bosch_frontdoor_last_snapshot';
+export const FRONTDOOR_REFRESH = 'button.bosch_frontdoor_refresh_snapshot';
 export const SOFA_HOME_APP_ID = 'sofahome01.SofaHome'; // tv/app/config.xml
 const ENTITY = /^[a-z_]+\.[a-z0-9_]+$/;
 
@@ -32,7 +34,7 @@ function onlyKeys(data: Record<string, unknown>, allowed: string[]): boolean {
   return Object.keys(data).every((k) => allowed.includes(k));
 }
 
-/** Throws WriteRefused unless the call is one of the three allowed writes, aimed at this TV or the adults' phones. */
+/** Throws WriteRefused unless the call is one of the four allowed writes, aimed at this TV or the adults' phones. */
 export function checkWrite(call: ServiceCall, ha: HaConfig): void {
   const { domain, service, data } = call;
   const name = `${domain}.${service}`;
@@ -45,6 +47,8 @@ export function checkWrite(call: ServiceCall, ha: HaConfig): void {
     const cmd = data.command;
     if ((typeof cmd === 'string' && KEYS.includes(cmd)) || (Array.isArray(cmd) && cmd.length > 0 && cmd.every((c) => typeof c === 'string' && KEYS.includes(c)))) return;
   }
+  // 4. Ask the front door camera for a new snapshot (Session 41): the one button, nothing else.
+  if (name === 'button.press' && onlyKeys(data, ['entity_id']) && data.entity_id === FRONTDOOR_REFRESH) return;
   throw new WriteRefused(`Home Assistant write refused: ${name} ${JSON.stringify(data)}`);
 }
 
@@ -76,6 +80,14 @@ export function createHaClient(ha: HaConfig, fetchFn: typeof fetch = fetch) {
       if (!ENTITY.test(entityId)) throw new Error(`not an entity id: ${entityId}`);
       return request(`/api/states/${entityId}`);
     },
+    /** The picture of an image entity, through Home Assistant's image proxy (a read). */
+    async getImage(entityId: string): Promise<{ body: Buffer; type: string }> {
+      if (!/^image\.[a-z0-9_]+$/.test(entityId)) throw new Error(`not an image entity: ${entityId}`);
+      const res = await fetchFn(`${ha.url}/api/image_proxy/${entityId}`, { headers: { Authorization: `Bearer ${ha.token}` }, signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) throw new HaHttpError(`Home Assistant GET image_proxy/${entityId}: HTTP ${res.status}`, res.status);
+      return { body: Buffer.from(await res.arrayBuffer()), type: res.headers.get('content-type') ?? 'image/jpeg' };
+    },
+    pressFrontdoorRefresh: () => callService({ domain: 'button', service: 'press', data: { entity_id: FRONTDOOR_REFRESH } }),
     turnOffTv: () => callService({ domain: 'media_player', service: 'turn_off', data: { entity_id: ha.tvEntity } }),
     /**
      * Brings Sofa Home to the front, so the TV's Start Last App powers on into it. Through the TV's own REST API (port

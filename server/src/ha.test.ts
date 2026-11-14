@@ -71,7 +71,17 @@ test('allowed: forward a Phone Remote key to this TV', async () => {
   assert.deepEqual(JSON.parse(String(calls[0].init.body)), { entity_id: 'remote.samung_tv', command: 'KEY_ENTER' });
 });
 
+test('allowed: refresh the front door snapshot, and only that button', async () => {
+  const { calls, client } = fakeHa();
+  await client.pressFrontdoorRefresh();
+  assert.equal(calls[0].url, 'http://ha.test:8123/api/services/button/press');
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), { entity_id: 'button.bosch_frontdoor_refresh_snapshot' });
+});
+
 const refused: [string, ServiceCall][] = [
+  ['another button', { domain: 'button', service: 'press', data: { entity_id: 'button.garage_door' } }],
+  ['the snapshot button with a second target', { domain: 'button', service: 'press', data: { entity_id: 'button.bosch_frontdoor_refresh_snapshot', area_id: 'hall' } }],
+  ['the live stream switch', { domain: 'switch', service: 'turn_on', data: { entity_id: 'switch.bosch_frontdoor_live_stream' } }],
   ['another domain', { domain: 'light', service: 'turn_on', data: { entity_id: 'light.living_room' } }],
   ['a Home Assistant restart', { domain: 'homeassistant', service: 'restart', data: {} }],
   ['turning on the TV', { domain: 'media_player', service: 'turn_on', data: { entity_id: 'media_player.samung_tv' } }],

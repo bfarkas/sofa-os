@@ -1,0 +1,7 @@
+{
+  "_note": "Real Home Assistant states of the Bosch Eyes Outdoor read on 2026-11-15 (REST /api/states shape). access_token, entity_picture and context removed. The 'unavailable' and 'person' variants are derived by the tests.",
+  "image.bosch_frontdoor_last_snapshot": {"entity_id":"image.bosch_frontdoor_last_snapshot","state":"2026-11-14T23:30:31.272987+00:00","attributes":{"friendly_name":"Bosch Frontdoor Last snapshot"}},
+  "sensor.bosch_frontdoor_bosch_frontdoor_last_event_type": {"entity_id":"sensor.bosch_frontdoor_bosch_frontdoor_last_event_type","state":"movement","attributes":{"options":["movement","person","audio_alarm","trouble","trouble_disconnect","trouble_reconnect","trouble_connect","none"],"event_type":"MOVEMENT","timestamp":"2026-11-14T20:56:50.871+01:00[Europe/Berlin]","device_class":"enum","friendly_name":"Bosch Frontdoor Bosch Frontdoor Last Event Type"}},
+  "sensor.bosch_frontdoor_last_event": {"entity_id":"sensor.bosch_frontdoor_last_event","state":"2026-11-14T19:56:50+00:00","attributes":{"event_type":"MOVEMENT","has_image":true,"has_clip":true,"clip_status":"Done","device_class":"timestamp","friendly_name":"Bosch Frontdoor Last Event"}},
+  "button.bosch_frontdoor_refresh_snapshot": {"entity_id":"button.bosch_frontdoor_refresh_snapshot","state":"unknown","attributes":{"friendly_name":"Bosch Frontdoor Refresh Snapshot"}}
+}

@@ -9,6 +9,7 @@ import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE,
 import { createCalendarReader } from './adapters/calendar.ts';
 import { cachedHistory, createForecastReader, createHistoryReader, watchHomeAssistant } from './adapters/homeassistant.ts';
 import { createCatalogue } from './catalogue.ts';
+import { cameraRoute, createCamera } from './adapters/camera.ts';
 import { createImmich } from './immich.ts';
 import type { Config } from './config.ts';
 import { createHaClient, subscribeEvents } from './ha.ts';
@@ -75,7 +76,9 @@ export function startServer(
   photos: Photos = createPhotos({ immich: config.immich ? createImmich(config.immich) : null, mediaDir: config.mediaDir, layout: () => currentSnapshot(db).layout }),
   system: System = createSystem(!config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on'),
 ): Server {
-  adapters ??= createCatalogue({ db, photos, ha: config.ha && createHaClient(config.ha), calendar: config.ha ? createCalendarReader(config.ha) : undefined, forecast: config.ha ? createForecastReader(config.ha) : undefined, history: config.ha ? cachedHistory(createHistoryReader(config.ha)) : undefined, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
+  const haClient = config.ha && createHaClient(config.ha);
+  const camera = haClient ? createCamera(haClient) : null;
+  adapters ??= createCatalogue({ db, photos, camera, ha: haClient, calendar: config.ha ? createCalendarReader(config.ha) : undefined, forecast: config.ha ? createForecastReader(config.ha) : undefined, history: config.ha ? cachedHistory(createHistoryReader(config.ha)) : undefined, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {
     const token = readCookie(req.headers.cookie, SESSION_COOKIE);
@@ -172,6 +175,8 @@ export function startServer(
     if (pathname.startsWith('/api/media/') || pathname.startsWith('/api/photos/')) {
       if (await photoRoute(photos, req, res, { companion: sessionOf(req) !== null, tv: isTv(req) })) return;
     }
+
+    if (pathname.startsWith('/api/camera/') && (await cameraRoute(camera, req, res))) return;
 
     if (pathname === '/api/kids' || pathname.startsWith('/api/kids/')) return kidsRoute(req, res, key);
 

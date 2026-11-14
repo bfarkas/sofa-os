@@ -2,12 +2,13 @@
 // A new type is one adapter module and one line here (Sessions 12 to 14).
 import { calendarAdapter, type CalendarReader } from './adapters/calendar.ts';
 import { homeAssistantAdapters, type ForecastReader, type HaReader, type HistoryReader } from './adapters/homeassistant.ts';
+import { cameraAdapter, type CameraDeps } from './adapters/camera.ts';
 import { photoAdapter, type PhotoDeps } from './adapters/photo.ts';
 import { wasteAdapter } from './adapters/waste.ts';
 import { statusAdapter, type StatusDeps } from './adapters/status.ts';
 import { Unavailable, type WidgetAdapter } from './widgets.ts';
 
-export type CatalogueDeps = StatusDeps & PhotoDeps & { ha?: HaReader | null; calendar?: CalendarReader; forecast?: ForecastReader; history?: HistoryReader }; // ha: the Home Assistant client, null when not set up; calendar, forecast and history: absent without Home Assistant
+export type CatalogueDeps = StatusDeps & PhotoDeps & CameraDeps & { ha?: HaReader | null; calendar?: CalendarReader; forecast?: ForecastReader; history?: HistoryReader }; // ha: the Home Assistant client, null when not set up; calendar, forecast and history: absent without Home Assistant
 
 export function createCatalogue(deps: CatalogueDeps): WidgetAdapter[] {
   return [
@@ -16,5 +17,6 @@ export function createCatalogue(deps: CatalogueDeps): WidgetAdapter[] {
     ...homeAssistantAdapters(deps.ha ?? null, { forecast: deps.forecast, history: deps.history, timeZone: deps.timeZone }),
     wasteAdapter(deps.ha ?? null, { timeZone: deps.timeZone }),
     photoAdapter(deps),
+    cameraAdapter(deps),
   ];
 }
