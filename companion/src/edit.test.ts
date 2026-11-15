@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkWidgets, validateLayout, type Layout, type WidgetType, type WidgetsResponse } from '@sofa/shared';
-import { addApp, addInput, addRow, addWidget, moveApp, moveItem, moveRow, moveWidget, newId, pickableApps, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, setScreensaver, showOnDashboard, updateWidget } from './edit.ts';
+import { addApp, addInput, addRow, addWidget, moveApp, moveAppTo, moveItem, moveRow, moveWidget, moveWidgetTo, newId, pickableApps, placeAt, placeInRow, previewWidgets, removeApp, removeFromRows, removeRow, removeWidget, renameRow, rowOf, rowTooWide, setBackgroundColor, setBackgroundDayCycle, setBackgroundStream, setConfig, setScheme, setScreensaver, showOnDashboard, updateWidget } from './edit.ts';
 
 const type: WidgetType = {
   type: 'home', title: 'Home', description: '', templates: ['list'], sizes: ['small', 'medium'], defaultSize: 'medium', defaultFreshness: 'live',
@@ -29,6 +29,19 @@ test('every operation keeps the layout valid', () => {
     l = step(l);
     assert.deepEqual(validateLayout(l), []);
   }
+});
+
+test('drag drops: a tile at an exact place, apps and widgets to an exact position', () => {
+  const l = base();
+  assert.deepEqual(ids(placeAt(l, { kind: 'app', id: 'b' }, 'row-1', 1), 0), ['a', 'b', 'w1'], 'from another row');
+  assert.deepEqual(ids(placeAt(l, { kind: 'app', id: 'b' }, 'row-1', 1), 1), [], 'and out of the old one');
+  assert.deepEqual(ids(placeAt(l, { kind: 'app', id: 'a' }, 'row-1', 9), 0), ['w1', 'a'], 'clamped to the end');
+  assert.deepEqual(ids(placeAt(l, { kind: 'app', id: 'c' }, 'row-2', 0), 1), ['c', 'b'], 'a tile not on the Dashboard yet');
+  assert.deepEqual(moveAppTo(l, 'c', 0).apps.map((a) => a.id), ['c', 'a', 'b']);
+  assert.deepEqual(moveAppTo(l, 'a', 2).apps.map((a) => a.id), ['b', 'c', 'a']);
+  assert.equal(moveAppTo(l, 'nope', 0).apps, l.apps);
+  assert.deepEqual(validateLayout(placeAt(l, { kind: 'widget', id: 'w1' }, 'row-2', 0)), []);
+  assert.deepEqual(moveWidgetTo(l, 'w1', 0).widgets, l.widgets);
 });
 
 test('rows: add, rename, reorder and remove', () => {

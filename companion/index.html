@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sofa.OS Companion</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#2f5d46">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sofa.OS">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,84 +16,163 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main>
-  <h1>Sofa.OS</h1>
-  <form id="login" hidden>
-    <label for="password">Companion password</label>
-    <input id="password" type="password" autocomplete="current-password" required autofocus>
-    <button type="submit">Sign in</button>
-    <p class="error" id="error" role="alert"></p>
-  </form>
-  <section id="tv" hidden>
-    <p id="tv-ask">Sign in the TV that shows this code?</p>
-    <p class="code" id="tv-code"></p>
-    <button id="approve" type="button">Approve</button>
-    <p id="tv-result" role="status"></p>
+<svg class="sprite" aria-hidden="true">
+  <defs>
+    <symbol id="sofa" viewBox="150 355 725 340"><path d="M300 358H724Q800 358 800 434V457Q774 457 774 486V524H250V486Q250 457 224 457V434Q224 358 300 358Z"/><path d="M190 468H210Q238 468 238 496V548H786V496Q786 468 814 468H834Q872 468 872 506V610Q872 652 830 652H194Q152 652 152 610V506Q152 468 190 468Z"/><rect x="216" y="664" width="56" height="28" rx="7"/><rect x="752" y="664" width="56" height="28" rx="7"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7V20a1 1 0 0 1-1 1H15v-6.5H9V21H4.5a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-remote" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="5"/><circle cx="12" cy="8.5" r="2.3"/><path d="M12 14.5v.01M12 17.5v.01"/></symbol>
+    <symbol id="i-kids" viewBox="0 0 24 24"><path d="M12 2.8l2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L12 16.4l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7z"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 10h18M10 10v10"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/><circle cx="12" cy="12" r="6.6"/></symbol>
+    <symbol id="chev" viewBox="0 0 24 24"><path d="M8 4l8 8-8 8"/></symbol>
+    <symbol id="up" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></symbol>
+    <symbol id="down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
+    <symbol id="left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-uturn" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></symbol>
+    <symbol id="i-house-s" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v9H4z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-rew" viewBox="0 0 24 24"><path d="M11.5 6v12L3 12zM21 6v12l-8.5-6z" fill="currentColor"/></symbol>
+    <symbol id="i-ff" viewBox="0 0 24 24"><path d="M12.5 6v12L21 12zM3 6v12l8.5-6z" fill="currentColor"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><rect x="2.5" y="7" width="19" height="10.5" rx="2.2"/><path d="M18.5 12.2h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2v.01"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+    <symbol id="i-handle" viewBox="0 0 24 24"><path d="M4 8h16M4 12h16M4 16h16"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  </defs>
+</svg>
+
+<main id="app">
+  <section id="login" class="page center-page" hidden>
+    <div class="wm big-wm"><svg aria-hidden="true"><use href="#sofa"/></svg><span>Sofa<i>.</i>OS</span></div>
+    <form id="login-form">
+      <div class="list"><label class="row"><span class="rt">Password</span><input id="password" class="field" type="password" autocomplete="current-password" required autofocus></label></div>
+      <p class="gf err" id="error" role="alert"></p>
+      <button class="btn wide" type="submit">Sign in</button>
+    </form>
   </section>
-  <section id="home" hidden>
-    <p class="notice error" id="ha-outage" role="alert" hidden></p>
-    <p>Signed in.</p>
-    <p><a class="button" href="/edit">Edit Home Screen</a></p>
-    <p><a class="button" href="/kids">Kids Mode</a></p>
-    <p class="hint" id="backup-status"></p>
-    <p><a class="button" href="/remote">Phone Remote</a></p>
-    <button id="logout" type="button">Sign out</button>
+
+  <section id="tv" class="page" hidden>
+    <div class="nb"><h1 class="lt">Sign in the TV</h1></div>
+    <section class="grp"><div class="list"><p class="row" id="tv-ask">Sign in the TV that shows this code?</p><p class="code" id="tv-code"></p></div></section>
+    <div class="pad"><button class="btn wide" id="approve" type="button">Approve</button><p class="gf" id="tv-result" role="status"></p></div>
   </section>
-  <section id="edit" hidden>
-    <div class="ed-top"><h2>Home Screen</h2><a href="/">Back</a></div>
+
+  <section id="home" class="page" hidden>
+    <div class="nb"><div class="nb-row"><span class="wm"><svg aria-hidden="true"><use href="#sofa"/></svg><span>Sofa<i>.</i>OS</span></span></div></div>
+    <div class="notice" id="ha-outage" role="alert" hidden><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg><div id="ha-outage-text"></div></div>
+    <div class="hero">
+      <div class="hero-h"><span class="dot" id="hero-dot"></span><span id="hero-title">Loading…</span></div>
+      <div class="ringbox">
+        <svg class="ring" viewBox="0 0 112 112" aria-hidden="true"><circle class="ring-bg" cx="56" cy="56" r="48"/><circle class="ring-fg" id="ring-fg" cx="56" cy="56" r="48"/></svg>
+        <div><div class="big" id="hero-big"></div><div class="sub" id="hero-sub"></div></div>
+      </div>
+      <div id="home-topup"></div>
+      <p class="gf flush" id="hero-foot"></p>
+    </div>
+    <div class="quick">
+      <a class="qt" href="/remote"><span class="badge b-tint"><svg class="ic" aria-hidden="true"><use href="#i-remote"/></svg></span><b>Remote</b><span>Arrows, OK, volume</span></a>
+      <a class="qt" href="/kids"><span class="badge b-purple"><svg class="ic" aria-hidden="true"><use href="#i-kids"/></svg></span><b>Kids Mode</b><span>Apps, minutes, PIN</span></a>
+    </div>
+    <section class="grp"><h3 class="gh">Sofa Home</h3><div class="list">
+      <a class="row" href="/edit"><div class="rt">Layout<div class="sub" id="home-published"></div></div><span class="rv" id="home-layout"></span><svg class="ic chev" aria-hidden="true"><use href="#chev"/></svg></a>
+      <div class="row"><div class="rt">Last backup</div><span class="rv" id="backup-status"></span></div>
+    </div></section>
+  </section>
+
+  <section id="topup" class="sheet-wrap" hidden>
+    <div class="sheet-dim" id="topup-dim"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="topup-title">
+      <div class="grab"></div>
+      <div class="nb"><div class="nb-row"><span></span><span class="nbt" id="topup-title">Add time</span><a class="lnk" href="/">Done</a></div></div>
+      <p class="code" id="topup-left"></p>
+      <p class="gf center" id="topup-text" role="status"></p>
+      <div class="pad" id="topup-controls"></div>
+    </div>
+  </section>
+
+  <section id="remote" class="page" hidden>
+    <div class="nb"><div class="nb-row"><span></span><span class="sub" id="remote-tv"></span></div><h1 class="lt">Remote</h1></div>
+    <div class="rnote" id="remote-kids" hidden><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg><span>Kids Mode is on, so Home and Menu are off.</span></div>
+    <div id="remote-pad"></div>
+    <p class="gf center" id="remote-note" role="status"></p>
+    <p class="gf center">One tap, one key press. There’s no power button, so the daily time limit can’t be skipped.</p>
+  </section>
+
+  <section id="kids" class="page" hidden>
+    <div class="nb"><div class="nb-row"><span></span><button class="lnk strong" id="kids-save" type="button" disabled>Save</button></div><h1 class="lt">Kids Mode</h1></div>
+    <section class="grp"><div class="list">
+      <div class="row"><div class="rt">Kids Mode</div><span class="rv"><span class="dot" id="kids-dot"></span><span id="kids-on"></span></span></div>
+      <div class="row block"><div class="spread"><span>Time left</span><span class="rv" id="kids-left"></span></div><div class="prog"><i id="kids-prog"></i></div></div>
+    </div><p class="gf" id="kids-status" role="status"></p></section>
+    <section class="grp"><h3 class="gh">Add time today</h3><div class="list"><div class="row block" id="kids-topup"></div></div><p class="gf">For today only. Daily minutes are below.</p></section>
+    <section class="grp"><h3 class="gh">Every day</h3><div class="list">
+      <div class="row"><label class="rt" for="kids-minutes">Minutes a day</label><input id="kids-minutes" class="num" type="number" min="0" max="1440" inputmode="numeric"><span class="stepper"><button type="button" id="kids-less" aria-label="5 minutes less">−</button><button type="button" id="kids-more" aria-label="5 minutes more">+</button></span></div>
+    </div></section>
+    <section class="grp"><h3 class="gh">Apps children can open</h3><div class="list" id="kids-apps"></div><p class="gf">Only these apps show in Kids Mode. Turn one on and it joins the end of the row. Save sends them to the TV.</p></section>
+    <section class="grp"><h3 class="gh">Adults</h3><div class="list">
+      <div class="row"><div class="rt">PIN</div><span class="rv" id="kids-pin-status"></span></div>
+      <div class="row"><input id="kids-pin" class="field" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="New PIN, four digits" aria-label="New PIN"><button class="lnk" id="kids-pin-set" type="button">Set PIN</button></div>
+    </div><p class="gf">The TV asks for the PIN to leave Kids Mode.</p></section>
+    <section class="grp"><div class="list">
+      <button class="row danger" id="kids-end" type="button">End today’s time now</button>
+      <button class="row danger" id="kids-exit" type="button">Turn off Kids Mode on the TV</button>
+    </div><p class="gf">Ending the time makes the TV say goodbye and turn off; a Top-up brings it back. Turning off Kids Mode shows the Dashboard.</p></section>
+    <p class="gf center" id="kids-result" role="status"></p>
+  </section>
+
+  <section id="settings" class="page" hidden>
+    <div class="nb"><h1 class="lt">Settings</h1></div>
+    <section class="grp"><h3 class="gh">Server</h3><div class="list">
+      <div class="row block center"><canvas id="server-qr" class="qr" width="200" height="200" aria-label="QR code of the Server address"></canvas><div class="sub mono" id="server-url"></div></div>
+    </div><p class="gf">Scan this with another phone to open Companion there.</p></section>
+    <section class="grp"><h3 class="gh">TV</h3><div class="list">
+      <div class="row"><div class="rt">TV</div><span class="rv" id="set-tv"></span></div>
+      <div class="row"><div class="rt">Layout</div><span class="rv" id="set-layout"></span></div>
+    </div><p class="gf">To sign the TV in again, open Settings on the TV, choose Sign in again, and scan the QR code with this phone.</p></section>
+    <section class="grp"><h3 class="gh">Integrations</h3><p class="gf top">Home Assistant, the calendar and the photo sources are set up on the Server, not here. A widget that can’t reach its source says so on its card.</p></section>
+    <section class="grp"><div class="list"><button class="row danger" id="logout" type="button">Sign out</button></div></section>
+  </section>
+
+  <section id="edit" class="page wide" hidden>
+    <div class="nb"><div class="nb-row"><span></span><button class="lnk" id="preview-open" type="button"><svg class="ic" aria-hidden="true"><use href="#i-rotate"/></svg>Preview</button></div><h1 class="lt">Layout</h1></div>
     <div class="ed-cols">
-      <div class="ed-side">
+      <div class="ed-side" id="ed-side">
         <div class="preview-wrap" id="preview-wrap"><iframe id="preview" src="/preview.html" title="Preview of the TV" width="1920" height="1080" tabindex="-1"></iframe></div>
+        <div class="pv-bar">
+          <div class="seg" id="pv-screen"><button type="button" data-kids="0" class="on">Dashboard</button><button type="button" data-kids="1">Kids</button></div>
+          <button class="btn sm" id="preview-close" type="button">Done</button>
+        </div>
       </div>
       <div class="ed-main">
-        <label class="check"><input type="checkbox" id="preview-kids">Preview Kids Mode</label>
-        <nav id="ed-tabs" class="tabs"></nav>
+        <div class="segwrap"><div class="seg" id="ed-tabs"></div></div>
         <div id="ed-notice"></div>
         <div id="ed-pane"></div>
       </div>
     </div>
-    <div class="ed-bar" id="ed-bar"></div>
-  </section>
-  <section id="remote" hidden>
-    <div class="ed-top"><h2>Remote</h2><a href="/">Back</a></div>
-    <div id="remote-pad"></div>
-    <p id="remote-note" role="status"></p>
-  </section>
-  <section id="kids" hidden>
-    <h2>Kids Mode</h2>
-    <p id="kids-status" role="status"></p>
-    <h3>Top-up</h3>
-    <div class="topup" id="kids-topup"></div>
-    <h3>Allowance and apps</h3>
-    <label for="kids-minutes">Daily minutes</label>
-    <input id="kids-minutes" type="number" min="0" max="1440" inputmode="numeric">
-    <fieldset id="kids-apps"><legend>Approved apps</legend></fieldset>
-    <button id="kids-save" type="button">Save and publish</button>
-    <h3>PIN</h3>
-    <p id="kids-pin-status"></p>
-    <label for="kids-pin">New PIN (four digits)</label>
-    <input id="kids-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
-    <button id="kids-pin-set" type="button">Set PIN</button>
-    <h3>End early</h3>
-    <p>Ends today's time now: the TV says goodbye and turns off, as when time runs out. A Top-up brings it back.</p>
-    <button id="kids-end" type="button">End Kids Mode time now</button>
-    <h3>Adult exit</h3>
-    <button id="kids-exit" type="button">Exit Kids Mode</button>
-    <p id="kids-result" role="status"></p>
-    <p><a href="/">Back</a></p>
-  </section>
-  <section id="topup" hidden>
-    <h2>Kids Mode Top-up</h2>
-    <p class="code" id="topup-left"></p>
-    <p id="topup-text" role="status"></p>
-    <div class="topup" id="topup-controls"></div>
-    <p><a href="/kids">Kids Mode page</a></p>
+    <div class="pubbar" id="ed-bar" hidden></div>
   </section>
 </main>
+
+<nav class="tabbar" id="tabbar" aria-label="Tabs" hidden>
+  <a href="/" data-tab="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg>Home</a>
+  <a href="/remote" data-tab="remote"><svg class="ic" aria-hidden="true"><use href="#i-remote"/></svg>Remote</a>
+  <a href="/kids" data-tab="kids"><svg class="ic" aria-hidden="true"><use href="#i-kids"/></svg>Kids</a>
+  <a href="/edit" data-tab="edit"><svg class="ic" aria-hidden="true"><use href="#i-layout"/></svg>Layout</a>
+  <a href="/settings" data-tab="settings"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg>Settings</a>
+</nav>
+
 <template id="topup-template">
-  <div class="buttons"><button type="button" data-minutes="5">+5 min</button><button type="button" data-minutes="10">+10 min</button></div>
-  <div class="custom"><input type="number" min="1" max="240" inputmode="numeric" placeholder="Minutes" aria-label="Custom minutes"><button type="button" data-custom>Add</button></div>
-  <p class="result" role="status"></p>
+  <div class="btnrow"><button class="btn tinted" type="button" data-minutes="5">+5 min</button><button class="btn tinted" type="button" data-minutes="10">+10 min</button><button class="btn tinted" type="button" data-custom-open>Custom</button></div>
+  <div class="custom" hidden><input class="field boxed" type="number" min="1" max="240" inputmode="numeric" placeholder="Minutes, 1 to 240" aria-label="Custom minutes"><button class="btn sm" type="button" data-custom>Add</button></div>
+  <p class="gf flush result" role="status"></p>
 </template>
 <script src="/main.js"></script>
 </body>

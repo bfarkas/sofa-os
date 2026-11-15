@@ -26,3 +26,28 @@ export function statusText(s: KidsStatus): string {
   if (s.active && s.remainingSeconds <= 0) lines.push('The allowance is used up.');
   return lines.join(' ');
 }
+
+export interface HomeView {
+  dot: '' | 'g' | 'o'; // grey, green (on), orange (time is up)
+  title: string; // "TV is on · Kids Mode"
+  big: string; // the number in the ring's caption
+  unit: string; // after the number, smaller
+  sub: string[]; // lines under it
+  frac: number; // how full the ring is, 0 to 1
+  topup: boolean; // the Top-up buttons show
+  foot: string;
+}
+
+const mins = (seconds: number) => Math.ceil(Math.max(0, seconds) / 60);
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/** Home's hero card (Session 46 pick A): the TV, Kids Mode and today's time as a ring. */
+export function homeView(s: KidsStatus): HomeView {
+  const tv = s.tv === 'off' ? 'TV is off' : s.tv === 'pending' ? 'TV is starting' : 'TV is on';
+  const total = s.dailySeconds + s.topUpSeconds;
+  const made = mins(s.dailySeconds) + ' min a day' + (s.topUpSeconds ? ' + ' + mins(s.topUpSeconds) + ' min Top-up' : '');
+  const foot = 'Top-ups add time to today only. Resets at ' + hhmm(s.resetsAt) + '.';
+  if (!s.active) return { dot: s.tv === 'off' ? '' : 'g', title: tv, big: 'Off', unit: '', sub: ['Kids Mode is not on.', mins(s.dailySeconds) + ' min a day.'], frac: 0, topup: false, foot: 'Top-up shows here while Kids Mode is on.' };
+  if (s.remainingSeconds <= 0) return { dot: 'o', title: tv + ' · Kids Mode', big: '0', unit: 'min left', sub: ['Time is up for today.', made], frac: 0, topup: true, foot };
+  return { dot: s.tv === 'off' ? '' : 'g', title: tv + ' · Kids Mode', big: String(mins(s.remainingSeconds)), unit: 'min left', sub: ['of ' + mins(total) + ' today', made], frac: total ? Math.min(1, s.remainingSeconds / total) : 0, topup: true, foot };
+}

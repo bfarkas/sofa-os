@@ -48,6 +48,21 @@ export function placeInRow(l: Layout, item: Item, rowId: string): Layout {
   return { ...cleared, rows: cleared.rows.map((r) => (r.id === rowId ? { ...r, items: r.items.concat({ kind: item.kind, id: item.id }) } : r)) };
 }
 
+/** Puts a tile at `index` in a row (clamped), taking it out of wherever it was: the drag list's drop. */
+export function placeAt(l: Layout, item: Item, rowId: string, index: number): Layout {
+  const cleared = removeFromRows(l, item);
+  return { ...cleared, rows: cleared.rows.map((r) => (r.id === rowId ? { ...r, items: insertAt(r.items, { kind: item.kind, id: item.id }, index) } : r)) };
+}
+function insertAt<T>(list: T[], x: T, index: number): T[] {
+  const i = Math.max(0, Math.min(index, list.length));
+  return list.slice(0, i).concat(x, list.slice(i));
+}
+function moveTo<T>(list: T[], from: number, to: number): T[] {
+  if (from < 0) return list;
+  const rest = list.filter((_, i) => i !== from);
+  return insertAt(rest, list[from], to);
+}
+
 /** Moves a tile one place along its row. */
 export function moveItem(l: Layout, item: Item, delta: number): Layout {
   return { ...l, rows: l.rows.map((r) => (r.items.some((i) => same(i, item)) ? { ...r, items: swap(r.items, r.items.findIndex((i) => same(i, item)), delta) } : r)) };
@@ -93,6 +108,7 @@ export function addInput(l: Layout, input: { name: string; script: string; sourc
   return { ...l, apps: l.apps.concat({ id: script, name, kind: 'input', script, source }) };
 }
 export const renameApp = (l: Layout, id: string, name: string): Layout => ({ ...l, apps: l.apps.map((a) => (a.id === id ? { ...a, name } : a)) });
+export const moveAppTo = (l: Layout, id: string, index: number): Layout => ({ ...l, apps: moveTo(l.apps, l.apps.findIndex((a) => a.id === id), index) });
 export const moveApp = (l: Layout, id: string, delta: number): Layout => ({ ...l, apps: swap(l.apps, l.apps.findIndex((a) => a.id === id), delta) });
 
 /** Removes an app everywhere: All Apps, the Dashboard and the Kids Mode approval. */
@@ -111,6 +127,7 @@ export function addWidget(l: Layout, type: WidgetType): Layout {
 export function removeWidget(l: Layout, id: string): Layout {
   return { ...removeFromRows(l, { kind: 'widget', id }), widgets: l.widgets.filter((w) => w.id !== id) };
 }
+export const moveWidgetTo = (l: Layout, id: string, index: number): Layout => ({ ...l, widgets: moveTo(l.widgets, l.widgets.findIndex((w) => w.id === id), index) });
 export const moveWidget = (l: Layout, id: string, delta: number): Layout => ({ ...l, widgets: swap(l.widgets, l.widgets.findIndex((w) => w.id === id), delta) });
 
 const patchWidget = (l: Layout, id: string, f: (w: WidgetInstance) => WidgetInstance): Layout => ({ ...l, widgets: l.widgets.map((w) => (w.id === id ? f(w) : w)) });

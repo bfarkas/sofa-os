@@ -1,38 +1,34 @@
 import type { KidsStatus, PhoneKey, RemoteRequest } from '@sofa/shared';
 
-// Phone Remote page (/remote): big buttons that post one key each to the Server. A tap is one key press; there is no repeat on hold.
+// Phone Remote page (/remote, Session 46 pick: a round arrow pad, Stop kept). Each button posts one key to the Server; a tap is
+// one key press, there is no repeat on hold.
 type Call = <T>(method: string, url: string, body?: unknown) => Promise<T>;
 
-// Buttons by row: [key, glyph, accessible name]. The d-pad is a 3x3 grid, the rest are rows of equal buttons.
-const PAD: [PhoneKey | '', string, string][] = [
-  ['', '', ''], ['up', '▲', 'Up'], ['', '', ''],
-  ['left', '◀', 'Left'], ['ok', 'OK', 'OK'], ['right', '▶', 'Right'],
-  ['', '', ''], ['down', '▼', 'Down'], ['', '', ''],
-];
-const TOP: [PhoneKey, string, string][] = [['back', '↩', 'Back'], ['home', '⌂', 'Home'], ['menu', '☰', 'Menu']];
-const VOL: [PhoneKey, string, string][] = [['voldown', 'Vol −', 'Volume down'], ['mute', 'Mute', 'Mute'], ['volup', 'Vol +', 'Volume up']];
-const MEDIA: [PhoneKey, string, string][] = [['rewind', '⏪', 'Rewind'], ['play', '▶', 'Play'], ['pause', '⏸', 'Pause'], ['stop', '⏹', 'Stop'], ['forward', '⏩', 'Forward']];
 const KIDS_OFF: PhoneKey[] = ['home', 'menu']; // the Server refuses these in Kids Mode (server/src/remote.ts)
+const icon = (id: string) => `<svg class="ic" aria-hidden="true"><use href="#${id}"/></svg>`;
+const round = (key: PhoneKey, id: string, name: string, label = '') => `<button type="button" class="rk" data-key="${key}" aria-label="${name}"><span class="c">${icon(id)}</span>${label}</button>`;
+
+// Static markup with fixed strings only (no data), so innerHTML is safe here.
+const PAD = `
+  <div class="rtop">${round('back', 'i-uturn', 'Back', 'Back')}${round('home', 'i-house-s', 'Home', 'Home')}${round('menu', 'i-menu', 'Menu', 'Menu')}</div>
+  <div class="dpad" role="group" aria-label="Arrows and OK">
+    <button type="button" class="ar-up" data-key="up" aria-label="Up">${icon('up')}</button>
+    <button type="button" class="ar-left" data-key="left" aria-label="Left">${icon('left')}</button>
+    <button type="button" class="ar-right" data-key="right" aria-label="Right">${icon('right')}</button>
+    <button type="button" class="ar-down" data-key="down" aria-label="Down">${icon('down')}</button>
+    <button type="button" class="ok" data-key="ok">OK</button>
+  </div>
+  <div class="rvol">
+    <div class="capsule" role="group" aria-label="Volume"><button type="button" data-key="voldown" aria-label="Volume down">${icon('i-minus')}</button><em>Volume</em><button type="button" data-key="volup" aria-label="Volume up">${icon('i-plus')}</button></div>
+    ${round('mute', 'i-mute', 'Mute')}
+  </div>
+  <div class="rmedia">${round('rewind', 'i-rew', 'Rewind')}${round('play', 'i-play', 'Play')}${round('pause', 'i-pause', 'Pause')}${round('stop', 'i-stop', 'Stop')}${round('forward', 'i-ff', 'Forward')}</div>`;
 
 export function startRemote(call: Call): void {
   const host = document.getElementById('remote-pad')!;
   const note = document.getElementById('remote-note')!;
   if (!host.childElementCount) {
-    const make = (rows: [PhoneKey | '', string, string][], cls: string) => {
-      const row = document.createElement('div');
-      row.className = cls;
-      for (const [key, glyph, name] of rows) {
-        const b = document.createElement('button');
-        if (key) Object.assign(b, { type: 'button', textContent: glyph }), b.setAttribute('aria-label', name), (b.dataset.key = key);
-        else b.className = 'gap', (b.disabled = true), (b.tabIndex = -1), b.setAttribute('aria-hidden', 'true');
-        row.appendChild(b);
-      }
-      host.appendChild(row);
-    };
-    make(TOP, 'rtop');
-    make(PAD, 'rpad');
-    make(VOL, 'rvol');
-    make(MEDIA, 'rmedia');
+    host.innerHTML = PAD;
     host.addEventListener('click', async (e) => {
       const key = (e.target as HTMLElement).closest('button')?.dataset.key as PhoneKey | undefined;
       if (!key) return;
@@ -47,9 +43,11 @@ export function startRemote(call: Call): void {
   }
   // Home and Menu are off while Kids Mode is on; say so rather than let a tap fail.
   async function kids(): Promise<void> {
-    const active = await call<KidsStatus>('GET', '/api/kids').then((s) => s.active, () => false);
+    const s = await call<KidsStatus>('GET', '/api/kids').catch(() => null);
+    const active = !!s && s.active;
     for (const key of KIDS_OFF) host.querySelector<HTMLButtonElement>(`[data-key=${key}]`)!.disabled = active;
-    if (active) note.textContent = 'Kids Mode is on: Home and Menu are off.';
+    document.getElementById('remote-kids')!.hidden = !active;
+    document.getElementById('remote-tv')!.textContent = !s ? '' : s.tv === 'off' ? 'TV off' : 'TV on';
   }
   void kids();
 }

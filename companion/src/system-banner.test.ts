@@ -8,7 +8,7 @@ const s = (o: Partial<SystemStatus> = {}): SystemStatus => ({ homeAssistant: 'on
 test('the banner shows only for a Home Assistant that was reached and now is not', () => {
   assert.equal(outageText(s()), null);
   assert.equal(outageText(s({ haReachable: null })), null); // unknown yet, or not set up
-  assert.match(outageText(s({ haReachable: false }))!, /^Home Assistant is not reachable\. Until it is back: .*Phone Remote\.$/);
+  assert.match(outageText(s({ haReachable: false }))!, /^Home Assistant is offline\. Until it’s back, the Remote, .*don’t work\.$/);
   assert.match(outageText(s({ haReachable: false, haSince: '2026-11-09T10:00:00Z' }))!, / since \d/);
 });
 
