@@ -59,6 +59,7 @@ export function createPhotos(o: PhotosOptions) {
   function usedAlbums(l: Layout): Set<string> {
     const s = new Set<string>(l.kidsMode.albums ?? []);
     for (const w of l.widgets) if (w.type === 'photo') s.add(w.config.source === 'photostream' ? STREAM : String(w.config.album));
+    if (l.screensaverMinutes !== 0) s.add(STREAM); // the screensaver shows the photostream (Session 40, the user's call until Immich is set up properly)
     if (l.background.kind === 'slideshow') s.add(l.background.album);
     else if (l.background.kind === 'image') s.add(l.background.image.split('/')[0]);
     return s;

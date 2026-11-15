@@ -121,6 +121,14 @@ test('live: open switches on and returns the URL; close switches off', async () 
   assert.deepEqual(r.calls, ['on', 'off'], 'closing with nothing running does nothing');
 });
 
+test('live: reset switches the stream off once, even if nothing opened it here', async () => {
+  const r = liveRig();
+  await r.view.reset();
+  assert.deepEqual(r.calls, ['off']);
+  await r.view.close();
+  assert.deepEqual(r.calls, ['off'], 'nothing left to close');
+});
+
 test('live: the Server timeout switches off when the TV never closes', async () => {
   const r = liveRig();
   await r.view.open();

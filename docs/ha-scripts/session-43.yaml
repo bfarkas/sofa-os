@@ -1,6 +1,6 @@
 # Session 43: the three console start scripts Sofa Home runs (POST /api/inputs/start -> script.turn_on).
-# DRAFT, NOT written to Home Assistant. The user approves them first, then they go in through the script editor
-# (YAML mode) or scripts.yaml, with exactly these ids: the Server's write guard only turns on script.sofa_start_*.
+# Approved by the user and written to Home Assistant on 2026-11-15 with exactly these ids (the Server's write guard only
+# turns on script.sofa_start_*). The Switch is on Denon AUX1; the PS5 has HDMI Device Link on.
 #
 # Read from the live Home Assistant on 2026-11-15 (read only, nothing written):
 # - media_player.denon_avr_x1700h source_list: AUX1, AUX2, Bluetooth, HEOS Music, NET, PC, PS5, Source, TV Audio.
@@ -59,7 +59,6 @@ script:
 
   # Switch: Denon on, source AUX1. NO wake path.
   # Uncertain:
-  # - Which Denon input the Switch is on: AUX1 or AUX2 (the user says which; AUX1 is my guess). Change `source` below.
   # - The Switch has no network wake and does not reliably wake from CEC; it has never shown up in the CEC log.
   #   So this script only gets the Denon ready: someone presses the Switch's power or HOME button on a controller.
   sofa_start_switch:

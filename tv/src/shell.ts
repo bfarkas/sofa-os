@@ -116,7 +116,7 @@ export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, 
     }
     if (tiles.length) out.push({ title: r.title, tiles });
   }
-  const more: Tile = { id: 'allapps', kind: 'allapps', label: 'All Apps', detail: layout.apps.length + ' apps' };
+  const more: Tile = { id: 'allapps', kind: 'allapps', label: 'All Apps', detail: allApps.length + ' apps' };
   const last = out.filter((s) => s.tiles.some((t) => t.kind === 'app')).pop();
   if (last) last.tiles.push(more);
   else out.push({ title: '', tiles: [more] });

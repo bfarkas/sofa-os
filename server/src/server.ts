@@ -79,6 +79,7 @@ export function startServer(
   const haClient = config.ha && createHaClient(config.ha);
   const camera = haClient ? createCamera(haClient) : null;
   const live = camera && createLiveView(camera);
+  if (live) void live.reset().catch((err) => log.warn('camera: live switch-off at startup failed', { err: String(err) }));
   adapters ??= createCatalogue({ db, photos, camera, ha: haClient, calendar: config.ha ? createCalendarReader(config.ha) : undefined, forecast: config.ha ? createForecastReader(config.ha) : undefined, history: config.ha ? cachedHistory(createHistoryReader(config.ha)) : undefined, allowance: () => allowance.status(), homeAssistant: !config.ha ? 'off' : config.ha.dryRun ? 'dry run' : 'on', timeZone: config.allowance.timeZone });
   const companionRoot = resolve(config.companionDir);
   const sessionOf = (req: IncomingMessage) => {

@@ -32,6 +32,8 @@ export interface LiveView {
   open(): Promise<string>;
   /** Switches the stream off if it is on. Closing while nothing runs does nothing. */
   close(): Promise<void>;
+  /** Switches the stream off whatever this process thinks (a restart may have left it on). */
+  reset(): Promise<void>;
 }
 /** One live session at a time, serialised so a close cannot cross an open. `timers` are injectable for tests. */
 export function createLiveView(camera: Camera, timeoutMs = LIVE_MS, timers: { set: typeof setTimeout; clear: typeof clearTimeout } = { set: setTimeout, clear: clearTimeout }): LiveView {
@@ -75,6 +77,8 @@ export function createLiveView(camera: Camera, timeoutMs = LIVE_MS, timers: { se
       }
     }),
     close: stop,
+    // At startup: a stream left on by a restart is switched off (on failure it retries at the next timeout).
+    reset: () => queue(async () => { on = true; await off(); }),
   };
 }
 export interface CameraDeps { camera?: Camera | null }

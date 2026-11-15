@@ -42,6 +42,12 @@ test('the Dashboard shows the layout rows and ends the last app row with All App
   assert.equal(s[2].tiles[0].detail, ''); // the card itself shows the widget (cards.ts)
 });
 
+test('the All Apps tile counts every app the Apps tab lists, not only the curated ones', () => {
+  const all = [{ id: 'a.One', name: 'One' }, { id: 'a.Two', name: 'Two' }, { id: 'x.Extra', name: 'Extra' }];
+  const s = sectionsFor(layout(), 'dashboard', new Set(), 'household', true, all);
+  assert.equal(s[1].tiles[2].detail, '3 apps');
+});
+
 test('without any app row the All Apps tile gets a row of its own', () => {
   const s = sectionsFor(layout({ rows: [] }), 'dashboard', new Set());
   assert.deepEqual(s.map((x) => x.tiles.map((t) => t.id)), [['kids'], ['allapps']]);

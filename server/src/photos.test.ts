@@ -288,7 +288,8 @@ test('the photostream is the household\'s newest photos, used only where the lay
   const { photos, calls } = make({}, stream);
   assert.equal(photos.allowed('household', STREAM), true);
   assert.equal(photos.allowed('kids', STREAM), false);
-  assert.equal(make().photos.allowed('household', STREAM), false); // no widget or background uses it
+  assert.equal(make({}, layoutWith({ screensaverMinutes: 0 })).photos.allowed('household', STREAM), false); // no widget, background or screensaver uses it
+  assert.equal(make().photos.allowed('household', STREAM), true); // the screensaver (on by default) shows the photostream
   assert.equal(make({}, layoutWith({ background: { kind: 'slideshow', album: STREAM } })).photos.allowed('household', STREAM), true);
   assert.equal(make({}, layoutWith({ background: { kind: 'image', image: STREAM + '/' + asset(10) } })).photos.allowed('household', STREAM), true);
   // A hand-edited layout that lists it for kids is refused at publish, and the check here holds even if it got through.

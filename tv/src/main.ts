@@ -1,7 +1,7 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { applyOp, DEFAULT_SCREENSAVER_MINUTES, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
+import { applyOp, DEFAULT_SCREENSAVER_MINUTES, STREAM, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { installedApps, startInput, switchSource, tizenLauncher, type TizenApplicationApi, type TizenInstalledApi, type TizenSourceApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
@@ -276,11 +276,10 @@ function wakeScreensaver(): void {
 }
 function screensaverTick(): void {
   if (!idle.tick()) return;
-  const album = lastSync && lastSync.snapshot ? lastSync.snapshot.layout.widgets.map((w) => albumOfCard(viewFor(w.id, w.id))).filter((a) => !!a)[0] : null;
-  if (!album || !token || screen !== 'household' || overlay === 'photos' || overlay === 'live' || overlay === 'pin') return void idle.key(); // nothing to show, or a slideshow is already open: count again
+  if (!token || screen !== 'household' || overlay === 'photos' || overlay === 'live' || overlay === 'pin') return void idle.key(); // nothing to show, or a slideshow is already open: count again
   add('screensaver start');
   saverFrom = overlay;
-  openPhotos(album, 'household', 'ambient');
+  openPhotos(STREAM, 'household', 'ambient', 'Photostream'); // the photostream, not a widget's album: the user's call until Immich is set up properly
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -374,14 +373,18 @@ function start(signedOutNote = ''): void {
 }
 
 // Session 39: the Apps tab lists every launchable app, and the Server learns the list for Companion's picker. Failing only costs the extras.
+let reportedApps = '';
 function reportInstalled(): void {
   const t = token;
   installedApps(typeof tizen === 'undefined' ? undefined : tizen).then(
     ({ apps, self }) => {
       shell.setInstalled(apps, self);
       const list = apps.filter((a) => a.show !== false && a.id !== self).map((a) => ({ id: a.id, name: a.name }));
-      window.fetch(server + '/api/tv/apps', { method: 'PUT', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ apps: list }) })
-        .then((r) => { if (r.status === 401) tokenRefused(); else if (!r.ok) add('apps report refused: HTTP ' + r.status); }, (e) => add('apps report failed: ' + e));
+      const body = JSON.stringify({ apps: list });
+      if (body === reportedApps) return; // the list rarely changes: tell the Server only when it did (and once per start)
+      reportedApps = body;
+      window.fetch(server + '/api/tv/apps', { method: 'PUT', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body })
+        .then((r) => { if (r.ok) return; reportedApps = ''; if (r.status === 401) tokenRefused(); else add('apps report refused: HTTP ' + r.status); }, (e) => { reportedApps = ''; add('apps report failed: ' + e); });
     },
     (err: Error) => add('installed apps unavailable: ' + err.message),
   );
