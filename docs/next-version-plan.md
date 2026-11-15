@@ -170,6 +170,27 @@ Build the picked design, framework-free as today: the tab bar, Home as status fi
 
 **Built (2026-11-15), NOT yet seen on the TV:** Companion → Kids Mode → "End Kids Mode time now" (asks to confirm, disabled when Kids Mode is off or already at zero) calls `POST /api/kids/end` (Companion session only; the TV gets 403). `allowance.end()` sets the used time to today's allowance, so the usual zero path runs: the TV is signalled at once (the change signal now also fires when the time reaches zero), shows the Done Screen, the Server brings Sofa Home to the front and switches the TV off, and the next power-on shows the Done Screen again. No "minutes left" warning is sent. A Top-up brings the time back, as at a natural zero. The goodbye animation itself is Session 45, which has to delay the switch-off (see its note).
 
+### 49 · Apps menu filter: only real apps, no duplicates
+
+**Difficulty 2 · Sonnet · medium · TV · Companion** (the user's request, 2026-11-15)
+
+**Why:** Session 39 lists every app whose `show` is not `false`. On the TV that is about 270 entries: `org.tizen.*` services, `*-dummy` stubs (`com.samsung.tv.aria-dummy` shows as a second "Apple TV"), "preview service" and "worker" apps. The same unfiltered list is reported to the Server, so Companion's app picker (`pickableApps`, `companion/src/edit.ts:94`) is just as noisy. The TV's own launcher shows 44 apps. [CleanFrame](https://github.com/nthnclrk/CleanFrame) (`app/device.js`, `apps()`) solves this with an allowlist instead of a denylist.
+
+**What the TV reported, checked over sdb on 2026-11-15** (`node tv/tools/apps.mjs list`): the launcher apps are exactly the ones with a Tizen store id (`^[A-Za-z0-9]{10}\.\w+$`, for example `RN1MCdNq8t.Netflix`, also the sideloaded `sofahome01.SofaHome`) plus six Samsung ids: `org.tizen.browser`, `com.samsung.tv.gallery`, `com.samsung.tv.aria-video` (Apple TV), `com.samsung.tv.iot-dashboard` (SmartThings), `com.samsung.tv.UniversalBrowse` and `org.tizen.apple.apple-music`. Everything else in `getAppsInfo` is system.
+
+**One filter, two places.** Today the TV filters twice, differently: `mergeApps` for its Apps tab (`tv/src/shell.ts:169`) and a bare `show !== false` for the report to the Server (`tv/src/main.ts:384`). Replace both with one pure function in `shared/src/apps.ts`, so the Apps tab and Companion's picker always agree:
+
+1. `isLaunchable(app, selfId)`: true when `show !== false`, the id is not `selfId`, and either the id matches the store pattern or is on a short `SAMSUNG_APPS` list (the six above). False for ids ending `-dummy`, and when the name is empty or matches `service|worker|preview|plugin|daemon|factory|sdk` (as CleanFrame does; checked against names only, not ids, so `org.tizen.browser` is not caught by "launcher"-style words).
+2. `dedupe(apps, curatedIds)`: group by name with case, spaces and punctuation ignored. In a group keep the curated app if there is one, otherwise the newest `installDate` (`getAppsInfo` has no use count; add `installDate` to `AppInfo` and to `installedApps` in `tv/src/launch.ts`). The removed copies are not shown anywhere.
+3. `mergeApps(curated, installed, selfId)` calls both, so its existing contract stays: curated apps first in their order (always kept, even if the filter would drop them), then the rest A to Z. `reportInstalled` sends `mergeApps([], installed, self)` instead of the raw list. The Server and Companion need no change: `PUT /api/tv/apps` and `parseInstalledApps` already take any `{ id, name }` list.
+4. Companion keeps a way to add a hidden app: the app form already takes any Tizen ID by hand (`companion/src/editor.ts:392`); its footnote says so. Reword it: "Not in the list? Enter its exact Tizen ID."
+
+**Tests** (`shared/src/apps.test.ts`): store-id and Samsung-id apps pass; `org.tizen.hdmicec`, `com.samsung.tv.aria-dummy`, `kIciSQlYEM.service` ("plex preview service") and an empty name do not; Sofa Home itself is dropped; two apps named "ARTE" keep the curated one, else the newer; a curated app that would be filtered stays; sort order unchanged. Update the three existing tests where `show: false` was the only filter.
+
+**Done when:** on the TV the Apps tab lists about the 22 apps the launcher shows (no services, no stubs), Companion's "Pick a known app" offers the same list after the TV restarts, a curated app that is not installed or would be filtered is still shown, and `npm test` and `npm run check` pass. **TV:** needs a new signed package and one look at the Apps tab.
+
+**Open:** with both ARTE copies installed the newer one would win, but the older one is the one that was used. The duplicates are gone now, so this only matters if a duplicate comes back; `node tv/tools/apps.mjs list` marks them.
+
 ## Carried over from the old plan
 
 Open items that were not finished when the old plan was closed. Each stays here until it is done or dropped. The TV checks moved into Session 38, the Companion items into Sessions 46 and 47.
