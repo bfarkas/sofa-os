@@ -2,15 +2,17 @@
 // own tv/app/index.html (same markup and stylesheet), and it draws with Sofa Home's own code: shell.ts decides what each tab
 // shows, view.ts and cards.ts draw it into that markup, shared/ holds the tokens. Only the network, keys and Tizen are left
 // out. The editor (editor.ts) puts this page in a 1920x1080 iframe and scales it down.
-import { dayFootInk, dayImage, dayInk, periodAt, SCHEME_PROPS, schemeVars, textOn, tokensCss, type Layout, type WidgetsResponse } from '@sofa/shared';
+import { dayFootInk, dayImage, dayInk, periodAt, SCHEME_PROPS, schemeVars, textOn, tokensCss, type InstalledApp, type Layout, type WidgetsResponse } from '@sofa/shared';
 import { cardOptions, setWidgetsState } from '../../tv/src/cards.ts';
 import { forestFor } from '../../tv/src/kids.ts';
-import { createShell, type Tab } from '../../tv/src/shell.ts';
+import { createShell, type Tab, type WidgetKind } from '../../tv/src/shell.ts';
 import { initView, redrawCards, render, setFocus } from '../../tv/src/view.ts';
 import { emptyState, parseWidgets } from '../../tv/src/widgets.ts';
 
 export interface PreviewState {
   layout: Layout;
+  installed: InstalledApp[]; // what the TV reported: the Apps tab lists these after the curated apps, as on the TV
+  types: WidgetKind[]; // the widget catalogue: the Widgets tab lists the ones not set up yet, as on the TV
   widgets: WidgetsResponse; // what GET /api/widgets would say (the editor builds it with previewWidgets)
   screen: 'household' | 'kids';
   tab: Tab;
@@ -53,6 +55,8 @@ function paint(s: PreviewState): void {
     shell.setScreen(s.screen);
     paint(s);
     setWidgetsState(parseWidgets(s.widgets, Date.now()) ?? emptyState());
+    shell.setInstalled(s.installed, '');
+    shell.setWidgetTypes(s.types);
     shell.setLayout(s.layout);
     redrawCards();
     shell.focus.focus('tab:' + s.tab); // shows that tab

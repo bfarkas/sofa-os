@@ -200,7 +200,7 @@ export function startEditor(call: Call): void {
   function pushPreview(): void {
     const api = (frame.contentWindow as (Window & { sofaPreview?: PreviewApi }) | null)?.sofaPreview;
     if (!api || !layout) return;
-    api.update({ layout, widgets: E.previewWidgets(layout, published, types, live), screen: kids ? 'kids' : 'household', tab: tab === 'apps' || tab === 'widgets' ? tab : 'dashboard', focus: selected });
+    api.update({ layout, installed: reported, types: types.map((t) => ({ type: t.type, title: t.title })), widgets: E.previewWidgets(layout, published, types, live), screen: kids ? 'kids' : 'household', tab: tab === 'apps' || tab === 'widgets' ? tab : 'dashboard', focus: selected });
   }
   function schedulePreview(): void {
     clearTimeout(previewTimer);
@@ -364,7 +364,7 @@ export function startEditor(call: Call): void {
 
   function apps(): Child[] {
     const onDash = (id: string) => E.rowOf(layout, { kind: 'app', id }) !== null;
-    const known: [string, string][] = [['', 'Pick a known app…'], ...E.pickableApps(layout, reported).map((k): [string, string] => [k.id, k.name])];
+    const others = E.pickableApps(layout, reported);
     const name = h('input', { type: 'text', class: 'field', placeholder: 'Name', maxLength: 80, 'aria-label': 'New app name' });
     const id = h('input', { type: 'text', class: 'field mono', placeholder: 'Tizen app ID, like org.tizen.netflix-app', maxLength: 128, 'aria-label': 'New app ID', autocapitalize: 'off', spellcheck: 'false' });
     const cName = h('input', { type: 'text', class: 'field', placeholder: 'Name, like PS5', maxLength: 80, 'aria-label': 'Console name' });
@@ -387,13 +387,18 @@ export function startEditor(call: Call): void {
           btn('Remove ' + a.name, () => edit(E.removeApp(layout, a.id)), 'row danger')];
         }),
       )),
-      grp('Add app',
+      // The rest of the TV's Apps tab, A to Z as it shows there; Add makes one a curated app (it moves up and can go on the Dashboard).
+      others.length > 0 && grp(reported.length ? 'Also on the TV' : 'Known apps',
+        list(...others.map((k) => h('div', { class: 'row ind' }, badge('app', k.name), h('span', { class: 'rt' }, k.name),
+          btn('Add', () => edit(E.addApp(layout, k)), 'btn tinted sm', { 'aria-label': 'Add ' + k.name })))),
+        foot(reported.length ? 'The TV lists these after your apps, A to Z. Add one to choose its place or put it on the Dashboard.' : 'The TV has not reported its apps yet, so this is the short list Sofa Home is known to launch.'),
+      ),
+      grp('Add app by ID',
         list(
-          h('label', { class: 'row' }, select(known, '', (v) => { const k = E.pickableApps(layout, reported).find((x) => x.id === v); if (k) { name.value = k.name; id.value = k.id; } }, { 'aria-label': 'Known apps', class: 'field' })),
           h('div', { class: 'row' }, name), h('div', { class: 'row' }, id),
           btn('Add app', () => edit(E.addApp(layout, { id: id.value, name: name.value })), 'row act'),
         ),
-        foot((reported.length ? 'The list is what the TV reported as installed. ' : 'The TV has not reported its apps yet, so this is the short list Sofa Home is known to launch. ') + 'Not in the list? Enter its exact Tizen ID.'),
+        foot('Not in the list? Enter its exact Tizen ID.'),
       ),
       grp('Add console',
         list(h('div', { class: 'row' }, cName), h('div', { class: 'row' }, cScript), h('div', { class: 'row' }, cSource),
