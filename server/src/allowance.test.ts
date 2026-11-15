@@ -20,7 +20,7 @@ const memoryStore = (): Store => {
 // A fake clock and a fake Home Assistant behind the real client, so every write goes through the write guard.
 // By default a launch brings Sofa Home to the front at once (the TV's REST API then says so); `home` changes that.
 // `front` is what that API says: whether Sofa Home is in front.
-function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?: number; failTurnOff?: number; home?: 'answers' | 'silent' | 'fails' } = {}) {
+function setup(o: { minutes?: number; at?: string; grace?: number; goodbyeMs?: number; resetMinutes?: number; failTurnOff?: number; home?: 'answers' | 'silent' | 'fails' } = {}) {
   const clock = { t: Date.parse(o.at ?? '2026-11-09T17:00:00+01:00') };
   const calls: { path: string; body: Record<string, any> }[] = [];
   let failTurnOff = o.failTurnOff ?? 0;
@@ -44,6 +44,7 @@ function setup(o: { minutes?: number; at?: string; grace?: number; resetMinutes?
       timeZone: 'Europe/Berlin',
       resetMinutes: o.resetMinutes ?? 240,
       graceSeconds: o.grace ?? 0,
+      goodbyeMs: o.goodbyeMs,
       topUpUrl: 'https://sofa.test/kids/topup',
       now: () => clock.t,
     });
@@ -315,6 +316,31 @@ test('zero switches the TV off once through the write guard and leaves the Done 
   assert.equal(k.notifies().length, 2, 'one warning (the first act, with a minute left); none after the +5 at zero');
 });
 
+test('the goodbye clip plays before the first switch-off at zero', async () => {
+  const k = setup({ minutes: 1, goodbyeMs: 8000 });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60); // zero: Sofa Home is brought to the front, the TV stays on
+  assert.equal(k.turnOffs().length, 0);
+  k.engine.doneShown();
+  await k.watch(5);
+  assert.equal(k.turnOffs().length, 0, 'the clip is still playing');
+  await k.watch(5);
+  assert.equal(k.turnOffs().length, 1, 'off 8 s after the Done Screen showed');
+});
+
+test('a Done Screen that never shows is waited for only the launch wait plus the clip', async () => {
+  const k = setup({ minutes: 1, goodbyeMs: 8000, home: 'silent' });
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(60);
+  assert.equal(k.turnOffs().length, 0);
+  await k.watch(15);
+  assert.equal(k.turnOffs().length, 0);
+  await k.watch(5);
+  assert.equal(k.turnOffs().length, 1);
+});
+
 test('a Top-up at zero clears the pending Done Screen', async () => {
   const k = setup({ minutes: 1 });
   k.engine.observe('on');
@@ -486,7 +512,7 @@ test("Home Assistant's media player state as TV power: only off is off", () => {
 
 test('allowance settings default to the household policy and refuse malformed values', () => {
   const env = { SOFA_PASSWORD_HASH: 'x' };
-  assert.deepEqual(loadConfig(env).allowance, { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.familie-farkas.de/kids/topup' });
+  assert.deepEqual(loadConfig(env).allowance, { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, goodbyeMs: 8000, topUpUrl: 'https://sofa.familie-farkas.de/kids/topup' });
   assert.equal(loadConfig({ ...env, SOFA_PUBLIC_URL: 'https://sofa.example.de/' }).allowance.topUpUrl, 'https://sofa.example.de/kids/topup');
   for (const bad of ['sofa.example.de', 'https://', 'ftp://x', 'https://a b']) assert.throws(() => loadConfig({ ...env, SOFA_PUBLIC_URL: bad }), /SOFA_PUBLIC_URL/);
   assert.equal(loadConfig({ ...env, SOFA_ALLOWANCE_RESET: '05:30' }).allowance.resetMinutes, 330);

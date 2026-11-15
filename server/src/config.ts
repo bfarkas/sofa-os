@@ -16,6 +16,7 @@ export interface AllowanceConfig {
   timeZone: string; // the household's, for the overnight reset
   resetMinutes: number; // the overnight reset, in minutes after local midnight
   graceSeconds: number; // between zero and the switch-off
+  goodbyeMs?: number; // the switch-off waits this long after Sofa Home showed the Done Screen: the goodbye clip (6 s) and a beat
   topUpUrl: string; // the Companion Top-up page, the tap target of the warning notification
 }
 
@@ -91,6 +92,7 @@ export function loadConfig(env: Env = process.env): Config {
       timeZone: env.SOFA_TIME_ZONE ?? 'Europe/Berlin',
       resetMinutes: clockTime(env.SOFA_ALLOWANCE_RESET ?? '04:00', 'SOFA_ALLOWANCE_RESET'),
       graceSeconds: wholeNumber(env.SOFA_ALLOWANCE_GRACE_SECONDS ?? '0', 'SOFA_ALLOWANCE_GRACE_SECONDS'),
+      goodbyeMs: wholeNumber(env.SOFA_ALLOWANCE_GOODBYE_MS ?? '8000', 'SOFA_ALLOWANCE_GOODBYE_MS'),
       // Where a phone lands when the warning notification is tapped: Companion, on the address the household's phones reach.
       topUpUrl: publicUrl(env.SOFA_PUBLIC_URL ?? 'https://sofa.familie-farkas.de') + KIDS_TOPUP_PATH,
     },

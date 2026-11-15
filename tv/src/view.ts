@@ -1,7 +1,7 @@
 // Draws the shell (shell.ts) into tv/app/index.html and shows which id has focus. No decisions are made here.
 import { drawCard } from './cards.ts';
 import type { Icons } from './icons.ts';
-import { PAD_ROWS } from './kids.ts';
+import { forestFor, PAD_ROWS } from './kids.ts';
 import { clockText, greetingText, longDateText, TABS, type Tile, type View } from './shell.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -16,6 +16,7 @@ const fixed: Record<string, HTMLElement> = {}; // the bar, the sign-in button an
 let tiles: Record<string, HTMLElement> = {}; // the tiles of the current tab, redrawn with it
 let cards: Record<string, Tile> = {}; // its widget tiles, redrawn on their own when widget data changes
 let mode: View['mode'] = 'signin';
+let lastMode: View['mode'] | null = null;
 let tab = '';
 let focusId: string | null = null;
 let icons: Icons | undefined; // the app icons (icons.ts); without them every app shows its letter
@@ -102,6 +103,24 @@ export function render(v: View): void {
   $('content').className = kids ? 'kidsview' : v.tab === 'dashboard' ? 'dashview' : '';
   $('kids-head').hidden = !kids;
   $('done').hidden = v.mode !== 'done';
+  // The sleeping still is always there; the goodbye clip plays over it only when the screen changes to done while Sofa Home runs.
+  const vid = $('done-video') as HTMLVideoElement;
+  if (v.mode === 'done' && !vid.dataset.on) {
+    vid.dataset.on = '1';
+    const clip = 'img/unicorn-goodnight-' + forestFor(new Date());
+    ($('done-still') as HTMLImageElement).src = clip + '.jpg';
+    if (lastMode && lastMode !== 'done') {
+      vid.onplaying = () => (vid.style.visibility = 'visible');
+      vid.src = clip + '.mp4';
+      vid.play();
+    }
+  } else if (v.mode !== 'done' && vid.dataset.on) {
+    delete vid.dataset.on;
+    vid.pause();
+    vid.style.visibility = 'hidden';
+    vid.removeAttribute('src');
+  }
+  lastMode = v.mode;
   $('foot').hidden = kids || v.mode === 'done'; // the Server line is for adults
   $('signin').hidden = v.mode !== 'signin';
   TABS.forEach((t) => fixed['tab:' + t.id].classList.toggle('sel', t.id === v.tab));

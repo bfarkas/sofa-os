@@ -83,10 +83,11 @@ interface State {
   warned: boolean; // the 5-minute warning for the current approach to zero is sent
   zeroed: boolean; // the TV was switched off for the current zero
   donePending: boolean; // show the Done Screen at the next power-on
+  shownAt: number; // ms; when Sofa Home first showed the Done Screen at this zero (0: not yet)
   doneAt: number; // ms; when Sofa Home showed the Done Screen at zero (0: not yet); the TV goes off again DONE_SCREEN_MS later
   launchAt: number; // ms; when the Server brought Sofa Home to the front during this on at zero (0: not yet)
 }
-const INITIAL: State = { day: '', used: 0, topUp: 0, kids: false, tv: 'off', since: 0, onAt: 0, offAt: 0, seenAt: 0, provenAt: 0, warned: false, zeroed: false, donePending: false, doneAt: 0, launchAt: 0 };
+const INITIAL: State = { day: '', used: 0, topUp: 0, kids: false, tv: 'off', since: 0, onAt: 0, offAt: 0, seenAt: 0, provenAt: 0, warned: false, zeroed: false, donePending: false, shownAt: 0, doneAt: 0, launchAt: 0 };
 
 /** Where the state is kept between restarts: one JSON document. */
 export interface Store {
@@ -110,6 +111,7 @@ export interface AllowanceOptions {
   timeZone: string;
   resetMinutes: number; // local time of the overnight reset, in minutes after midnight
   graceSeconds: number; // time between zero and the switch-off
+  goodbyeMs?: number; // how long the switch-off waits after Sofa Home showed the Done Screen at zero (the goodbye clip); default 0
   topUpUrl?: string; // the Companion Top-up page: the tap target of the warning notification
   now?: () => number;
 }
@@ -136,7 +138,7 @@ export function createAllowance(o: AllowanceOptions) {
     const day = days.of(now);
     if (day <= s.day) return; // date order; never back, so a reset inside the repeated DST hour happens once
     if (s.day) log.info('allowance reset', { day });
-    Object.assign(s, { day, used: 0, topUp: 0, warned: false, zeroed: false, donePending: false, doneAt: 0, launchAt: 0 });
+    Object.assign(s, { day, used: 0, topUp: 0, warned: false, zeroed: false, donePending: false, shownAt: 0, doneAt: 0, launchAt: 0 });
     s.since = Math.max(s.since, days.start(day));
   }
 
@@ -155,7 +157,7 @@ export function createAllowance(o: AllowanceOptions) {
   function commit(): void {
     const rem = remaining();
     if (rem > WARN_SECONDS) s.warned = false; // time was added: warn again on the way down
-    if (rem > 0) Object.assign(s, { zeroed: false, donePending: false, doneAt: 0, launchAt: 0 });
+    if (rem > 0) Object.assign(s, { zeroed: false, donePending: false, shownAt: 0, doneAt: 0, launchAt: 0 });
     const json = JSON.stringify(counting() ? s : { ...s, seenAt: 0 }); // only a running clock needs its last observation
     if (json !== saved) o.store.save((saved = json));
     if (signature() !== signalled) {
@@ -263,6 +265,7 @@ export function createAllowance(o: AllowanceOptions) {
     doneShown: () =>
       change((now) => {
         s.donePending = false;
+        if (!s.zeroed && !s.shownAt && remaining() <= 0) s.shownAt = now; // the first show at this zero starts the goodbye clip
         if (s.tv === 'on') startMinute(now); // a Done Screen shown while the TV is off (standby is slow) must not start the minute
       }),
 
@@ -304,7 +307,10 @@ export function createAllowance(o: AllowanceOptions) {
       if (reOff || (!s.zeroed && rem <= -o.graceSeconds)) {
         // Switch off once the TV says Sofa Home is in front, or LAUNCH_WAIT_MS after the launch, or at once if it failed.
         const failed = !s.launchAt && !(await launch(reOff ? 're-off' : 'zero'));
-        if (failed || clock() - s.launchAt >= LAUNCH_WAIT_MS || (await o.ha.sofaHomeVisible())) {
+        // The goodbye clip plays first: GOODBYE_MS after the Done Screen showed, or, if it never did, after the launch wait plus the clip (goodbyeMs 0: as soon as Sofa Home is in front).
+        const goodbye = o.goodbyeMs ?? 0;
+        const played = reOff || failed || !goodbye || (s.shownAt ? clock() - s.shownAt >= goodbye : clock() - s.launchAt >= LAUNCH_WAIT_MS + goodbye);
+        if (played && (failed || clock() - s.launchAt >= LAUNCH_WAIT_MS || (await o.ha.sofaHomeVisible()))) {
           try {
             await o.ha.turnOffTv(); // retried on the next tick if it fails; turning off a TV that is off is harmless
             if (reOff) {
