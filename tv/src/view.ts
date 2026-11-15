@@ -17,6 +17,7 @@ let tiles: Record<string, HTMLElement> = {}; // the tiles of the current tab, re
 let cards: Record<string, Tile> = {}; // its widget tiles, redrawn on their own when widget data changes
 let mode: View['mode'] = 'signin';
 let lastMode: View['mode'] | null = null;
+let stillTimer: ReturnType<typeof setTimeout> | undefined;
 let tab = '';
 let focusId: string | null = null;
 let icons: Icons | undefined; // the app icons (icons.ts); without them every app shows its letter
@@ -103,13 +104,19 @@ export function render(v: View): void {
   $('content').className = kids ? 'kidsview' : v.tab === 'dashboard' ? 'dashview' : '';
   $('kids-head').hidden = !kids;
   $('done').hidden = v.mode !== 'done';
-  // The sleeping still shows by default; the goodnight WebP (plays once, ends on the same picture) replaces it only when the screen changes to done while Sofa Home runs.
+  // The sleeping still shows by default; the goodnight WebP (plays through, ends on the same picture) replaces it only when the screen changes to done while Sofa Home runs.
   const still = $('done-still') as HTMLImageElement;
   if (v.mode === 'done' && !still.dataset.on) {
     still.dataset.on = '1';
-    still.src = lastMode && lastMode !== 'done' ? 'img/unicorn-goodnight.webp?' + Date.now() : 'img/unicorn-goodnight-still.png'; // a new URL restarts the animation
+    const STILL = 'img/unicorn-goodnight-still.png';
+    if (lastMode && lastMode !== 'done') {
+      still.src = 'img/unicorn-goodnight.webp?' + Date.now(); // a new URL restarts the animation
+      // shortcut: this TV's Chromium plays a once-only WebP twice; the still is the last frame, so swap to it after one run (6.07 s).
+      stillTimer = setTimeout(() => (still.src = STILL), 6200);
+    } else still.src = STILL;
   } else if (v.mode !== 'done' && still.dataset.on) {
     delete still.dataset.on;
+    clearTimeout(stillTimer);
     still.removeAttribute('src');
   }
   lastMode = v.mode;
