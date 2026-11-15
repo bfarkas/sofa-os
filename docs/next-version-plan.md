@@ -189,6 +189,8 @@ Build the picked design, framework-free as today: the tab bar, Home as status fi
 
 **Done when:** on the TV the Apps tab lists about the 22 apps the launcher shows (no services, no stubs), Companion's "Pick a known app" offers the same list after the TV restarts, a curated app that is not installed or would be filtered is still shown, and `npm test` and `npm run check` pass. **TV:** needs a new signed package and one look at the Apps tab.
 
+**Built (2026-11-15):** `isLaunchable`, `nameKey` and the new `mergeApps` in `shared/src/apps.ts`; the TV reports `mergeApps([], …)` with names cut to 80; Companion's picker also skips same-named apps. The report had never arrived before (probably one of the ~270 raw entries broke the Server's 80-character name rule, which refuses the whole list); after installing, the Server holds 22 apps, no services or stubs. **Not yet seen:** the TV's Apps tab itself.
+
 **Decided (2026-11-15, grilling):**
 - **Step one: the app report.** The TV has never reported its apps: `tv_apps` on the Server is empty, so Companion's picker still shows `KNOWN_APPS`. Find out why from the TV's log over sdb and fix it. If that gets complicated, fall back to filling the Server's list once from `node tv/tools/apps.mjs list` over sdb.
 - **Companion skips apps it already has by name too.** The layout curates Netflix as `org.tizen.netflix-app` and YouTube as `com.samsung.tv.cobalt-yt`, while the launcher reports `RN1MCdNq8t.Netflix` and `9Ur5IzDKqV.TizenYouTube`. `pickableApps` also leaves out an app whose name matches a Curated app, using the same name key as `dedupe`. The layout's ids stay as they are (Kids Mode approves Netflix by its alias id).

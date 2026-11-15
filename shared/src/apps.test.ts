@@ -1,20 +1,39 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mergeApps, parseInstalledApps } from './apps.ts';
+import { isLaunchable, mergeApps, parseInstalledApps } from './apps.ts';
 
-test('curated apps come first in their order, the rest A to Z, without duplicates', () => {
-  const curated = [{ id: 'z.Last', name: 'Zeta' }, { id: 'a.First', name: 'Alpha' }, { id: 'z.Last', name: 'Dup' }];
-  const installed = [{ id: 'b.Bee', name: 'bee' }, { id: 'a.First', name: 'Alpha' }, { id: 'c.Cee', name: 'Cee' }, { id: 'b.Bee', name: 'Bee again' }, { id: 'a0.Ay', name: 'Ay' }];
-  assert.deepEqual(mergeApps(curated, installed, 'self.App').map((a) => a.id), ['z.Last', 'a.First', 'a0.Ay', 'b.Bee', 'c.Cee']);
+test('curated apps come first in their order, the rest A to Z, without duplicate ids', () => {
+  const curated = [{ id: 'zzzzzzzzzz.Last', name: 'Zeta' }, { id: 'aaaaaaaaaa.First', name: 'Alpha' }, { id: 'zzzzzzzzzz.Last', name: 'Dup' }];
+  const installed = [{ id: 'bbbbbbbbbb.Bee', name: 'bee' }, { id: 'aaaaaaaaaa.First', name: 'Alpha' }, { id: 'cccccccccc.Cee', name: 'Cee' }, { id: 'bbbbbbbbbb.Bee', name: 'Bee again' }, { id: 'aaaaaaaaa0.Ay', name: 'Ay' }];
+  assert.deepEqual(mergeApps(curated, installed, 'self.App').map((a) => a.id), ['zzzzzzzzzz.Last', 'aaaaaaaaaa.First', 'aaaaaaaaa0.Ay', 'bbbbbbbbbb.Bee', 'cccccccccc.Cee']);
 });
 
-test('hidden apps and Sofa Home itself are dropped, a curated app stays even if hidden', () => {
-  const installed = [{ id: 'sys.Hidden', name: 'Hidden', show: false }, { id: 'self.App', name: 'Sofa Home' }, { id: 'cur.App', name: 'Cur', show: false }, { id: 'ok.App', name: 'Ok', show: true }];
-  assert.deepEqual(mergeApps([{ id: 'cur.App', name: 'Mine' }], installed, 'self.App'), [{ id: 'cur.App', name: 'Mine' }, { id: 'ok.App', name: 'Ok' }]);
+test('hidden apps and Sofa Home itself are dropped, a curated app stays even if hidden or not launchable', () => {
+  const installed = [{ id: 'syshidden0.Hidden', name: 'Hidden', show: false }, { id: 'sofahome01.SofaHome', name: 'Sofa Home' }, { id: 'org.tizen.cur', name: 'Cur', show: false }, { id: 'okokokokok.App', name: 'Ok', show: true }];
+  assert.deepEqual(mergeApps([{ id: 'org.tizen.cur', name: 'Mine' }], installed, 'sofahome01.SofaHome'), [{ id: 'org.tizen.cur', name: 'Mine' }, { id: 'okokokokok.App', name: 'Ok' }]);
 });
 
-test('an installed app without a name is shown by its id', () => {
-  assert.deepEqual(mergeApps([], [{ id: 'x.App', name: '' }], 's'), [{ id: 'x.App', name: 'x.App' }]);
+test('only store apps and the known Samsung apps are launchable; stubs, services and nameless apps are not', () => {
+  const ok = (id: string, name: string) => isLaunchable({ id, name }, 'sofahome01.SofaHome');
+  assert.ok(ok('RN1MCdNq8t.Netflix', 'Netflix'));
+  assert.ok(ok('org.tizen.browser', 'Internet'));
+  assert.ok(ok('com.samsung.tv.aria-video', 'Apple TV'));
+  assert.ok(!ok('org.tizen.hdmicec', 'HDMI-CEC'));
+  assert.ok(!ok('com.samsung.tv.aria-dummy', 'Apple TV'));
+  assert.ok(!ok('kIciSQlYEM.service', 'plex preview service'));
+  assert.ok(!ok('kIciSQlYEM.worker', 'Plex Worker'));
+  assert.ok(!ok('DJ8grEH6Hu.arte', ''));
+  assert.ok(!ok('sofahome01.SofaHome', 'Sofa Home'));
+});
+
+test('same-named apps show once: the curated one, else the newest install', () => {
+  const installed = [
+    { id: 'RN1MCdNq8t.Netflix', name: 'Netflix' },
+    { id: 'DJ8grEH6Hu.arte', name: 'ARTE', installDate: 1 },
+    { id: 'XXXXXXXXXX.arte', name: 'arte ', installDate: 2 },
+    { id: 'MCmYXNxgcu.DisneyPlus', name: 'Disney+' },
+  ];
+  assert.deepEqual(mergeApps([{ id: 'org.tizen.netflix-app', name: 'Netflix' }], installed, 's').map((a) => a.id), ['org.tizen.netflix-app', 'XXXXXXXXXX.arte', 'MCmYXNxgcu.DisneyPlus']);
 });
 
 test('parseInstalledApps accepts a list of id and name and refuses anything else', () => {

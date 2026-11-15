@@ -8,25 +8,52 @@ export interface InstalledApp {
 /** What `tizen.application.getAppsInfo` returns per app (only the fields used). `show` is false for hidden system apps. */
 export interface AppInfo extends InstalledApp {
   show?: boolean;
+  /** Install time in ms (0 when the TV does not say); the newer of two same-named apps wins. */
+  installDate?: number;
 }
 
 export const MAX_INSTALLED_APPS = 500;
 
-/** Curated apps first in their order, then every other launchable app A to Z by name. Hidden apps, `selfId` and duplicate ids are dropped. */
+// Session 49: the TV's own launcher shows store apps (a 10-character package id) plus a few Samsung apps; everything else
+// getAppsInfo lists (about 270 entries) is system services, stubs and workers. An allowlist, as CleanFrame does.
+const STORE_ID = /^[A-Za-z0-9]{10}\.\w+$/;
+export const SAMSUNG_APPS = ['org.tizen.browser', 'com.samsung.tv.gallery', 'com.samsung.tv.aria-video', 'com.samsung.tv.iot-dashboard', 'com.samsung.tv.UniversalBrowse', 'org.tizen.apple.apple-music'];
+const SYSTEM_NAME = /service|worker|preview|plugin|daemon|factory|sdk/i;
+
+/** True for an app the TV's launcher would show: not hidden, not Sofa Home, a store or known Samsung app, no stub or service. */
+export function isLaunchable(app: AppInfo, selfId: string): boolean {
+  if (app.show === false || app.id === selfId || /-dummy$/.test(app.id)) return false;
+  if (!app.name || SYSTEM_NAME.test(app.name)) return false;
+  return STORE_ID.test(app.id) || SAMSUNG_APPS.indexOf(app.id) >= 0;
+}
+
+/** The name two apps are compared by: case, spaces and punctuation ignored ("Disney+" and "disney" match). */
+export const nameKey = (name: string): string => name.toLowerCase().replace(/[^0-9a-z\u00c0-\u024f]/g, '');
+// An app whose name has no Latin letters or digits is compared by its id, so such apps never all match each other.
+const keyOf = (a: InstalledApp) => nameKey(a.name) || a.id;
+
+/**
+ * Curated apps first in their order (always, even when not installed or filtered), then every other launchable app A to Z.
+ * Same-named apps show once: the curated one if there is one, else the newest install. Duplicate ids are dropped.
+ */
 export function mergeApps(curated: InstalledApp[], installed: AppInfo[], selfId: string): InstalledApp[] {
   const seen: Record<string, boolean> = {};
+  const names: Record<string, boolean> = {};
   const out: InstalledApp[] = [];
   for (const a of curated) {
     if (seen[a.id]) continue;
-    seen[a.id] = true;
+    seen[a.id] = names[keyOf(a)] = true;
     out.push(a);
   }
-  const rest: InstalledApp[] = [];
+  const best: Record<string, AppInfo> = {};
   for (const a of installed) {
-    if (a.show === false || a.id === selfId || seen[a.id]) continue;
+    if (seen[a.id] || !isLaunchable(a, selfId)) continue;
     seen[a.id] = true;
-    rest.push({ id: a.id, name: a.name || a.id });
+    const key = keyOf(a);
+    if (names[key]) continue;
+    if (!best[key] || (a.installDate || 0) > (best[key].installDate || 0)) best[key] = a;
   }
+  const rest = Object.keys(best).map((k) => ({ id: best[k].id, name: best[k].name }));
   rest.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || (a.id < b.id ? -1 : 1));
   return out.concat(rest);
 }

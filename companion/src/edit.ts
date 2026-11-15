@@ -1,6 +1,6 @@
 // Editing operations on a layout, pure and immutable: each takes a layout and returns the next one (an equal layout when
 // nothing changes). The editor (editor.ts) only calls these, so every rule about rows, apps and widgets is tested here.
-import { INPUT_SCRIPT, INPUT_SOURCE, readConfig, ROW_UNITS, STREAM, UNITS, widgetProblems, type AppTile, type Layout, type RowItem, type SchemeId, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
+import { INPUT_SCRIPT, INPUT_SOURCE, nameKey, readConfig, ROW_UNITS, STREAM, UNITS, widgetProblems, type AppTile, type Layout, type RowItem, type SchemeId, type WidgetInstance, type WidgetType, type WidgetsResponse, type WidgetData } from '@sofa/shared';
 
 export type Item = RowItem;
 const same = (a: Item, b: Item) => a.kind === b.kind && a.id === b.id;
@@ -90,10 +90,11 @@ export const KNOWN_APPS: AppTile[] = [
   { id: 'mvOizTfhQn.KiKAplayer', name: 'KiKA' },
 ];
 
-/** What the app picker offers: the TV's reported apps once it has reported any, else KNOWN_APPS; apps already in the layout are left out, A to Z. */
+/** What the app picker offers: the TV's reported apps once it has reported any, else KNOWN_APPS; apps already in the layout (by id or by name) are left out, A to Z. */
 export function pickableApps(l: Layout, reported: AppTile[]): AppTile[] {
   const have = new Set(l.apps.map((a) => a.id));
-  return (reported.length ? reported : KNOWN_APPS).filter((a) => !have.has(a.id)).sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+  const names = new Set(l.apps.map((a) => nameKey(a.name)));
+  return (reported.length ? reported : KNOWN_APPS).filter((a) => !have.has(a.id) && !names.has(nameKey(a.name))).sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 }
 
 export function addApp(l: Layout, app: AppTile): Layout {

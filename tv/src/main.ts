@@ -1,7 +1,7 @@
 // Sofa Home: TV Sign-in, then the shell (tabs, tiles, Settings) over the synced layout, plus the Session 01 key and lifecycle log.
 // This file is the glue: shell.ts holds the screens and focus, view.ts draws them, keys.ts times the remote, launch.ts starts apps.
 // esbuild bundles it for Chromium M56 (ES2017).
-import { applyOp, DEFAULT_SCREENSAVER_MINUTES, STREAM, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
+import { applyOp, mergeApps, DEFAULT_SCREENSAVER_MINUTES, STREAM, dayFootInk, dayInk, dayShadow, isSource, schemeCss, textOn, tokensCss, TV_PROTOCOL_PREFIX, type LayoutOp } from '@sofa/shared';
 import { installedApps, startInput, switchSource, tizenLauncher, type TizenApplicationApi, type TizenInstalledApi, type TizenSourceApi } from './launch.ts';
 import { createIcons, type IconReport, type TizenAppInfoApi } from './icons.ts';
 import { createRemote, type RemoteEvent } from './keys.ts';
@@ -381,7 +381,8 @@ function reportInstalled(): void {
   installedApps(typeof tizen === 'undefined' ? undefined : tizen).then(
     ({ apps, self }) => {
       shell.setInstalled(apps, self);
-      const list = apps.filter((a) => a.show !== false && a.id !== self).map((a) => ({ id: a.id, name: a.name }));
+      // The same list as the Apps tab minus the curated part (Session 49); names cut to the Server's 80, so one long name cannot refuse the lot.
+      const list = mergeApps([], apps, self).map((a) => ({ id: a.id, name: a.name.slice(0, 80) }));
       const body = JSON.stringify({ apps: list });
       if (body === reportedApps) return; // the list rarely changes: tell the Server only when it did (and once per start)
       reportedApps = body;

@@ -412,11 +412,11 @@ test('on the Dashboard the Kids Mode tile is a row of its own that the arrows re
 
 test('with the TV\'s installed apps the Apps tab lists curated first then the rest, the Dashboard and Kids Mode stay curated', () => {
   const { shell } = setup(layout({ kidsMode: { apps: ['a.One'], dailyMinutes: 60 } }));
-  shell.setInstalled([app('z.Zed', 'Zed'), app('a.Two', 'Two'), { ...app('h.Hid', 'Hidden'), show: false }, app('me.Home', 'Sofa Home'), app('b.Bee', 'Bee')], 'me.Home');
+  shell.setInstalled([app('zzzzzzzzzz.Zed', 'Zed'), app('a.Two', 'Two'), { ...app('hhhhhhhhhh.Hid', 'Hidden'), show: false }, app('org.tizen.hdmicec', 'HDMI'), app('sofahome01.SofaHome', 'Sofa Home'), app('bbbbbbbbbb.Bee', 'Bee')], 'sofahome01.SofaHome');
   shell.key({ key: 'right', long: false } as RemoteEvent);
   shell.key({ key: 'ok', long: false } as RemoteEvent); // Apps tab
   const tiles = shell.view().sections.flatMap((s) => s.tiles.map((t) => t.id));
-  assert.deepEqual(tiles, ['app:a.One', 'app:a.Two', 'app:a.Three', 'app:b.Bee', 'app:z.Zed']);
+  assert.deepEqual(tiles, ['app:a.One', 'app:a.Two', 'app:a.Three', 'app:bbbbbbbbbb.Bee', 'app:zzzzzzzzzz.Zed']);
   shell.setScreen('kids');
   assert.deepEqual(shell.view().sections.flatMap((s) => s.tiles.map((t) => t.id)), ['app:a.One']);
 });

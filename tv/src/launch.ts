@@ -33,7 +33,7 @@ export function tizenLauncher(api: TizenApplicationApi | undefined): Launcher {
 /** The part of the Tizen Application API that lists what is installed (privilege application.info). */
 export interface TizenInstalledApi {
   application: {
-    getAppsInfo(onSuccess: (apps: { id: string; name?: string; show?: boolean }[]) => void, onError: (e: { message?: string }) => void): void;
+    getAppsInfo(onSuccess: (apps: { id: string; name?: string; show?: boolean; installDate?: Date }[]) => void, onError: (e: { message?: string }) => void): void;
     getCurrentApplication(): { appInfo: { id: string }; hide?(): void }; // hide: Session 43 leaves Sofa Home after switching input
   };
 }
@@ -44,7 +44,7 @@ export function installedApps(api: TizenInstalledApi | undefined): Promise<{ app
     if (!api || !api.application || !api.application.getAppsInfo) return reject(new Error('Not running on a TV'));
     try {
       api.application.getAppsInfo(
-        (list) => resolve({ apps: list.map((a) => ({ id: a.id, name: a.name || '', show: a.show })), self: api.application.getCurrentApplication().appInfo.id }),
+        (list) => resolve({ apps: list.map((a) => ({ id: a.id, name: a.name || '', show: a.show, installDate: a.installDate ? +a.installDate : 0 })), self: api.application.getCurrentApplication().appInfo.id }),
         (e) => reject(new Error((e && e.message) || 'The TV refused to list apps')),
       );
     } catch (e) {

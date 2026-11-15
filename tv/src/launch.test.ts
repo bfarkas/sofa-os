@@ -38,8 +38,8 @@ test('without the Tizen API (a desktop browser) launching reports unavailable', 
 });
 
 test('installedApps lists the TV\'s apps with Sofa Home\'s own id', async () => {
-  const api = { application: { getAppsInfo: (ok: (a: { id: string; name?: string; show?: boolean }[]) => void) => ok([{ id: 'a.B', name: 'Bee', show: false }, { id: 'c.D' }]), getCurrentApplication: () => ({ appInfo: { id: 'me.Home' } }) } };
-  assert.deepEqual(await installedApps(api), { apps: [{ id: 'a.B', name: 'Bee', show: false }, { id: 'c.D', name: '', show: undefined }], self: 'me.Home' });
+  const api = { application: { getAppsInfo: (ok: (a: { id: string; name?: string; show?: boolean; installDate?: Date }[]) => void) => ok([{ id: 'a.B', name: 'Bee', show: false, installDate: new Date(5) }, { id: 'c.D' }]), getCurrentApplication: () => ({ appInfo: { id: 'me.Home' } }) } };
+  assert.deepEqual(await installedApps(api), { apps: [{ id: 'a.B', name: 'Bee', show: false, installDate: 5 }, { id: 'c.D', name: '', show: undefined, installDate: 0 }], self: 'me.Home' });
   await assert.rejects(installedApps(undefined), /Not running on a TV/);
 });
 

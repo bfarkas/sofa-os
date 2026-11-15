@@ -150,6 +150,11 @@ test('the app picker offers the TV\'s reported apps A to Z, or KNOWN_APPS before
   assert.deepEqual(pickableApps(l, reported).map((a) => a.id), ['b.Bee', 'z.Zed']);
 });
 
+test('the app picker leaves out an app the layout already has under another id with the same name', () => {
+  const l = addApp(base(), { id: 'org.tizen.netflix-app', name: 'Netflix' });
+  assert.deepEqual(pickableApps(l, [{ id: 'RN1MCdNq8t.Netflix', name: 'netflix' }, { id: 'MCmYXNxgcu.DisneyPlus', name: 'Disney+' }]).map((a) => a.id), ['MCmYXNxgcu.DisneyPlus']);
+});
+
 test('setScreensaver sets only the minutes, and the result validates', () => {
   const p = setScreensaver(base(), 15);
   assert.equal(p.screensaverMinutes, 15);

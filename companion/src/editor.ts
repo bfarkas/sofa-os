@@ -393,7 +393,7 @@ export function startEditor(call: Call): void {
           h('div', { class: 'row' }, name), h('div', { class: 'row' }, id),
           btn('Add app', () => edit(E.addApp(layout, { id: id.value, name: name.value })), 'row act'),
         ),
-        foot((reported.length ? 'The list is what the TV reported as installed. ' : 'The TV has not reported its apps yet, so this is the short list Sofa Home is known to launch. ') + 'Any other app needs its exact Tizen ID.'),
+        foot((reported.length ? 'The list is what the TV reported as installed. ' : 'The TV has not reported its apps yet, so this is the short list Sofa Home is known to launch. ') + 'Not in the list? Enter its exact Tizen ID.'),
       ),
       grp('Add console',
         list(h('div', { class: 'row' }, cName), h('div', { class: 'row' }, cScript), h('div', { class: 'row' }, cSource),
