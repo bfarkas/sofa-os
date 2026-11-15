@@ -38,6 +38,14 @@ _Avoid_: Backend, optional server
 Connecting the TV to the Server by scanning a QR code shown on the TV and authenticating on a phone.
 _Avoid_: Pairing, enrollment
 
+**Curated apps**:
+The apps the household chose for Sofa Home, in its order. They come first in the Apps tab and are always shown, even when the TV does not list them.
+_Avoid_: Favorites, layout apps
+
+**Installed apps**:
+The apps the TV's own launcher would show: store apps plus a few Samsung apps, without system services, stubs or duplicates. Sofa Home lists them after the Curated apps, and Companion offers them when adding an app.
+_Avoid_: All apps, app list
+
 ### Providers
 
 **Title handoff**:
