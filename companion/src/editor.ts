@@ -270,7 +270,8 @@ export function startEditor(call: Call): void {
   const itemSub = (it: E.Item) => {
     if (it.kind === 'app') return layout.apps.find((a) => a.id === it.id)?.kind === 'input' ? 'Console' : 'App';
     const w = layout.widgets.find((x) => x.id === it.id)!;
-    return (typeOf(w)?.title ?? w.type) + ' · ' + sizeName(w.size);
+    const kind = typeOf(w)?.title ?? w.type;
+    return (kind === widgetName(w) ? '' : kind + ' · ') + sizeName(w.size); // no "Weather · Weather · Small" when the widget has no title of its own
   };
 
   /**

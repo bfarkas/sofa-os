@@ -206,7 +206,7 @@ input[type=color] { width: 44px; height: 44px; padding: 2px; border: 0; border-r
 @media (min-width: 900px) {
   .ed-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: start; padding: 0 16px; }
   .ed-cols .grp, .ed-cols .segwrap, .ed-cols .gf.intro, .ed-cols .notice { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
-  .ed-side, .ed-side.open { display: flex; flex-direction: column; position: sticky; inset: auto; top: 16px; padding: 0; background: none; z-index: 3; }
+  .ed-side, .ed-side.open { display: flex; flex-direction: column; gap: 14px; position: sticky; inset: auto; top: 16px; padding: 0; background: none; z-index: 3; }
   .ed-side .pv-bar .seg { max-width: 260px; }
   #preview-open, #preview-close { display: none; }
 }
