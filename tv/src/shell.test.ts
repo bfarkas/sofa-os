@@ -73,6 +73,16 @@ test('the Widgets tab packs five units to a row and says what is on the Dashboar
   assert.equal(s[0].tiles[1].detail, 'Not on Dashboard');
 });
 
+test('the Widgets tab lists every widget type: one with no widget yet points to Companion', () => {
+  const l = layout();
+  const types = [{ type: 'energy', title: 'Energy' }, { type: 'ha-entities', title: 'Home Assistant' }].concat(l.widgets.map((w) => ({ type: w.type, title: w.type })));
+  const s = sectionsFor(l, 'widgets', new Set(), 'household', true, l.apps, types);
+  const last = s[s.length - 1];
+  assert.equal(last.title, 'Not set up yet');
+  assert.deepEqual(last.tiles.map((t) => [t.id, t.kind, t.label, t.detail]), [['setup:energy', 'setup', 'Energy', 'Set up in Companion'], ['setup:ha-entities', 'setup', 'Home Assistant', 'Set up in Companion']]);
+  assert.equal(sectionsFor(l, 'widgets', new Set(), 'household', true, l.apps, types.slice(2)).some((x) => x.title === 'Not set up yet'), false, 'nothing missing, no section');
+});
+
 test('rows that point at nothing are skipped', () => {
   const l = layout({ rows: [{ id: 'r', title: 'Gone', items: [{ kind: 'widget', id: 'w3' }] }] });
   assert.deepEqual(sectionsFor(l, 'dashboard', new Set()).map((x) => x.tiles.map((t) => t.id)), [['kids'], ['allapps']]);

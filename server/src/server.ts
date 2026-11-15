@@ -167,6 +167,11 @@ export function startServer(
       return send(res, 200, profile === 'kids' ? kidsView(currentSnapshot(db)) : currentSnapshot(db));
     }
 
+    if (key === 'GET /api/widget-types') {
+      if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      return send(res, 200, widgets.types()); // Companion's picker, and the TV's Widgets tab lists the types not set up yet
+    }
+
     if (key === 'GET /api/widgets') {
       if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
       const profile = new URL(req.url ?? '/', 'http://localhost').searchParams.get('profile') ?? 'household';
@@ -258,7 +263,6 @@ export function startServer(
         const r = await phone.press(session.token ?? '', await readJson(req));
         return send(res, r.status, r.body, r.headers);
       }
-      if (key === 'GET /api/widget-types') return send(res, 200, widgets.types());
       if (key === 'POST /api/drafts') return send(res, 201, createDraft(db));
       const m = /^\/api\/drafts\/(\d+)(\/publish)?$/.exec(pathname);
       if (m) return draftRoute(req, res, Number(m[1]), req.method + (m[2] ?? ''));

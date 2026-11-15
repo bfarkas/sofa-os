@@ -9,7 +9,7 @@ import { currentPeriod, fakeHour } from './daycycle.ts';
 import { createIdle } from './idle.ts';
 import { createKids, createPad, forestFor, leftText, PAD_ROWS, screenFor, tileAvailable, type KidsState, type Screen } from './kids.ts';
 import { drawQr } from './qr.ts';
-import { createShell, type Activation, type Tab } from './shell.ts';
+import { createShell, type Activation, type Tab, type WidgetKind } from './shell.ts';
 import { dashed, normalizeServer, SERVER_KEY, startSignIn, TOKEN_KEY, type SignInState } from './signin.ts';
 import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
 import { initView, redrawCards, render, renderPad, setFocus, setKidsLeft, updateClock } from './view.ts';
@@ -437,6 +437,7 @@ function runSync(): void {
   if (albumsSync) albumsSync.stop();
   albumsSync = kids ? startAlbums({ fetchAlbums: () => authedGet(window.fetch.bind(window), server, t)('/api/photos/albums?profile=kids'), onChange: (list) => shell.setAlbums(list) }) : null;
   if (!kids) shell.setAlbums([]);
+  if (!kids) authedGet(window.fetch.bind(window), server, t)('/api/widget-types').then((l) => shell.setWidgetTypes(l as WidgetKind[]), (err: Error) => add('widget types unavailable: ' + err.message));
 }
 
 function tokenRefused(): void {

@@ -14,6 +14,7 @@ import { createFocus } from './focus.ts';
 import type { RemoteEvent } from './keys.ts';
 import type { Screen } from './kids.ts';
 
+export type WidgetKind = { type: string; title: string }; // the part of the Server's WidgetType the TV uses
 export type Tab = 'dashboard' | 'apps' | 'widgets';
 export const TABS: { id: Tab; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -25,8 +26,8 @@ export const PROFILE: Profile = 'household';
 const APP_COLUMNS = 7;
 
 export interface Tile {
-  id: string; // focus id: app:<app id>, widget:<widget id>, album:<album id> (Kids Mode) or allapps
-  kind: 'app' | 'widget' | 'allapps' | 'kids' | 'album';
+  id: string; // focus id: app:<app id>, widget:<widget id>, album:<album id> (Kids Mode), setup:<widget type> or allapps
+  kind: 'app' | 'widget' | 'allapps' | 'kids' | 'album' | 'setup'; // setup: a widget type with no widget yet (Widgets tab)
   label: string;
   detail: string; // may hold a line break
   size?: WidgetSize;
@@ -77,8 +78,8 @@ export function kidsSections(layout: Layout, albums: PhotoAlbum[] = []): Section
   return out;
 }
 
-/** The sections of one tab. `unavailable` holds app ids that failed to launch; `kidsTile` is whether Kids Mode can be entered; `allApps` is what the Apps tab lists (default: the curated apps). */
-export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, profile: Profile = PROFILE, kidsTile = true, allApps: InstalledApp[] = layout.apps): Section[] {
+/** The sections of one tab. `unavailable` holds app ids that failed to launch; `kidsTile` is whether Kids Mode can be entered; `allApps` is what the Apps tab lists (default: the curated apps); `types` is the Server's widget catalogue. */
+export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, profile: Profile = PROFILE, kidsTile = true, allApps: InstalledApp[] = layout.apps, types: WidgetKind[] = []): Section[] {
   const apps: Record<string, Tile> = {};
   for (const a of allApps.concat(layout.apps)) apps[a.id] = { id: 'app:' + a.id, kind: 'app', label: a.name, detail: unavailable.has(a.id) ? 'Unavailable' : '', unavailable: unavailable.has(a.id) };
   const shown = layout.widgets.filter((w) => w.profiles.indexOf(profile) >= 0);
@@ -103,6 +104,10 @@ export function sectionsFor(layout: Layout, tab: Tab, unavailable: Set<string>, 
       used += UNITS[w.size];
       out[out.length - 1].tiles.push(widgetTile(w, placed[w.id] ? 'On Dashboard' : 'Not on Dashboard'));
     }
+    // Every type shows: one without a widget yet is a tile pointing to Companion, where its settings are chosen.
+    const missing = types.filter((t) => !layout.widgets.some((w) => w.type === t.type));
+    for (let i = 0; i < missing.length; i += APP_COLUMNS)
+      out.push({ title: i ? '' : 'Not set up yet', tiles: missing.slice(i, i + APP_COLUMNS).map((t): Tile => ({ id: 'setup:' + t.type, kind: 'setup', label: t.title, detail: 'Set up in Companion' })) });
     return out;
   }
   // The Kids Mode tile leads the Dashboard: one selection opens the child profile.
@@ -152,6 +157,7 @@ export function createShell(hooks: ShellHooks) {
   let kidsTile = true;
   let albums: PhotoAlbum[] = [];
   let unavailable = new Set<string>();
+  let types: WidgetKind[] = []; // the Server's widget catalogue (Widgets tab)
   let installed: { apps: AppInfo[]; self: string } | null = null; // what the TV reports; the Apps tab lists it after the curated apps
   let lift: { widget: string; layout: Layout; from: string } | null = null; // the widget being moved, the layout as it shows now, and its row's tiles at the start
 
@@ -160,7 +166,7 @@ export function createShell(hooks: ShellHooks) {
     if (!layout || !signedIn) return [];
     if (screen === 'kids') return kidsSections(layout, albums);
     if (screen !== 'household') return [];
-    const out = sectionsFor(lift ? lift.layout : layout, tab, unavailable, PROFILE, kidsTile, installed ? mergeApps(layout.apps, installed.apps, installed.self) : layout.apps);
+    const out = sectionsFor(lift ? lift.layout : layout, tab, unavailable, PROFILE, kidsTile, installed ? mergeApps(layout.apps, installed.apps, installed.self) : layout.apps, types);
     if (lift) for (const s of out) for (const t of s.tiles) if (t.id === 'widget:' + lift.widget) t.lifted = true;
     return out;
   };
@@ -315,6 +321,11 @@ export function createShell(hooks: ShellHooks) {
     setAlbums(list: PhotoAlbum[]): void {
       if (JSON.stringify(list) === JSON.stringify(albums)) return;
       albums = list;
+      rebuild();
+    },
+    /** The widget types the Server offers; the Widgets tab lists the ones not set up yet. */
+    setWidgetTypes(list: WidgetKind[]): void {
+      types = list;
       rebuild();
     },
     /** The apps the TV has installed (Session 39) and Sofa Home's own id. The Apps tab lists the curated apps, then the rest; the Dashboard and Kids Mode stay curated. */
