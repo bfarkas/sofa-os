@@ -206,3 +206,14 @@ test('the Phone Remote Menu signal reaches onMenu', async () => {
   assert.equal(menus, 1);
   sync.stop();
 });
+
+test('a notify message reaches onNotify with its title and body', async () => {
+  const h = harness();
+  const seen: string[] = [];
+  const sync = startSync({ ...h.options, onNotify: (title, body) => void seen.push(title + '|' + body) });
+  await tick();
+  h.socket().h.open();
+  h.socket().h.message(JSON.stringify({ type: 'notify', title: 'Doorbell', body: 'Front door' }));
+  assert.deepEqual(seen, ['Doorbell|Front door']);
+  sync.stop();
+});

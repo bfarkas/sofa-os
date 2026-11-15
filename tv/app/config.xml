@@ -14,7 +14,8 @@
   <tizen:privilege name="http://tizen.org/privilege/application.info"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
+  <tizen:privilege name="http://tizen.org/privilege/notification"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable"
-                 background-support="disable" encryption="disable"
+                 background-support="enable" encryption="disable"
                  install-location="auto" hwkey-event="enable"/>
 </widget>

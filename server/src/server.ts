@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { extname, join, resolve, sep } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { checkWidgets, isInput, isLayoutOp, parseInstalledApps, TV_PROTOCOL_PREFIX, type ApiError, type DraftUpdate, type LayoutOpRequest, type KidsExitRequest, type KidsPinRequest, type KidsStatus, type LoginRequest, type ServerMessage, type SessionInfo, type TopUpRequest, type TvApproveRequest, type TvTokenRequest, type WidgetsResponse } from '@sofa/shared';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createAllowance, fromDb, isTopUpMinutes, type Allowance } from './allowance.ts';
 import { checkSession, createSession, deleteSession, readCookie, SESSION_COOKIE, SESSION_DAYS, sessionCookie, verifySecret } from './auth.ts';
@@ -246,6 +247,22 @@ export function startServer(
     if (key === 'GET /api/tv/apps') {
       if (!canRead(req)) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
       return send(res, 200, loadTvApps(db));
+    }
+
+    // A banner on the TV, from Home Assistant or anything else on the LAN that holds SOFA_NOTIFY_TOKEN.
+    if (key === 'POST /api/notify') {
+      if (!config.notifyToken) return send(res, 503, { error: 'notifications are not set up' } satisfies ApiError);
+      const bearer = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')?.[1] ?? '';
+      const digest = (s: string) => createHash('sha256').update(s).digest();
+      if (!timingSafeEqual(digest(bearer), digest(config.notifyToken))) return send(res, 401, { error: 'not signed in' } satisfies ApiError);
+      const body = (await readJson(req)) as { title?: unknown; body?: unknown } | null;
+      const title = typeof body?.title === 'string' ? body.title.trim() : '';
+      const text = typeof body?.body === 'string' ? body.body.trim() : '';
+      if (!title || title.length > 80 || text.length > 300) return send(res, 400, { error: 'title (1 to 80 characters) and an optional body (up to 300) are needed' } satisfies ApiError);
+      const data = JSON.stringify({ type: 'notify', title, body: text } satisfies ServerMessage);
+      let delivered = 0;
+      for (const ws of tvSockets) if (ws.readyState === WebSocket.OPEN) { ws.send(data); delivered++; }
+      return send(res, 200, { delivered }); // 0: Sofa Home is not running on the TV, so nothing was shown
     }
 
     if (pathname.startsWith('/api/')) {

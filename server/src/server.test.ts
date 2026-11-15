@@ -24,6 +24,7 @@ before(async () => {
     mediaDir: join(dir, 'media'),
     companionDir: dir,
     passwordHash: await hashSecret('correct horse'),
+    notifyToken: 'notify-secret',
     secureCookies: true,
     ha: null,
     allowance: { timeZone: 'Europe/Berlin', resetMinutes: 240, graceSeconds: 0, topUpUrl: 'https://sofa.test/kids/topup' },
@@ -103,4 +104,14 @@ test('serves Companion and its routes, never files outside it', async () => {
   assert.equal((await fetch(base + '/missing.js')).status, 404);
   assert.equal((await fetch(base + '/..%2fsofa-secret.txt')).status, 404);
   assert.equal((await fetch(base + '/healthz')).status, 200);
+});
+
+test('POST /api/notify needs the notify token and a title', async () => {
+  const post = (token: string, body: unknown) =>
+    fetch(base + '/api/notify', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await post('wrong', { title: 'Doorbell' })).status, 401);
+  assert.equal((await post('notify-secret', { body: 'no title' })).status, 400);
+  const ok = await post('notify-secret', { title: 'Doorbell', body: 'Someone is at the door' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), { delivered: 0 }); // no TV is connected in this test
 });

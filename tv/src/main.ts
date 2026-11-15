@@ -419,6 +419,7 @@ function runSync(): void {
     onKids: () => kidsCtl.refresh(),
     onWidgets: () => widgetsSync && widgetsSync.refresh(),
     onMenu: phoneMenu,
+    onNotify: showBanner,
     onChange: renderHome,
     onUnauthorized: tokenRefused,
   });
@@ -724,6 +725,15 @@ function reportVisible(): void {
   if (liveSocket && liveSocket.readyState === 1) liveSocket.send(JSON.stringify({ type: 'visible', visible: !document.hidden }));
 }
 // Menu opens the focused widget's context menu like a long press, and never selects when there is none.
+// The TV's own notification banner, drawn over whatever app has the screen (Netflix too). It needs background-support="enable"
+// in config.xml, or the page is frozen while hidden. The first call asks on the TV, once, whether Sofa Home may notify.
+function showBanner(title: string, body: string): void {
+  if (typeof Notification === 'undefined') return;
+  const show = () => { try { new Notification(title, { body }); } catch (err) { add('notify failed ' + err); } };
+  if (Notification.permission === 'granted') show();
+  else void Promise.resolve(Notification.requestPermission()).then((p) => { if (p === 'granted') show(); });
+}
+
 function phoneMenu(): void {
   if (document.hidden || overlay !== null) return;
   const act = shell.menuKey();

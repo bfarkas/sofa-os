@@ -31,6 +31,7 @@ export interface Config {
   ha: HaConfig | null; // null until a Home Assistant token is configured
   immich?: ImmichConfig | null; // null or absent until an Immich API key is configured: photo widgets then say Immich is not set up
   allowance: AllowanceConfig;
+  notifyToken?: string | null; // Bearer token for POST /api/notify (Home Assistant's rest_command); null or absent: the route is off
 }
 
 type Env = Record<string, string | undefined>;
@@ -74,6 +75,7 @@ export function loadConfig(env: Env = process.env): Config {
     companionDir: env.SOFA_COMPANION_DIR ?? new URL('../../companion/dist', import.meta.url).pathname,
     passwordHash: required(secret(env, 'SOFA_PASSWORD_HASH'), 'SOFA_PASSWORD_HASH or SOFA_PASSWORD_HASH_FILE'),
     secureCookies: env.SOFA_INSECURE_COOKIES !== '1',
+    notifyToken: secret(env, 'SOFA_NOTIFY_TOKEN') || null,
     ha: token
       ? {
           url: required(env.SOFA_HA_URL, 'SOFA_HA_URL').replace(/\/$/, ''),

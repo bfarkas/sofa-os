@@ -33,6 +33,7 @@ export interface SyncOptions {
   onKids?(): void; // the Server signalled that Kids Mode or the Watch Allowance changed
   onWidgets?(): void; // the Server signalled that widget data changed
   onMenu?(): void; // the Phone Remote's Menu button
+  onNotify?(title: string, body: string): void; // POST /api/notify: show a system banner
   onChange(state: SyncState): void;
   onUnauthorized(): void; // sync has stopped itself; the stored snapshot is untouched
   intervalMs?: number; // polling and reconnecting while the socket is down
@@ -143,6 +144,7 @@ export function startSync(o: SyncOptions): { stop(): void; refresh(): void } {
           else if (msg.type === 'kids' && o.onKids) o.onKids();
           else if (msg.type === 'widgets' && o.onWidgets) o.onWidgets();
           else if (msg.type === 'menu' && o.onMenu) o.onMenu();
+          else if (msg.type === 'notify' && o.onNotify) o.onNotify(String(msg.title), String(msg.body));
         },
         close: () => {
           if (current()) drop();
