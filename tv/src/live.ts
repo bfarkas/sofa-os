@@ -6,6 +6,7 @@ import type { RemoteEvent } from './keys.ts';
 import type { CardView } from './widgets.ts';
 
 export const LIVE_MS = 2 * 60_000;
+export const STARTING = 'Starting the camera…'; // shown with a spinner until the picture plays, which takes a while
 
 /** A camera card: a photo the Server proxies from the front door (server/src/adapters/camera.ts). */
 export const isCameraCard = (v: CardView): boolean => v.state === 'ok' && v.card.template === 'photo' && v.card.image.indexOf('/api/camera/') === 0;
@@ -41,13 +42,13 @@ export function createLive(d: LiveDeps) {
       if (active) return;
       active = true;
       const mine = ++ticket;
-      d.show({ url: null, message: 'Starting the camera…' });
+      d.show({ url: null, message: STARTING });
       timer = setT(() => {
         end();
         d.onClosed();
       }, LIVE_MS);
       d.open().then(
-        (url) => mine === ticket && d.show({ url, message: '' }),
+        (url) => mine === ticket && d.show({ url, message: STARTING }), // the caller clears it once the video plays
         () => mine === ticket && d.show({ url: null, message: 'The camera is not available right now.' }),
       );
     },

@@ -9,7 +9,7 @@ function rig(open: () => Promise<string> = async () => 'http://ha/x.m3u8') {
   const live = createLive({
     open: () => (log.push('open'), open()),
     close: () => log.push('close'),
-    show: (v) => log.push('show ' + (v.url || v.message)),
+    show: (v) => log.push('show ' + (v.url ? v.url + ' ' : '') + v.message),
     hide: () => log.push('hide'),
     onClosed: () => log.push('closed'),
     setTimer: (f, ms) => (timer = { f, ms }),
@@ -23,7 +23,7 @@ test('open shows the view, asks the Server, then plays the URL', async () => {
   const r = rig();
   r.live.open();
   await tick();
-  assert.deepEqual(r.log, ['show Starting the camera…', 'open', 'show http://ha/x.m3u8']);
+  assert.deepEqual(r.log, ['show Starting the camera…', 'open', 'show http://ha/x.m3u8 Starting the camera…']);
   assert.equal(r.live.isOpen(), true);
   r.live.open();
   assert.equal(r.log.length, 3, 'a second open does nothing');

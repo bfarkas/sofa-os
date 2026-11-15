@@ -16,7 +16,7 @@ import { initView, redrawCards, render, renderPad, setFocus, setKidsLeft, update
 import { cardOptions, drawCard, setWidgetsState, viewFor } from './cards.ts';
 import { albumOfCard, authedGet, backgroundImage, fetchImages, startAlbums } from './photos.ts';
 import { createPhotoView } from './photoview.ts';
-import { createLive, isCameraCard } from './live.ts';
+import { createLive, isCameraCard, STARTING } from './live.ts';
 import { startWidgets, widgetsFetcher } from './widgets.ts';
 
 declare global {
@@ -243,6 +243,7 @@ const photoView = createPhotoView({
 // The front door's live view (Session 42): the Server switches the camera's stream on and hands back Home Assistant's HLS URL.
 const liveEl = $('live'), liveVideo = $('live-v') as HTMLVideoElement;
 const cameraPost = (path: string) => window.fetch(server + '/api/camera/live/' + path, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+const liveMsg = (text: string) => { const m = $('live-msg'); m.textContent = text; m.classList.toggle('busy', text === STARTING); };
 const live = createLive({
   open: () => cameraPost('open').then((r) => {
     add('live open answered ' + r.status);
@@ -251,18 +252,19 @@ const live = createLive({
   }),
   close: () => { cameraPost('close').then((r) => add('live close answered ' + r.status), (e) => add('live close failed: ' + e)); },
   show: (v) => {
-    $('live-msg').textContent = v.message;
+    liveMsg(v.message);
     if (v.url && liveVideo.getAttribute('src') !== v.url) {
       liveVideo.src = v.url;
       add('live play ' + v.url.replace(/\/api\/hls\/[^/]+/, '/api/hls/…')); // not the token
       const p = liveVideo.play() as Promise<void> | undefined;
-      if (p && p.then) p.then(null, (e) => $('live-msg').textContent = 'The picture cannot be played (' + (e && e.name) + ').');
+      if (p && p.then) p.then(null, (e) => liveMsg('The picture cannot be played (' + (e && e.name) + ').'));
     }
   },
   hide: () => { liveVideo.pause(); liveVideo.removeAttribute('src'); liveVideo.load(); },
   onClosed: () => { add('live timed out'); overlay = null; syncOverlays(); },
 });
-liveVideo.addEventListener('error', () => { if (live.isOpen()) $('live-msg').textContent = 'The picture cannot be played.'; });
+liveVideo.addEventListener('error', () => { if (live.isOpen()) liveMsg('The picture cannot be played.'); });
+liveVideo.addEventListener('playing', () => { if (live.isOpen()) liveMsg(''); });
 
 // Photo screensaver (Session 40): after the household's idle minutes the ambient view of the photo widget's album opens over
 // whatever is showing; the first key closes it and is not acted on, so Sofa Home is back where it was.
