@@ -110,15 +110,29 @@ export function render(v: View): void {
     const clip = 'img/unicorn-goodnight-' + forestFor(new Date());
     ($('done-still') as HTMLImageElement).src = clip + '.jpg';
     if (lastMode && lastMode !== 'done') {
-      vid.onplaying = () => (vid.style.visibility = 'visible');
-      vid.onended = () => (vid.style.visibility = 'hidden'); // the still (same last frame) takes over; the TV's video layer is toned differently from the page
+      const cv = $('done-canvas') as HTMLCanvasElement;
+      const ctx = cv.getContext('2d')!;
+      const paint = () => {
+        if (vid.paused || vid.ended) return;
+        ctx.drawImage(vid, 0, 0, 600, 600);
+        requestAnimationFrame(paint);
+      };
+      vid.onplaying = () => {
+        ctx.drawImage(vid, 0, 0, 600, 600);
+        cv.style.visibility = 'visible';
+        requestAnimationFrame(paint);
+      };
+      vid.onended = () => {
+        ctx.drawImage(vid, 0, 0, 600, 600);
+        cv.style.visibility = 'hidden'; // the still (same last frame) takes over
+      };
       vid.src = clip + '.mp4';
       vid.play();
     }
   } else if (v.mode !== 'done' && vid.dataset.on) {
     delete vid.dataset.on;
     vid.pause();
-    vid.style.visibility = 'hidden';
+    ($('done-canvas') as HTMLCanvasElement).style.visibility = 'hidden';
     vid.removeAttribute('src');
   }
   lastMode = v.mode;
