@@ -111,6 +111,7 @@ export function render(v: View): void {
     ($('done-still') as HTMLImageElement).src = clip + '.jpg';
     if (lastMode && lastMode !== 'done') {
       vid.onplaying = () => (vid.style.visibility = 'visible');
+      vid.onended = () => (vid.style.visibility = 'hidden'); // the still (same last frame) takes over; the TV's video layer is toned differently from the page
       vid.src = clip + '.mp4';
       vid.play();
     }
