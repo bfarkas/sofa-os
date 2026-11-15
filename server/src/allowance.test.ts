@@ -96,6 +96,27 @@ test('the clock runs only while Kids Mode is active and the TV is on, and minute
   assert.equal(k.engine.status().active, false);
 });
 
+test('ending early from Companion runs the same goodbye as running out: the TV is told, Sofa Home to the front, then off', async () => {
+  const k = setup();
+  let signals = 0;
+  k.engine.onChange(() => signals++);
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(600);
+  signals = 0;
+  k.engine.end();
+  assert.equal(k.engine.status().remainingSeconds, 0);
+  assert.equal(signals, 1, 'the TV hears at once that the time is up');
+  await k.watch(5);
+  assert.deepEqual(k.writes(), ['launch', 'off']);
+  assert.equal(k.notifies().length, 0, 'no minutes-left warning on the way out');
+  assert.equal(k.engine.status().donePending, true);
+  k.engine.end();
+  assert.equal(k.engine.status().usedSeconds, 40 * 60, 'a second end changes nothing');
+  k.engine.topUp(10, 'companion');
+  assert.equal(k.engine.status().remainingSeconds, 600, 'a Top-up brings the time back');
+});
+
 test('TV off while counting: the clock stops at the first off reading and keeps the minutes', async () => {
   const k = setup();
   k.engine.observe('on');
@@ -423,10 +444,10 @@ test('the change signal fires on Kids Mode changes, not on every reading', async
   assert.equal(n, 1);
   k.engine.topUp(1, 'test');
   assert.equal(n, 2);
-  await k.watch(90); // zero
-  assert.equal(n, 3);
-  k.engine.exit();
+  await k.watch(90); // zero: once when the time is up, once when the TV is switched off
   assert.equal(n, 4);
+  k.engine.exit();
+  assert.equal(n, 5);
 });
 
 test('the state survives in SQLite across a restart, and the budget comes from the current layout', () => {

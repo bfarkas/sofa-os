@@ -138,6 +138,8 @@ The Done Screen (`tv/app/index.html:194`, shown when Kids Mode's time is up) pla
 
 **Done when:** the Done Screen waves and goes to sleep on the TV, smoothly, and the rest of Kids Mode is unchanged.
 
+**Note (2026-11-15):** today the Server switches the TV off as soon as Sofa Home is in front at zero (one 5 s tick, grace 0), so the wave and lie-down would be cut off. This session must hold the switch-off until the goodbye has played (for example a grace of about 15 s, or the TV reporting `done-shown` after the lie-down). The same applies to ending early from Companion (Session 48).
+
 ### 46 · Companion redesign: mockups
 
 **Difficulty 3 · Opus · high**
@@ -161,6 +163,12 @@ Static HTML mockups at iPhone width of all five tabs, light and dark, plus a des
 Build the picked design, framework-free as today: the tab bar, Home as status first, the phone list editor with the sideways preview, the Kids wording and the small fixes. May split into more sessions once the mockups are picked.
 
 **Done when:** every Companion page matches the picked mockups on an iPhone in light and dark, and all existing flows (sign-in, Remote, Kids top-up, Layout, Settings) still work.
+
+### 48 · End Kids Mode early from Companion
+
+**Difficulty 1 · Sonnet · low · Server · Companion** (the user's request, 2026-11-15)
+
+**Built (2026-11-15), NOT yet seen on the TV:** Companion → Kids Mode → "End Kids Mode time now" (asks to confirm, disabled when Kids Mode is off or already at zero) calls `POST /api/kids/end` (Companion session only; the TV gets 403). `allowance.end()` sets the used time to today's allowance, so the usual zero path runs: the TV is signalled at once (the change signal now also fires when the time reaches zero), shows the Done Screen, the Server brings Sofa Home to the front and switches the TV off, and the next power-on shows the Done Screen again. No "minutes left" warning is sent. A Top-up brings the time back, as at a natural zero. The goodbye animation itself is Session 45, which has to delay the switch-off (see its note).
 
 ## Carried over from the old plan
 

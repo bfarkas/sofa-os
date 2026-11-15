@@ -296,6 +296,10 @@ export function startServer(
       }
       return send(res, 200, (allowance.exit(), kidsStatus()));
     }
+    if (key === 'POST /api/kids/end') {
+      if (!companion) return send(res, 403, { error: 'only Companion ends Kids Mode early' } satisfies ApiError);
+      return send(res, 200, (allowance.end(), kidsStatus()));
+    }
     if (key === 'POST /api/kids/done-shown') return send(res, 200, (allowance.doneShown(), kidsStatus()));
     if (key === 'POST /api/kids/topup') {
       if (!companion) return send(res, 403, { error: 'only Companion adds a Top-up' } satisfies ApiError);

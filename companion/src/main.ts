@@ -139,6 +139,7 @@ async function refresh(): Promise<void> {
     $('kids-status').textContent = statusText(status);
     $('kids-pin-status').textContent = status.pinSet ? 'A PIN is set. The TV asks for it to leave Kids Mode.' : 'No PIN is set. The TV cannot leave Kids Mode until you set one.';
     $<HTMLButtonElement>('kids-exit').disabled = !status.active;
+    $<HTMLButtonElement>('kids-end').disabled = !status.active || status.remainingSeconds <= 0;
   } else {
     const v = topupView(status);
     $('topup-left').textContent = v.left;
@@ -244,6 +245,17 @@ $('kids-pin-set').addEventListener('click', async () => {
     await refresh();
   } catch (err) {
     result.textContent = message(err);
+  }
+});
+
+$('kids-end').addEventListener('click', async () => {
+  if (!window.confirm('End today\'s Kids Mode time now? The TV says goodbye and turns off.')) return;
+  try {
+    await call('POST', '/api/kids/end', {});
+    $('kids-result').textContent = 'Time is up. The TV is saying goodbye.';
+    await refresh();
+  } catch (err) {
+    $('kids-result').textContent = message(err);
   }
 });
 

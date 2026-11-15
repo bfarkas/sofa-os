@@ -124,12 +124,13 @@ export function createAllowance(o: AllowanceOptions) {
   let saved = o.store.load();
   const s: State = { ...INITIAL, ...(saved ? (JSON.parse(saved) as Partial<State>) : {}) };
   const listeners = new Set<() => void>();
-  const signature = () => [s.kids, s.donePending, s.topUp, s.day, s.zeroed].join();
-  let signalled = signature();
+  let signalled = '';
 
   const counting = () => s.kids && s.tv === 'on';
   const allowance = () => o.budgetSeconds() + s.topUp;
   const remaining = () => allowance() - s.used; // below 0 only during a grace period
+  const signature = () => [s.kids, s.donePending, s.topUp, s.day, s.zeroed, remaining() <= 0].join(); // reaching zero tells the TV at once
+  signalled = signature();
 
   function roll(now: number): void {
     const day = days.of(now);
@@ -241,6 +242,14 @@ export function createAllowance(o: AllowanceOptions) {
         if (!s.kids) return;
         Object.assign(s, { kids: false, donePending: false, doneAt: 0, launchAt: 0 });
         log.info('kids mode exited');
+      }),
+
+    /** An adult ends today's Kids Mode early from Companion: the clock jumps to zero, so the usual goodbye runs (Done Screen, TV off). */
+    end: () =>
+      change(() => {
+        if (!s.kids || remaining() <= 0) return;
+        Object.assign(s, { used: allowance(), warned: true }); // no "minutes left" warning on the way out
+        log.info('kids mode ended early');
       }),
 
     topUp: (minutes: number, source: string) =>
