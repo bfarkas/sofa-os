@@ -104,19 +104,30 @@ export function render(v: View): void {
   $('content').className = kids ? 'kidsview' : v.tab === 'dashboard' ? 'dashview' : '';
   $('kids-head').hidden = !kids;
   $('done').hidden = v.mode !== 'done';
-  // The sleeping still shows by default; the goodnight WebP (plays through, ends on the same picture) replaces it only when the screen changes to done while Sofa Home runs.
+  // The sleeping still shows by default. On a live switch to done, the goodnight WebP plays over a first-frame backdrop (it takes about a second to load),
+  // then the still, already loaded underneath, is uncovered, so nothing reloads at the swap. A TV that comes on at zero just shows the still.
   const still = $('done-still') as HTMLImageElement;
+  const anim = $('done-anim') as HTMLImageElement;
   if (v.mode === 'done' && !still.dataset.on) {
     still.dataset.on = '1';
-    const STILL = 'img/unicorn-goodnight-still.png';
+    still.src = 'img/unicorn-goodnight-still.png';
     if (lastMode && lastMode !== 'done') {
-      still.src = 'img/unicorn-goodnight.webp?' + Date.now(); // a new URL restarts the animation
-      // shortcut: this TV's Chromium plays a once-only WebP twice; the still is the last frame, so swap to it after one run (6.07 s).
-      stillTimer = setTimeout(() => (still.src = STILL), 6200);
-    } else still.src = STILL;
+      anim.style.background = 'url(img/unicorn-goodnight-first.png) 0 0 / 600px 600px';
+      anim.style.visibility = 'visible';
+      anim.onload = () => (anim.style.background = 'none'); // the WebP's first frame is the same picture
+      anim.src = 'img/unicorn-goodnight.webp?' + Date.now(); // a new URL restarts the animation
+      // shortcut: this TV's Chromium plays a once-only WebP twice; the still is the last frame, so uncover it after one run (6.07 s).
+      stillTimer = setTimeout(() => {
+        still.style.visibility = 'visible';
+        anim.style.visibility = 'hidden';
+      }, 6300);
+    } else still.style.visibility = 'visible';
   } else if (v.mode !== 'done' && still.dataset.on) {
     delete still.dataset.on;
     clearTimeout(stillTimer);
+    still.style.visibility = anim.style.visibility = 'hidden';
+    anim.onload = null;
+    anim.removeAttribute('src');
     still.removeAttribute('src');
   }
   lastMode = v.mode;
