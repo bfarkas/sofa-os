@@ -1,7 +1,7 @@
 // Draws the shell (shell.ts) into tv/app/index.html and shows which id has focus. No decisions are made here.
 import { drawCard } from './cards.ts';
 import type { Icons } from './icons.ts';
-import { forestFor, PAD_ROWS } from './kids.ts';
+import { PAD_ROWS } from './kids.ts';
 import { clockText, greetingText, longDateText, TABS, type Tile, type View } from './shell.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -103,37 +103,14 @@ export function render(v: View): void {
   $('content').className = kids ? 'kidsview' : v.tab === 'dashboard' ? 'dashview' : '';
   $('kids-head').hidden = !kids;
   $('done').hidden = v.mode !== 'done';
-  // The sleeping still is always there; the goodbye clip plays over it only when the screen changes to done while Sofa Home runs.
-  const vid = $('done-video') as HTMLVideoElement;
-  if (v.mode === 'done' && !vid.dataset.on) {
-    vid.dataset.on = '1';
-    const clip = 'img/unicorn-goodnight-' + forestFor(new Date());
-    ($('done-still') as HTMLImageElement).src = clip + '.jpg';
-    if (lastMode && lastMode !== 'done') {
-      const cv = $('done-canvas') as HTMLCanvasElement;
-      const ctx = cv.getContext('2d')!;
-      const paint = () => {
-        if (vid.paused || vid.ended) return;
-        ctx.drawImage(vid, 0, 0, 600, 600);
-        requestAnimationFrame(paint);
-      };
-      vid.onplaying = () => {
-        ctx.drawImage(vid, 0, 0, 600, 600);
-        cv.style.visibility = 'visible';
-        requestAnimationFrame(paint);
-      };
-      vid.onended = () => {
-        ctx.drawImage(vid, 0, 0, 600, 600);
-        cv.style.visibility = 'hidden'; // the still (same last frame) takes over
-      };
-      vid.src = clip + '.mp4';
-      vid.play();
-    }
-  } else if (v.mode !== 'done' && vid.dataset.on) {
-    delete vid.dataset.on;
-    vid.pause();
-    ($('done-canvas') as HTMLCanvasElement).style.visibility = 'hidden';
-    vid.removeAttribute('src');
+  // The sleeping still shows by default; the goodnight WebP (plays once, ends on the same picture) replaces it only when the screen changes to done while Sofa Home runs.
+  const still = $('done-still') as HTMLImageElement;
+  if (v.mode === 'done' && !still.dataset.on) {
+    still.dataset.on = '1';
+    still.src = lastMode && lastMode !== 'done' ? 'img/unicorn-goodnight.webp?' + Date.now() : 'img/unicorn-goodnight-still.png'; // a new URL restarts the animation
+  } else if (v.mode !== 'done' && still.dataset.on) {
+    delete still.dataset.on;
+    still.removeAttribute('src');
   }
   lastMode = v.mode;
   $('foot').hidden = kids || v.mode === 'done'; // the Server line is for adults

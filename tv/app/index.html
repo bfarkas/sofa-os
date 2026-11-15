@@ -135,10 +135,7 @@
   #done { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
   #done-panel { position: absolute; left: 480px; top: 150px; width: 960px; box-sizing: border-box; padding: 40px 60px 50px; border-radius: 40px; text-align: center;
     background: rgba(31, 36, 30, 0.7); color: #fffdf8; }
-  #done-clip { position: relative; width: 600px; height: 600px; margin: 0 auto; } /* the still and the clip have the panel and the forest baked in around the unicorn, so they blend in */
-  #done-clip img, #done-clip canvas { position: absolute; left: 0; top: 0; width: 600px; height: 600px; }
-  #done-video { position: absolute; left: 0; top: 0; width: 4px; height: 4px; } /* decodes only: hidden or display:none stops the TV's player */
-  #done-canvas { visibility: hidden; } /* the clip is painted here: the TV's video layer is toned differently from the page */
+  #done-panel img { width: 600px; height: 600px; } /* the still, or the goodnight WebP (plays once, then holds its last frame, which is the still) */
   #done-panel h1 { margin: 10px 0 8px; font-size: 76px; }
   #done-panel p { margin: 0 0 36px; font-size: 40px; }
   #done-panel .pill { display: inline-block; margin-right: 0; }
@@ -196,7 +193,7 @@
   <div id="content" hidden></div>
   <div id="done" hidden>
     <div id="done-panel">
-      <div id="done-clip"><img id="done-still" alt=""><video id="done-video" muted playsinline></video><canvas id="done-canvas" width="600" height="600"></canvas></div>
+      <img id="done-still" alt="">
       <h1>All done for now</h1>
       <p>See you next time.</p>
       <div class="pill" id="done:adults">Adults</div>
