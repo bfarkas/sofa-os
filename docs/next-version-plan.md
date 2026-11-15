@@ -128,6 +128,8 @@ Before the art is final, a quick test on the panel that a sprite sheet stepped b
 
 **Picked (2026-11-15):** wave A (10 frames, two gentle waves), sleep A (6 frames, 4.8 s), lie-down A (8 frames, yawn). Style is fine. **Redo before final:** wave and lie-down show an extra arm; the unicorn must wave with one of its front legs. The `steps()` smoothness test on the panel is still open.
 
+**Dreamina attempt (2026-11-16), waiting on a VIP plan:** `dreamina-canvas` (~/.local/bin, signed in) can do first+last frame video from `assets/brand/v1/kids/unicorn-welcome-v2.png` to `assets/brand/v2/candidates/unicorn-sleeping-b.png`, but every two-frame model (Seedance 2.0/2.5, Veo 3.1, Wan 3.0, HappyHorse) is VIP-only on this account; the free Seedance 1.0 Fast takes a start frame only. Canvas `a013adb2-6097-446d-83d3-af226b4ffb63` already holds both frames on flat green #00B140 (resources `df238cfa-…` first, `02c5a970-…` last) for keying out afterwards. Next: upgrade, create a `first_last_frame` video node (seedance_2.0, 1:1, 720p, 6 s), quote, run, then key out the green and cut sprite frames.
+
 **Done when:** the user has picked both clips, and the sprite sheets are in `assets/brand/v2` and `tv/app`.
 
 ### 45 · Animated unicorn: the Done Screen
