@@ -727,9 +727,17 @@ function reportVisible(): void {
 // Menu opens the focused widget's context menu like a long press, and never selects when there is none.
 // The TV's own notification banner, drawn over whatever app has the screen (Netflix too). It needs background-support="enable"
 // in config.xml, or the page is frozen while hidden. The first call asks on the TV, once, whether Sofa Home may notify.
-function showBanner(title: string, body: string): void {
+function showBanner(title: string, body: string, action?: string): void {
   if (typeof Notification === 'undefined') return;
-  const show = () => { try { new Notification(title, { body }); } catch (err) { add('notify failed ' + err); } };
+  const show = () => {
+    try {
+      const n = new Notification(title, { body });
+      // A banner has one button, OK. Pressing it reaches this page even while another app has the screen; the Server acts on it.
+      if (action) n.onclick = () => { if (liveSocket && liveSocket.readyState === 1) liveSocket.send(JSON.stringify({ type: 'notify-press', action })); };
+    } catch (err) {
+      add('notify failed ' + err);
+    }
+  };
   if (Notification.permission === 'granted') show();
   else void Promise.resolve(Notification.requestPermission()).then((p) => { if (p === 'granted') show(); });
 }

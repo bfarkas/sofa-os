@@ -56,7 +56,7 @@ export type ServerMessage =
   | { type: 'kids' } // Kids Mode or the Watch Allowance changed (enter, exit, Top-up, zero, reset): fetch GET /api/kids
   | { type: 'widgets' } // widget data changed: fetch GET /api/widgets
   | { type: 'menu' } // Phone Remote Menu: open the focused widget's context menu
-  | { type: 'notify'; title: string; body: string }; // POST /api/notify: show a system banner, over whatever app has the screen
+  | { type: 'notify'; title: string; body: string; action?: 'kids-ask' }; // POST /api/notify: show a system banner, over whatever app has the screen
 
 /** The Watch Allowance as GET /api/kids returns it. All times are whole seconds. */
 export interface KidsStatus {

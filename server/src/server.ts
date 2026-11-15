@@ -259,10 +259,7 @@ export function startServer(
       const title = typeof body?.title === 'string' ? body.title.trim() : '';
       const text = typeof body?.body === 'string' ? body.body.trim() : '';
       if (!title || title.length > 80 || text.length > 300) return send(res, 400, { error: 'title (1 to 80 characters) and an optional body (up to 300) are needed' } satisfies ApiError);
-      const data = JSON.stringify({ type: 'notify', title, body: text } satisfies ServerMessage);
-      let delivered = 0;
-      for (const ws of tvSockets) if (ws.readyState === WebSocket.OPEN) { ws.send(data); delivered++; }
-      return send(res, 200, { delivered }); // 0: Sofa Home is not running on the TV, so nothing was shown
+      return send(res, 200, { delivered: notifyTvs({ type: 'notify', title, body: text }) }); // 0: Sofa Home is not running on the TV, so nothing was shown
     }
 
     if (pathname.startsWith('/api/')) {
@@ -393,6 +390,10 @@ export function startServer(
       if (tv) {
         tvSockets.add(ws);
         phone.track(ws);
+        // OK pressed on a banner that carried an action. The only one so far asks the adults for more Kids Mode time.
+        ws.on('message', (raw) => {
+          if (String(raw).slice(0, 200) === JSON.stringify({ type: 'notify-press', action: 'kids-ask' })) void allowance.askForTime();
+        });
         ws.on('close', () => tvSockets.delete(ws));
       }
       wss.emit('connection', ws);
@@ -408,7 +409,15 @@ export function startServer(
     const data = JSON.stringify(msg);
     for (const ws of wss.clients) if (ws.readyState === WebSocket.OPEN) ws.send(data);
   }
+  /** A system banner on every connected TV; the number reached (0: Sofa Home is not running, nothing is shown). */
+  function notifyTvs(msg: Extract<ServerMessage, { type: 'notify' }>): number {
+    const data = JSON.stringify(msg);
+    let delivered = 0;
+    for (const ws of tvSockets) if (ws.readyState === WebSocket.OPEN) { ws.send(data); delivered++; }
+    return delivered;
+  }
   allowance.onChange(() => broadcast({ type: 'kids' }));
+  allowance.onWarning((minutes) => notifyTvs({ type: 'notify', title: 'Kids Mode', body: `${minutes} minute${minutes === 1 ? '' : 's'} left. Press OK to ask for more time.`, action: 'kids-ask' }));
   const heartbeat = setInterval(() => {
     for (const ws of wss.clients) {
       if (!alive.get(ws)) {

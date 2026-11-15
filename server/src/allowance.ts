@@ -13,6 +13,7 @@ export const TICK_MS = 5_000; // how often the Server reads the TV's state and a
 export const GAP_MS = 60_000; // two "on" observations further apart than this prove nothing about the time between
 export const HOLD_MS = 240_000; // Home Assistant's false "on" after a standby lasts about 2.5 minutes (live, 2026-11-09)
 export const WARN_SECONDS = 300;
+const ASK_GAP_MS = 60_000; // one ask a minute, however often OK is pressed
 export const MAX_TOPUP_MINUTES = 240;
 export const DONE_SCREEN_MS = 60_000; // how long the Done Screen may stay up on a TV that is on again at zero
 export const LAUNCH_WAIT_MS = 10_000; // at most this long between bringing Sofa Home to the front and the switch-off
@@ -126,6 +127,8 @@ export function createAllowance(o: AllowanceOptions) {
   let saved = o.store.load();
   const s: State = { ...INITIAL, ...(saved ? (JSON.parse(saved) as Partial<State>) : {}) };
   const listeners = new Set<() => void>();
+  const warningListeners = new Set<(minutes: number) => void>();
+  let askedAt = 0; // the last "the kids ask for more time" note to the phones
   let signalled = '';
 
   const counting = () => s.kids && s.tv === 'on';
@@ -201,6 +204,23 @@ export function createAllowance(o: AllowanceOptions) {
   return {
     status: () => change(),
     onChange: (fn: () => void) => listeners.add(fn),
+    /** Called with the minutes left when the 5-minute warning goes out: the Server puts a banner on the TV. */
+    onWarning: (fn: (minutes: number) => void) => warningListeners.add(fn),
+
+    /** OK was pressed on the TV's warning banner: tell the adults' phones, with the Top-up buttons. Adding time stays theirs. */
+    async askForTime(): Promise<boolean> {
+      const now = clock();
+      if (!o.ha || !s.kids || remaining() > WARN_SECONDS || now - askedAt < ASK_GAP_MS) return false;
+      askedAt = now;
+      try {
+        await o.ha.notifyAdults('The kids ask for more time.', { title: 'Sofa.OS', data: { actions: TOPUP_ACTIONS, ...(o.topUpUrl ? { url: o.topUpUrl } : {}), tag: WARNING_TAG } });
+        log.info('allowance ask sent');
+        return true;
+      } catch (err) {
+        log.warn('allowance ask failed', { err: String(err) });
+        return false;
+      }
+    },
 
     /** One reading of the TV's state from Home Assistant; null when it could not be read. */
     observe: (power: TvPower | null) =>
@@ -280,6 +300,7 @@ export function createAllowance(o: AllowanceOptions) {
       if (!s.warned && rem > 0 && rem <= WARN_SECONDS) {
         s.warned = true; // once, even if it fails: a retry would repeat it on the phone that did get it
         const minutes = Math.ceil(rem / 60);
+        for (const fn of warningListeners) fn(minutes);
         try {
           await o.ha.notifyAdults(`${minutes} minute${minutes === 1 ? '' : 's'} of Kids Mode left.`, { title: 'Sofa.OS', data: { actions: TOPUP_ACTIONS, ...(o.topUpUrl ? { url: o.topUpUrl } : {}), tag: WARNING_TAG } });
           log.info('allowance warning sent', { remainingSeconds: rem });

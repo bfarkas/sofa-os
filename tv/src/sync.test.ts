@@ -210,10 +210,11 @@ test('the Phone Remote Menu signal reaches onMenu', async () => {
 test('a notify message reaches onNotify with its title and body', async () => {
   const h = harness();
   const seen: string[] = [];
-  const sync = startSync({ ...h.options, onNotify: (title, body) => void seen.push(title + '|' + body) });
+  const sync = startSync({ ...h.options, onNotify: (title, body, action) => void seen.push(title + '|' + body + (action ? '|' + action : '')) });
   await tick();
   h.socket().h.open();
   h.socket().h.message(JSON.stringify({ type: 'notify', title: 'Doorbell', body: 'Front door' }));
-  assert.deepEqual(seen, ['Doorbell|Front door']);
+  h.socket().h.message(JSON.stringify({ type: 'notify', title: 'Kids Mode', body: '5 minutes left', action: 'kids-ask' }));
+  assert.deepEqual(seen, ['Doorbell|Front door', 'Kids Mode|5 minutes left|kids-ask']);
   sync.stop();
 });

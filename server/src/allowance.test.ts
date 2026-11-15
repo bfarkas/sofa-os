@@ -250,6 +250,29 @@ test('a reset time inside the repeated autumn hour resets once', () => {
   assert.equal(at('2026-10-25T01:30:00Z').topUpSeconds, 300, '02:30 CET does not reset again');
 });
 
+test('OK on the TV warning banner asks the phones for more time: only in the last five minutes, once a minute, and adds none', async () => {
+  const k = setup({ minutes: 10 });
+  const warned: number[] = [];
+  k.engine.onWarning((m) => warned.push(m));
+  assert.equal(await k.engine.askForTime(), false, 'not in Kids Mode');
+  k.engine.observe('on');
+  k.engine.enter();
+  await k.watch(295);
+  assert.equal(await k.engine.askForTime(), false, 'more than five minutes left');
+  await k.watch(5);
+  assert.deepEqual(warned, [5], 'the TV banner goes out with the phone warning');
+  const before = k.engine.status().remainingSeconds;
+  assert.equal(await k.engine.askForTime(), true);
+  assert.equal(await k.engine.askForTime(), false, 'a second press within the minute');
+  const asks = k.notifies().slice(2);
+  assert.deepEqual(asks.map((c) => c.path), ['/api/services/notify/mobile_app_a', '/api/services/notify/mobile_app_b']);
+  assert.equal(asks[0].body.message, 'The kids ask for more time.');
+  assert.deepEqual(asks[0].body.data.actions.map((x: { action: string }) => x.action), ['SOFA_TOPUP_5', 'SOFA_TOPUP_10', 'SOFA_TOPUP_CUSTOM']);
+  assert.equal(k.engine.status().remainingSeconds, before, 'the press adds no time');
+  await k.watch(60);
+  assert.equal(await k.engine.askForTime(), true, 'again a minute later');
+});
+
 test('the 5-minute warning is sent once to both phones, and again after a Top-up', async () => {
   const k = setup({ minutes: 10 });
   k.engine.observe('on');
