@@ -18,6 +18,7 @@ let cards: Record<string, Tile> = {}; // its widget tiles, redrawn on their own 
 let mode: View['mode'] = 'signin';
 let lastMode: View['mode'] | null = null;
 let stillTimer: ReturnType<typeof setTimeout> | undefined;
+let welcomeTimer: ReturnType<typeof setTimeout> | undefined;
 let tab = '';
 let focusId: string | null = null;
 let icons: Icons | undefined; // the app icons (icons.ts); without them every app shows its letter
@@ -96,6 +97,22 @@ function tileEl(t: Tile): HTMLElement {
   return el;
 }
 
+/** Ends the unicorn's arrival early (main.ts: any remote key). False when it is not playing. */
+export function skipWelcome(): boolean {
+  if ($('welcome').hidden) return false;
+  endWelcome();
+  return true;
+}
+
+function endWelcome(): void {
+  clearTimeout(welcomeTimer);
+  const anim = $('welcome-anim') as HTMLImageElement;
+  anim.onload = null;
+  anim.removeAttribute('src');
+  $('welcome').hidden = true;
+  if (mode === 'kids') $('content').hidden = $('kids-head').hidden = false;
+}
+
 export function render(v: View): void {
   mode = v.mode;
   const kids = v.mode === 'kids';
@@ -104,6 +121,18 @@ export function render(v: View): void {
   $('content').className = kids ? 'kidsview' : v.tab === 'dashboard' ? 'dashview' : '';
   $('kids-head').hidden = !kids;
   $('done').hidden = v.mode !== 'done';
+  // Picking Kids Mode from home: the unicorn runs in, waves, beckons and makes a heart on the bare forest, then the tiles show.
+  if (kids && lastMode === 'home') {
+    const welcome = $('welcome');
+    const anim = $('welcome-anim') as HTMLImageElement;
+    welcome.style.backgroundImage = ''; // the CSS first frame covers the second or so the WebP takes to load
+    welcome.hidden = false;
+    anim.onload = () => (welcome.style.backgroundImage = 'none'); // the WebP's frames are transparent around the unicorn
+    anim.src = 'img/unicorn-arrival.webp?' + Date.now(); // a new URL restarts the animation
+    // shortcut: this TV's Chromium plays a once-only WebP twice, so the clip is cut after one run (211 frames at 67 ms, 14.14 s).
+    welcomeTimer = setTimeout(endWelcome, 14300);
+  } else if (!kids && !$('welcome').hidden) endWelcome();
+  if (!$('welcome').hidden) $('content').hidden = $('kids-head').hidden = true;
   // The sleeping still shows by default. On a live switch to done, the goodnight WebP plays over a first-frame backdrop (it takes about a second to load),
   // then the still, already loaded underneath, is uncovered, so nothing reloads at the swap. A TV that comes on at zero just shows the still.
   const still = $('done-still') as HTMLImageElement;

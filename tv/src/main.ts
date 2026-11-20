@@ -12,7 +12,7 @@ import { drawQr } from './qr.ts';
 import { createShell, type Activation, type Tab, type WidgetKind } from './shell.ts';
 import { dashed, normalizeServer, SERVER_KEY, startSignIn, TOKEN_KEY, type SignInState } from './signin.ts';
 import { KIDS_STORAGE_KEY, snapshotFetcher, startSync, STORAGE_KEY, type SyncState } from './sync.ts';
-import { initView, redrawCards, render, renderPad, setFocus, setKidsLeft, updateClock } from './view.ts';
+import { initView, redrawCards, render, renderPad, setFocus, setKidsLeft, skipWelcome, updateClock } from './view.ts';
 import { cardOptions, drawCard, setWidgetsState, viewFor } from './cards.ts';
 import { albumOfCard, authedGet, backgroundImage, fetchImages, startAlbums } from './photos.ts';
 import { createPhotoView } from './photoview.ts';
@@ -101,6 +101,10 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       endTyping();
     }
+    return;
+  }
+  if (skipWelcome()) { // any key ends the unicorn's arrival and does nothing else; its keyup is ignored by keys.ts
+    e.preventDefault();
     return;
   }
   if (remote.down(e.keyCode)) e.preventDefault();
