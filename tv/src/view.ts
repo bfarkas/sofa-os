@@ -121,8 +121,9 @@ export function render(v: View): void {
   $('content').className = kids ? 'kidsview' : v.tab === 'dashboard' ? 'dashview' : '';
   $('kids-head').hidden = !kids;
   $('done').hidden = v.mode !== 'done';
-  // Picking Kids Mode from home: the unicorn runs in, waves, beckons and makes a heart on the bare forest, then the tiles show.
-  if (kids && lastMode === 'home') {
+  // A live switch into Kids Mode (picked on the Dashboard, or more time given on the Done Screen): the unicorn runs in, waves,
+  // beckons and makes a heart on the bare forest, then the tiles show. A TV that starts in Kids Mode goes straight to the tiles.
+  if (kids && (lastMode === 'home' || lastMode === 'done')) {
     const welcome = $('welcome');
     const anim = $('welcome-anim') as HTMLImageElement;
     welcome.style.backgroundImage = ''; // the CSS first frame covers the second or so the WebP takes to load
